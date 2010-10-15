@@ -1,5 +1,4 @@
 >general
-name: B2M mRNA
 genbank: b2m_mrna.gb
 primers: primers.txt
 

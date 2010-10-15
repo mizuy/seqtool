@@ -1,8 +1,9 @@
 all: output/primers.html output/b2m.html output/actb.html
+	open $+
 
 output/primers.html: example/primers.txt
 	python -m seqtool.primers $< -o $@
-	open $<
+	open $@
 
 output/b2m.html: example/b2m.seqv
 	python -m seqtool.seqview $< -o $@
@@ -19,6 +20,7 @@ clean:
 	rm -f **/*~
 	rm -f #*
 	rm -f **/*.pyc
+	rm output/*.html
 
 test:
 	nosetests

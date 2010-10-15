@@ -141,6 +141,10 @@ class GenBankAnnotated(object):
         self.template_seq['origin'] = self.seq
         self.view_end = len(self.record)
         
+        self.name = self.record.description
+
+    
+        
     def get_templates(self):
         for name,(desc,f) in self.templates.items():
             yield name, desc
@@ -427,8 +431,6 @@ class GenBankAnnotated(object):
                             self.add_primer(p)
                             print '.',
                         print 'done.'
-                elif name=='name':
-                    self.name = value
             
             elif category == ['features']:
                 self.add_pattern(name,Seq.Seq(value,IUPAC.ambiguous_dna))
@@ -500,6 +502,16 @@ def main():
         html = HtmlWriter(f)
         html.push('html')
         html.push('head')
+
+        html.push('style',type='text/css')
+        html.text(\
+'''
+.image{border: solid 1px;}
+.template{margin-left: 1em;}
+.pcr{margin-left: 4em;}
+''')
+        html.pop()
+
         html.pop()
         html.push('body')
 
@@ -509,32 +521,29 @@ def main():
             seqovw_r = bn + '__seqoverview.png'
             sequen_r = bn + '__sequence.png'
             
-            html.insert('h1','No Name' if not gba.name else gba.name)
-            
+            html.insert('h1', gba.name or 'No Name')
+
+            html.push('div',cls='image')
             if gba.has_bisulfite_sequence_result():
                 html.insertc('img',src=methyl_r,width='600px')
                 html.insertc('br')
-            
             html.push('a',href=seqovw_r)
             html.insertc('img',src=seqovw_r,width='1000px')
             html.pop()
-            html.insertc('br')
-            
-            html.insertc('br')
-            html.insertc('hr')
+
+            html.pop()
 
             for template,desc in gba.get_templates():
                 pcrs = list(gba.get_pcrs(template))
                 if not len(pcrs):
                     continue
-                html.insertc('br')
-                html.insertc('br')
-                html.insertc('hr')
-                html.insertc('hr')
+                html.push('div',cls='template')
                 html.insert('h2','PCR products, template=%s'%desc)
                 for pcr in pcrs:
-                    html.insertc('br')
+                    html.push('div',cls='pcr')
                     pcr.debugprint_html(html)
+                    html.pop()
+                html.pop()
         
             def render(func, name):
                 print 'rendering %s..'%name,
