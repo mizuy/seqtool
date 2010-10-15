@@ -1,0 +1,247 @@
+LOCUS       NM_001101               1852 bp    mRNA    linear   PRI 27-JUN-2010
+DEFINITION  Homo sapiens actin, beta (ACTB), mRNA.
+ACCESSION   NM_001101
+VERSION     NM_001101.3  GI:168480144
+KEYWORDS    .
+SOURCE      Homo sapiens (human)
+  ORGANISM  Homo sapiens
+            Eukaryota; Metazoa; Chordata; Craniata; Vertebrata; Euteleostomi;
+            Mammalia; Eutheria; Euarchontoglires; Primates; Haplorrhini;
+            Catarrhini; Hominidae; Homo.
+REFERENCE   1  (bases 1 to 1852)
+  AUTHORS   Martins-de-Souza,D., Schmitt,A., Roder,R., Lebar,M.,
+            Schneider-Axmann,T., Falkai,P. and Turck,C.W.
+  TITLE     Sex-specific proteome differences in the anterior cingulate cortex
+            of schizophrenia
+  JOURNAL   J Psychiatr Res (2010) In press
+   PUBMED   20381070
+  REMARK    GeneRIF: This protein has been found differentially expressed in
+            the anterior cingulate cortex from patients with schizophrenia
+            Publication Status: Available-Online prior to print
+REFERENCE   2  (bases 1 to 1852)
+  AUTHORS   Yoo,Y., Ho,H.J., Wang,C. and Guan,J.L.
+  TITLE     Tyrosine phosphorylation of cofilin at Y68 by v-Src leads to its
+            degradation through ubiquitin-proteasome pathway
+  JOURNAL   Oncogene 29 (2), 263-272 (2010)
+   PUBMED   19802004
+  REMARK    GeneRIF: Results suggest a novel mechanism by which cofilin is
+            regulated by v-Src through tyrosine phosphorylation that triggers
+            the degradation of cofilin through ubiquitination-proteosome
+            pathway and reducing cellular F-actin contents and cell spreading.
+REFERENCE   3  (bases 1 to 1852)
+  AUTHORS   Boratynska,A., Martyniszyn,L., Szulc,L., Krzyzowska,M.,
+            Szczepanowska,J. and Niemialtowski,M.G.
+  TITLE     Contribution of rearranged actin structures to the spread of
+            Ectromelia virus infection in vitro
+  JOURNAL   Acta Virol. 54 (1), 41-48 (2010)
+   PUBMED   20201613
+  REMARK    GeneRIF: Immunoblot analysis revealed profoundly decreased
+            beta-actin levels during Ectromelia virus infection replicative
+            cycle in the infected cells 24 hrs post infection.
+REFERENCE   4  (bases 1 to 1852)
+  AUTHORS   Dugina,V., Zwaenepoel,I., Gabbiani,G., Clement,S. and Chaponnier,C.
+  TITLE     Beta and gamma-cytoplasmic actins display distinct distribution and
+            functional diversity
+  JOURNAL   J. Cell. Sci. 122 (PT 16), 2980-2988 (2009)
+   PUBMED   19638415
+  REMARK    GeneRIF: These results reveal new aspects of beta- and gamma-actin
+            organization that support their functional diversity.
+REFERENCE   5  (bases 1 to 1852)
+  AUTHORS   Tang,J.H., Zhao,J.H., Wu,J.Z., Lu,J.W., Pan,L.Q. and Xu,Z.Y.
+  TITLE     [Establishment of a multiplex ligation-dependent SNP genotyping
+            method and its application in the detection of genes related to
+            chemotherapeutic drugs in breast cancer]
+  JOURNAL   Zhonghua Zhong Liu Za Zhi 31 (2), 108-113 (2009)
+   PUBMED   19538885
+  REMARK    GeneRIF: Observational study of gene-disease association, gene-gene
+            interaction, gene-environment interaction, and pharmacogenomic /
+            toxicogenomic. (HuGE Navigator)
+REFERENCE   6  (bases 1 to 1852)
+  AUTHORS   Horisberger,M.A.
+  TITLE     Interferon-induced human protein MxA is a GTPase which binds
+            transiently to cellular proteins
+  JOURNAL   J. Virol. 66 (8), 4705-4709 (1992)
+   PUBMED   1629950
+REFERENCE   7  (bases 1 to 1852)
+  AUTHORS   Harris,D.E., Warshaw,D.M. and Periasamy,M.
+  TITLE     Nucleotide sequences of the rabbit alpha-smooth-muscle and
+            beta-non-muscle actin mRNAs
+  JOURNAL   Gene 112 (2), 265-266 (1992)
+   PUBMED   1555776
+REFERENCE   8  (bases 1 to 1852)
+  AUTHORS   Habets,G.G., van der Kammen,R.A., Willemsen,V., Balemans,M.,
+            Wiegant,J. and Collard,J.G.
+  TITLE     Sublocalization of an invasion-inducing locus and other genes on
+            human chromosome 7
+  JOURNAL   Cytogenet. Cell Genet. 60 (3-4), 200-205 (1992)
+   PUBMED   1505215
+REFERENCE   9  (bases 1 to 1852)
+  AUTHORS   Smith,S.S., Kelly,K.H. and Jockusch,B.M.
+  TITLE     Actin co-purifies with RNA polymerase II
+  JOURNAL   Biochem. Biophys. Res. Commun. 86 (1), 161-166 (1979)
+   PUBMED   435297
+REFERENCE   10 (bases 1 to 1852)
+  AUTHORS   Vandekerckhove,J. and Weber,K.
+  TITLE     Mammalian cytoplasmic actins are the products of at least two genes
+            and differ in primary structure in at least 25 identified positions
+            from skeletal muscle actins
+  JOURNAL   Proc. Natl. Acad. Sci. U.S.A. 75 (3), 1106-1110 (1978)
+   PUBMED   274701
+COMMENT     REVIEWED REFSEQ: This record has been curated by NCBI staff. The
+            reference sequence was derived from AK130157.1 and BC009636.1.
+            This sequence is a reference standard in the RefSeqGene project.
+            On Feb 22, 2008 this sequence version replaced gi:5016088.
+            
+            Summary: This gene encodes one of six different actin proteins.
+            Actins are highly conserved proteins that are involved in cell
+            motility, structure, and integrity. This actin is a major
+            constituent of the contractile apparatus and one of the two
+            nonmuscle cytoskeletal actins. [provided by RefSeq].
+            
+            Publication Note:  This RefSeq record includes a subset of the
+            publications that are available for this gene. Please see the
+            Entrez Gene record to access additional publications.
+            COMPLETENESS: complete on the 3' end.
+PRIMARY     REFSEQ_SPAN         PRIMARY_IDENTIFIER PRIMARY_SPAN        COMP
+            1-1336              AK130157.1         1-1336
+            1337-1852           BC009636.1         71-586
+FEATURES             Location/Qualifiers
+     source          1..1852
+                     /organism="Homo sapiens"
+                     /mol_type="mRNA"
+                     /db_xref="taxon:9606"
+                     /chromosome="7"
+                     /map="7p15-p12"
+     gene            1..1852
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /note="actin, beta"
+                     /db_xref="GeneID:60"
+                     /db_xref="HGNC:132"
+                     /db_xref="HPRD:00032"
+                     /db_xref="MIM:102630"
+     exon            1..78
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=1
+     exon            79..207
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=2
+     CDS             85..1212
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /note="beta cytoskeletal actin; PS1TP5-binding protein 1"
+                     /codon_start=1
+                     /product="actin, cytoplasmic 1"
+                     /protein_id="NP_001092.1"
+                     /db_xref="GI:4501885"
+                     /db_xref="CCDS:CCDS5341.1"
+                     /db_xref="GeneID:60"
+                     /db_xref="HGNC:132"
+                     /db_xref="HPRD:00032"
+                     /db_xref="MIM:102630"
+                     /translation="MDDDIAALVVDNGSGMCKAGFAGDDAPRAVFPSIVGRPRHQGVM
+                     VGMGQKDSYVGDEAQSKRGILTLKYPIEHGIVTNWDDMEKIWHHTFYNELRVAPEEHP
+                     VLLTEAPLNPKANREKMTQIMFETFNTPAMYVAIQAVLSLYASGRTTGIVMDSGDGVT
+                     HTVPIYEGYALPHAILRLDLAGRDLTDYLMKILTERGYSFTTTAEREIVRDIKEKLCY
+                     VALDFEQEMATAASSSSLEKSYELPDGQVITIGNERFRCPEALFQPSFLGMESCGIHE
+                     TTFNSIMKCDVDIRKDLYANTVLSGGTTMYPGIADRMQKEITALAPSTMKIKIIAPPE
+                     RKYSVWIGGSILASLSTFQQMWISKQEYDESGPSIVHRKCF"
+     STS             109..361
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="PMC317352P1"
+                     /db_xref="UniSTS:273088"
+     exon            208..447
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=3
+     STS             226..327
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="PMC86716P1"
+                     /db_xref="UniSTS:273551"
+     STS             440..625
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="RI01350"
+                     /db_xref="UniSTS:463064"
+     exon            448..886
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=4
+     STS             602..1207
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="PMC109669P1"
+                     /db_xref="UniSTS:270176"
+     STS             652..1094
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="PMC26753P1"
+                     /db_xref="UniSTS:272350"
+     STS             759..1204
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="GDB:624560"
+                     /db_xref="UniSTS:158349"
+     STS             793..931
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /standard_name="REN115794"
+                     /db_xref="UniSTS:440589"
+     exon            887..1068
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=5
+     exon            1069..1812
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+                     /inference="alignment:Splign"
+                     /number=6
+     polyA_signal    1787..1792
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+     polyA_site      1812
+                     /gene="ACTB"
+                     /gene_synonym="PS1TP5BP1"
+ORIGIN      
+        1 accgccgaga ccgcgtccgc cccgcgagca cagagcctcg cctttgccga tccgccgccc
+       61 gtccacaccc gccgccagct caccatggat gatgatatcg ccgcgctcgt cgtcgacaac
+      121 ggctccggca tgtgcaaggc cggcttcgcg ggcgacgatg ccccccgggc cgtcttcccc
+      181 tccatcgtgg ggcgccccag gcaccagggc gtgatggtgg gcatgggtca gaaggattcc
+      241 tatgtgggcg acgaggccca gagcaagaga ggcatcctca ccctgaagta ccccatcgag
+      301 cacggcatcg tcaccaactg ggacgacatg gagaaaatct ggcaccacac cttctacaat
+      361 gagctgcgtg tggctcccga ggagcacccc gtgctgctga ccgaggcccc cctgaacccc
+      421 aaggccaacc gcgagaagat gacccagatc atgtttgaga ccttcaacac cccagccatg
+      481 tacgttgcta tccaggctgt gctatccctg tacgcctctg gccgtaccac tggcatcgtg
+      541 atggactccg gtgacggggt cacccacact gtgcccatct acgaggggta tgccctcccc
+      601 catgccatcc tgcgtctgga cctggctggc cgggacctga ctgactacct catgaagatc
+      661 ctcaccgagc gcggctacag cttcaccacc acggccgagc gggaaatcgt gcgtgacatt
+      721 aaggagaagc tgtgctacgt cgccctggac ttcgagcaag agatggccac ggctgcttcc
+      781 agctcctccc tggagaagag ctacgagctg cctgacggcc aggtcatcac cattggcaat
+      841 gagcggttcc gctgccctga ggcactcttc cagccttcct tcctgggcat ggagtcctgt
+      901 ggcatccacg aaactacctt caactccatc atgaagtgtg acgtggacat ccgcaaagac
+      961 ctgtacgcca acacagtgct gtctggcggc accaccatgt accctggcat tgccgacagg
+     1021 atgcagaagg agatcactgc cctggcaccc agcacaatga agatcaagat cattgctcct
+     1081 cctgagcgca agtactccgt gtggatcggc ggctccatcc tggcctcgct gtccaccttc
+     1141 cagcagatgt ggatcagcaa gcaggagtat gacgagtccg gcccctccat cgtccaccgc
+     1201 aaatgcttct aggcggacta tgacttagtt gcgttacacc ctttcttgac aaaacctaac
+     1261 ttgcgcagaa aacaagatga gattggcatg gctttatttg ttttttttgt tttgttttgg
+     1321 tttttttttt ttttttggct tgactcagga tttaaaaact ggaacggtga aggtgacagc
+     1381 agtcggttgg agcgagcatc ccccaaagtt cacaatgtgg ccgaggactt tgattgcaca
+     1441 ttgttgtttt tttaatagtc attccaaata tgagatgcgt tgttacagga agtcccttgc
+     1501 catcctaaaa gccaccccac ttctctctaa ggagaatggc ccagtcctct cccaagtcca
+     1561 cacaggggag gtgatagcat tgctttcgtg taaattatgt aatgcaaaat ttttttaatc
+     1621 ttcgccttaa tactttttta ttttgtttta ttttgaatga tgagccttcg tgccccccct
+     1681 tccccctttt ttgtccccca acttgagatg tatgaaggct tttggtctcc ctgggagtgg
+     1741 gtggaggcag ccagggctta cctgtacact gacttgagac cagttgaata aaagtgcaca
+     1801 ccttaaaaat gaaaaaaaaa aaaaaaaaaa aaaaaaaaaa aaaaaaaaaa aa
+//
+

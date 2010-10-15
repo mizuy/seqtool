@@ -1,0 +1,8 @@
+miscellaneous tools for molecular biology.
+
+seqview.py: render overview image of sequence, primers, bisulfite sequence results.
+bisearch.py: design primer based on primer3 algorithm.
+primers.py: calculate primer properties
+sequence.py: calculate bisulfite converted sequence
+
+
