@@ -5,11 +5,36 @@ from math import log, log10
 
 import re, operator
 
+def cpg_obs_per_exp(seq):
+    """
+    CpG islands in vertebrate genomes {Gardiner-Garden, 1987, p02206}
+    'Obs/Exp CpG' = N * 'Number of CpG' / 'Number of C' * 'Number of G'
+    where, N is the total number of nucleotide in the sequence being analyzed.
+    """
+    n = len(seq)
+    c = 0
+    g = 0
+    cpg = 0
+    for i,b in enumerate(seq):
+        b = b.upper()
+        if b=='C': c+=1
+        if b=='G': g+=1
+        if i+1<n and b=='C' and seq[i+1]=='G':
+            cpg += 1
+
+    if c*g == 0:
+        return 0
+    return 1.*n*cpg / (c*g)
+
+
+def cpg_sites(seq):
+    return [i for i in range(0,len(seq)-1) if seq[i]=='C' and seq[i+1]=='G']
+
 def base_color(n):
     return {'A':'#00FF00',
             'T':'#FF0000',
             'G':'#000000',
-            'C':'#0000FF'}[n]
+            'C':'#0000FF'}[n.upper()]
 
 def tm_gc(seq):
     gc = seq.count('G')+seq.count('C')

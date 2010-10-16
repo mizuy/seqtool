@@ -397,8 +397,8 @@ class GenBankAnnotated(object):
         for f in self.record.features:
             q = f.qualifiers
             name = f.type
-            if q.has_key('product'):
                 name += ': ' + q['product'][0] or ''
+            if q.has_key('product'):
             l_p = f.location.nofuzzy_start
             l_q = f.location.nofuzzy_end
             yy = mask.get(l_p,l_q-1)

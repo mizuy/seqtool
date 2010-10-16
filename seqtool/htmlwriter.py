@@ -1,5 +1,10 @@
 from xml.sax.saxutils import quoteattr,escape
 
+__author__ = "MIZUGUCHi Yasuhiko"
+__copyright__ = "Copyright (C) 2010 MIZUGUCHI Yasuhiko"
+__license__ = "MIT"
+__version__ = "1.0"
+
 class HtmlWriter(object):
     def __init__(self,output,xhtml=True,indent=True):
         self._indent = indent
@@ -40,7 +45,7 @@ class HtmlWriter(object):
         return attrv
 
     def _starttag(self,tag,**attrs):
-        return ' '.join([str(tag)]+['%s=%s'%(escape(self.attr_hook(str(k))),quoteattr(str(v))) for k,v in attrs.items() if k and v])
+        return ' '.join([str(tag)]+['%s=%s'%(escape(self.attr_hook(str(k))),quoteattr(str(v))) for k,v in attrs.items() if k])
 
     def _stag(self,tag,**attrs):
         self._write('<%s>'%self._starttag(tag,**attrs))
@@ -91,92 +96,6 @@ class HtmlWriter(object):
         self._write(escape(text))
         self._etag(tag)
         self._nl()
-
-
-class WikiWriter(HtmlWriter):
-    def __init__(self,output,xhtml=True):
-        super(WikiWriter,self).__init__(output,xhtml)
-        self.slink = 0
-
-    def _stag(self,tag,**attrs):
-        if tag.strip().lower()=='a':
-            self.slink+=1
-            if self.slink>1:
-                return
-        super(WikiWriter,self)._stag(tag,**attrs)
-
-    def _etag(self,tag):
-        if tag.strip().lower()=='a':
-            self.slink -= 1
-            if self.slink>0:
-                return
-        super(WikiWriter,self)._etag(tag)
-
-    # utility functions
-    def hr(self):
-        self.insertc('hr')
-    def br(self):
-        self.insertc('br')
-        
-    def hr_full(self):
-        self.insertc('hr',cls='full')
-
-    def meta(self,name,content):
-        self.insertc('meta',name=name,content=content)
-
-    def a(self,text,href,**attrs):
-        attrs.update(href=href)
-        self.insert('a',text,**attrs)
-
-    def aimg(self,url,img,title,width=None,height=None):
-        self.push('a',href=img)
-        self.img(img,title,width,height)
-        self.pop()
-
-    def _style(self,width=None,height=None):
-        r = ''
-        if width:
-            r += 'width:%s;'%width
-        if height:
-            r += 'height:%s;'%height
-        return r;
-
-    def img(self,img,title,width=None,height=None):
-        self.insertc('img',src=img,alt=title,title=title,style=self._style(width,height))
-
-    def space(self):
-        self.writel('&nbsp;')
-
-    def empathis(self,text):
-        self.insert('span',text,cls='empathis')
-    def underline(self,text):
-        self.insert('span',text,cls='underline')
-    def deleteline(self,text):
-        self.insert('span',text,cls='deleteline')
-
-    def link_edit(self,link_command):
-        self.a('[EDIT]',href=link_command,cls='link_edit')
-        # link_command are not to be escaped.
-        # self.insert('a','[EDIT]','href="%s"'%link_command,cls='link_edit')
-        
-    def link_wiki(self,text,href):
-        self.a(text,href=href,cls='wiki')
-    def link_wikinotfound(self,text,href):
-        self.a(text,href=href,cls='wikinotfound')
-    def link_footnote(self,text,href,iden=None):
-        self.a(text,href=href,cls='footnote',iden=iden)
-    def link_external(self,text,href):
-        self.a(text,href=href,cls='external')
-    def anchor(self,name,aname):
-        self.a(name,href='#'+aname,id=aname)
-
-    def errormsg(self,msg):
-        self.br()
-        self.insert('span','ERROR: '+msg,cls='error')
-        self.br()
-
-    def insert_comment_box(self,name,value=""):
-        self.insertc('input',type='text', name=name, size="70", value=value)
 
 class ListWriter:
     def __init__(self,htmlwriter):
@@ -251,6 +170,49 @@ class OUListWriter:
             for i in range(self.deep):
                 self.w.pop()
                 self.w.pop()
+
+
+class builder(object):
+    def __init__(self, writer):
+        self.w = writer
+        self.queue = None
+
+    def __getattr__(self, name):
+        self._clear_queue()
+        e = element(name, self)
+        self.queue = e
+        return e
+    __getitem__ = __getattr__
+    
+    def _clear_queue(self):
+        if self.queue:
+            self.w.insertc(self.queue.name, **self.queue.attrs)
+            self.queue = None
+
+    def text(self, text):
+        self.w.text(text)
+
+class element(object):
+    def __init__(self, name, builder):
+        self.name = name
+        self.builder = builder
+        self.w = builder.w
+        self.attrs = {}
+
+    def __call__(self, value=None, **kargs):
+        self.attrs.update(kargs)
+        if value:
+            with self:
+                self.w.text(value)
+        else:
+            return self
+        
+    def __enter__(self):
+        self.builder.queue = None
+        self.w.push(self.name, **self.attrs)
+    def __exit__(self, type, value, tb):
+        self.builder._clear_queue()
+        self.w.pop()
     
 if __name__=='__main__':
     import sys
@@ -290,3 +252,14 @@ if __name__=='__main__':
     w.pop()
     w.pop()
     
+    w = HtmlWriter(sys.stdout)
+    b = builder(w)
+    with b.html(hoge='hogehoge'):
+        with b.head(div='div'):
+            b.meta(name='meta name')
+        b.hoge('anana',style='hoge')
+        b.hoge('anananana')
+        b.br
+        b.hr
+        b.hoge
+
