@@ -1,4 +1,4 @@
-all: output/primers.html output/b2m.html output/actb.html
+all: output/primers.html output/b2m.html output/actb.html output/btg3.html
 	open $+
 
 output/primers.html: example/primers.txt
@@ -9,6 +9,12 @@ output/b2m.html: example/b2m.seqv
 	python -m seqtool.seqview $< -o $@
 
 output/actb.html: example/actb.seqv
+	python -m seqtool.seqview $+ -o $@
+
+output/btg3.html: example/btg3.seqv
+	python -m seqtool.seqview $+ -o $@
+
+output/test.html: example/test.seqv
 	python -m seqtool.seqview $+ -o $@
 
 output/bisearch.html: example/input.fasta

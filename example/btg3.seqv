@@ -1,0 +1,20 @@
+//The candidate tumor suppressor BTG3 is a transcriptional target of p53 that inhibits E2F1
+//BTG3 tumor suppressor gene promoter demethylation, histone modification and cell cycle arrest by genistein in renal cancer
+>general
+genbank: btg3.gb
+primers: primer_btg3.txt
+
+>pcr
+CHIP: C_F, C_R
+
+BTG3-intron: BTG3-intron-FW, BTG3-intron-RV
+BTG3-promoter: BTG3-promoter-FW, BTG3-promoter-RV
+
+>bs_pcr
+BSP1: BSP_F1, BSP_R1
+BSP2: BSP_F2, BSP_R2
+
+>rt_pcr
+BTG1: BTG1-FW, BTG1-RV
+BTG2: BTG2-FW, BTG2-RV
+BTG3: BTG3-FW, BTG3-RV

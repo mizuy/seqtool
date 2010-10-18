@@ -72,6 +72,7 @@ class GenomePcrEntry(PcrEntry):
 class RtPcrEntry(PcrEntry):
     def __init__(self, name, fw, rv):
         super(RtPcrEntry,self).__init__(name, fw, rv)
+
     @property
     def description(self):
         return self.name + ' (RT-PCR)'
@@ -79,6 +80,7 @@ class RtPcrEntry(PcrEntry):
 class BsPcrEntry(PcrEntry):
     def __init__(self, name, fw, rv):
         super(BsPcrEntry,self).__init__(name, fw, rv)
+
     @property
     def description(self):
         return self.name + ' (Bisulfite PCR)'
@@ -369,7 +371,6 @@ class SeqvFileEntry(object):
         transcript_r = svg_prefix + '_transcript.svg'
         bsp_r = svg_prefix + '_bsp.svg'
 
-
         b.h1(self.description)
         with b.div(**{'class':'images'}):
             b.h2('images')
@@ -381,8 +382,9 @@ class SeqvFileEntry(object):
                 with b.a(href=transcript_r):
                     b.img(src=transcript_r,width='1000px')
                 b.h3('bsp overview')
-                with b.a(href=bsp_r):
-                    b.img(src=bsp_r,width='1000px')
+                b.text('Not Implemented Yet')
+                #with b.a(href=bsp_r):
+                #b.img(src=bsp_r,width='1000px')
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
