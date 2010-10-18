@@ -4,7 +4,6 @@ from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 
-from .seqview import load_primer_list_file
 from .htmlwriter import HtmlWriter
 from .nucleotide import tm_gc
 
@@ -40,6 +39,7 @@ def primer_table_html(html, primers):
     html.pop()
 
 def main():
+    from .seqview import load_primer_list_file
     import sys, os
     from optparse import OptionParser
 

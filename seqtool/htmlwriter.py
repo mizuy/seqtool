@@ -192,6 +192,9 @@ class builder(object):
     def text(self, text):
         self.w.text(text)
 
+    def get_writer(self):
+        return self.w
+
 class element(object):
     def __init__(self, name, builder):
         self.name = name

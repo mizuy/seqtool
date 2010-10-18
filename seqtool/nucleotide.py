@@ -229,6 +229,14 @@ class Annealing:
         else:
             return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
 
+    def write_html(self, w):
+        w.push('div',style='annealing')
+        w.push('p','pea=%s, index=%s'%(pea.score,self.index))
+        w.push('pre')
+        w.text('\n'.join(self.get_bar()))
+        w.pop()
+        w.pop()
+
 _nnt_dh = {
     'AA': 9.1,
     'TT': 9.1,
@@ -346,10 +354,63 @@ class PCRProduct:
     def __str__(self):
         return str(self.seq)
     def detectable_cpg(self):
-        assert len(self.cpg_sites())==count_cpg(self.template[self.start_i:self.end_i+1]), '%s, %s'%(len(self.cpg_sites()),count_cpg(self.template[self.start_i:self.end_i+1]))
-        return count_cpg(self.template[self.start_i:self.end_i+1])
+        return len(self.cpg_sites())
     def cpg_sites(self):
         return [i for i in range(self.start_i, self.end_i) if self.template[i]=='C' and self.template[i+1]=='G']
+
+    def write_html(self, w):
+        w.push('div')
+        cpg = count_cpg(self.seq)
+        w.text('length=%d, CpG=%d, detectable CpG=%d'%(len(self), cpg, self.detectable_cpg()))
+        w.insertc('br')
+
+        seqstr = self.seq
+
+        s = self.start
+        style = [[0,0,0] for i in range(len(seqstr))]
+        for i in range(0,self.start_i-s):
+            style[i][0]=1
+        for i in range(self.end_i-s, self.end-s):
+            style[i][1]=1
+        j = 0
+        while 1:
+            j = seqstr.find('CG', j)
+            if j<0:
+                break
+            style[j][2]=1
+            style[j+1][2]=1
+            j += 1
+
+        colors = [[0,200,0], [0,0,200], [255,0,0]]
+        product = lambda m:reduce(operator.mul,m,1)
+
+        w.push('pre')
+        i = 0
+        length = len(seqstr)
+        for i in range(0,length,100):
+            w.write('<span style="color:#000">%4d: </span>'%i)
+            oldcol = None
+            for ii in range(i,min(i+100,length),10):
+                for iii in range(ii,min(ii+10,length),1):
+                    color = '#%02x%02x%02x'%tuple(sum(map(product,zip(style[iii],col))) for col in zip(*colors))
+                    if oldcol!=color:
+                        if oldcol:
+                            w.write('</span>')
+                        w.write('<span style="color:%s">'%color)
+                        oldcol = color
+                    w.write(seqstr[iii])
+                w.write(' ')
+            w.write('\n')
+            if oldcol:
+                w.write('</span>')
+        w.pop()
+
+        
+        w.push('textarea', cols='10', rows='1', cls='copybox')
+        w.write(str(seqstr))
+        w.pop()
+
+        w.pop()
 
 class PrimerPair(object):
     def __init__(self, fw, rv):
@@ -401,7 +462,38 @@ class PrimerPair(object):
         print 'pea=%s, index=%s'%(pea.score,pea.index)
         print '\n'.join(pea.get_bar())
 
-        
+    def write_html(self, w):
+        pa = self.pair_annealing()
+        pea = self.pair_end_annealing()
+        score = self.score()
+
+        # primer table
+        w.push('div',cls='primerpair')
+
+        w.push('table',cls='primerpairtable',border=1)
+        pt = ['name', 'sequence', 'length[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.', 'pa.', 'pea.', 'pair score']
+        w.push('tr')
+        for p in pt:
+            w.insert('th',p)
+        w.pop()
+        for r in [self.fw, self.rv]:
+            sa = r.self_annealing()
+            sea = r.self_end_annealing()
+            vt = [r.name, "5'-%s-3'"%r.seq, len(r),
+                  '%.2f'%r.melting_temperature(),
+                  '%.2f'%r.melting_temperature(unmethyl=False),
+                  tm_gc(r.seq),
+                  '%.2f'%r.gc_ratio(), 
+                  sa.score, sea.score, pa.score, pea.score, 
+                  '%.2f'%score]
+            w.push('tr')
+            for v in vt:
+                w.insert('td',str(v))
+            w.pop()
+        w.pop()
+
+        w.insert('p','Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
+        w.pop()
 
 class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
@@ -409,6 +501,14 @@ class PCR:
         self.template = template
         self.primers = PrimerPair(primer_fw,primer_rv)
         self.products = None
+
+    @property
+    def fw(self):
+        return self.primers.fw
+    @property
+    def rv(self):
+        return self.primers.rv
+
     def get_products(self):
         if not self.products:
             self.products = self._calc_products()
@@ -449,101 +549,16 @@ class PCR:
             print 'product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg())
             print c.seq
 
-    def debugprint_html(self, w):
-        # instanceof(f, HtmlWriter)
-        w.insertc('hr')
+    def write_html(self, w):
         w.push('div')
-        w.push('h2')
-        w.text(self.name)
-        w.pop()
+        w.insert('h2', self.name)
 
-        w.text('primer score: %s'%self.primer_score())
-        
-        # primer table
-        w.push('table',cls='primer',border=1)
-        pt = ['name', 'sequence', 'length[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa', 'sea']
-        w.push('tr')
-        for p in pt:
-            w.insert('th',p)
-        w.pop()
-        for r in [self.primers.fw, self.primers.rv]:
-            sa = r.self_annealing()
-            sea = r.self_end_annealing()
-            vt = [r.name, "5'-%s-3'"%r.seq, len(r),
-                  '%.2f'%r.melting_temperature(), '%.2f'%r.melting_temperature(unmethyl=False), tm_gc(r.seq),
-                  '%.2f'%r.gc_ratio(), sa.score, sea.score]
-            w.push('tr')
-            for v in vt:
-                w.insert('td',str(v))
-            w.pop()
-        w.pop()
-
-        # pa, pea
-        pa = self.pair_annealing()
-        w.insert('h5','pa=%s, index=%s'%(pa.score,pa.index))
-        w.push('pre')
-        w.text('\n'.join(pa.get_bar()))
-        w.pop()
-        pea = self.pair_end_annealing()
-        w.insert('h5','pea=%s, index=%s'%(pea.score,pea.index))
-        w.push('pre')
-        w.text('\n'.join(pea.get_bar()))
-        w.pop()
-        
-        # pcr
+        self.primers.write_html(w)
+        #self.pair_annealing().write_html(w)
+        #self.pair_end_annealing().write_html(w)
         for c in self.get_products():
-            w.push('div')
-            w.text('product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg()))
-            w.insertc('br')
-
-            seqstr = c.seq
-
-            s = c.start
-            style = [[0,0,0] for i in range(len(seqstr))]
-            for i in range(0,c.start_i-s):
-                style[i][0]=1
-            for i in range(c.end_i-s, c.end-s):
-                style[i][1]=1
-            j = 0
-            while 1:
-                j = seqstr.find('CG', j)
-                if j<0:
-                    break
-                style[j][2]=1
-                style[j+1][2]=1
-                j += 1
-
-            colors = [[0,200,0], [0,0,200], [255,0,0]]
-            product = lambda m:reduce(operator.mul,m,1)
-
-            w.push('pre')
-            i = 0
-            length = len(seqstr)
-            for i in range(0,length,100):
-                w.write('<span style="color:#000">%4d: </span>'%i)
-                oldcol = None
-                for ii in range(i,min(i+100,length),10):
-                    for iii in range(ii,min(ii+10,length),1):
-                        color = '#%02x%02x%02x'%tuple(sum(map(product,zip(style[iii],col))) for col in zip(*colors))
-                        if oldcol!=color:
-                            if oldcol:
-                                w.write('</span>')
-                            w.write('<span style="color:%s">'%color)
-                            oldcol = color
-                        w.write(seqstr[iii])
-                    w.write(' ')
-                w.write('\n')
-                if oldcol:
-                    w.write('</span>')
-            w.pop()
-            
-            w.push('textarea', cols='100', rows='3')
-            w.write(str(seqstr))
-            w.pop()
-
-            w.pop()
+            c.write_html(w)
         w.pop()
-
 
 def print_html_sequence(w,seq):
     colors = [[0,200,0], [0,0,200], [255,0,0]]

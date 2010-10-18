@@ -9,20 +9,41 @@ from StringIO import StringIO
 from seqtool.seqcanvas import SeqCanvas, SeqCanvasOverview, Point
 from seqtool.nucleotide import Primer, PCR, bisulfite, is_cpg, search_primer, tm_gc, count_cpg, is_repeat, base_color, cpg_sites, cpg_obs_per_exp
 
+# calc free space
+class FreeSpace(object):
+    def __init__(self):
+        self.lines = []
+
+    def set(self, start, end):
+        if start > end:
+            raise ValueError('start=%s, end=%s, not start>end'%(start,end))
+
+        for lineno, l in enumerate(self.lines):
+            # if there is no common region, return this line
+            #if all(max(start, s) > min(end, e) for s,e in l):
+            if all(end<s or e<start for s,e in l):
+                l.append((start,end))
+                return lineno
+        # new line
+        self.lines.append([(start,end)])
+        return len(self.lines)-1
+
+    def num_lines(self):
+        return len(self.lines)+1
+
 class TrackBase(object):
     @property
     def name(self):
-        return 'no name'
-
-class TrackGroup(TrackBase):
-    def __init__(self, name):
-        self.name_ = name
-        self.tracks = []
-        self.ymargin = 4
+        return ''
 
     @property
-    def name(self):
-        return self.name_
+    def name_length(self):
+        return len(self.name)
+
+class TrackGroup(TrackBase):
+    def __init__(self):
+        self.tracks = []
+        self.ymargin = 4
 
     def __iter__(self):
         return iter(self.tracks)
@@ -40,7 +61,9 @@ class TrackGroup(TrackBase):
         return sum(i.height + self.ymargin for i in self)
     @property
     def name_length(self):
-        return sum(len(i.name) for i in self)
+        if len(self.tracks) == 0:
+            return 0
+        return max(i.name_length for i in self)
 
     def __str__(self):
         "TrackGroup(%s, %s"%(self.name, ','.join(i for i in self))
@@ -53,18 +76,19 @@ class TrackGroup(TrackBase):
             y += (i.height + self.ymargin)
 
     def svg(self, dst_width=None):
+        padding_right = 20
+
         width = self.width
         height = self.height
 
-        nl = (self.name_length+1)*7.0
+        nl = (self.name_length+1)*6.0
 
         if not dst_width:
-            dst_width = nl + width
+            dst_width = nl + width + padding_right
         dst_height = height
-
             
-        scalex = (dst_width-nl)/width
-        view_w = nl/scalex + width
+        scalex = (dst_width-nl-padding_right)/width
+        view_w = (nl+padding_right)/scalex + width
         view_h = height
 
         trans_sx = dst_width/view_w
@@ -94,7 +118,7 @@ class Track(TrackBase):
         self.scale = (1., 1.)
 
     def draw(self, b, scale):
-        print "drawing %s"%self.name
+        print "drawing %s: %s"%(self.__class__.__name__,self.name)
         self.text(b, self.name, x=-5*scale[0], y=8, anchor='end', scale=scale)
         
     def _sty(self, color):
@@ -133,10 +157,104 @@ class NamedTrack(Track):
     def name(self):
         return self.name_
 
+
+"""
+misc
+"""
+class HbarTrack(NamedTrack):
+    def __init__(self, name, length):
+        super(HbarTrack, self).__init__(name, length, 5)
+
+    def draw(self, b, scale):
+        super(HbarTrack, self).draw(b, scale)
+        self.draw_hbar(b, 0, self.width, 2, 2, color='black')
+
+class MeasureTrack(Track):
+    def __init__(self, length, zero, step):
+        super(MeasureTrack, self).__init__(length, 18)
+        self.length = length
+        self.zero = zero
+        self.step = step
+        
+    def draw(self, b, scale):
+        for i in range(0, self.length, self.step):
+            self.draw_vline(b, i, 10, 15, color='black', scale=scale)
+            self.text(b, str(i), x=i-5, y=10, color='black', anchor='middle', scale=scale)
+
+
+
+"""
+sequences
+"""
+class SequenceTrack(TrackGroup):
+    def __init__(self, seq, features):
+        super(SequenceTrack, self).__init__()
+        self.seq = seq
+        self.features = features
+        self.length = len(self.seq)
+
+        msize = 500*(max(1,int(self.length/10)/500))
+
+        self.add(MeasureTrack(self.length, 0, msize))
+        self.add(CpgBarTrack(self.seq))
+        self.add(CpgObsPerExpTrack(self.seq))
+        self.add(GcPercentTrack(self.seq))
+        #self.add(SequenceTrack(self.seq))
+        for f in self.features:
+            self.add(FeatureTrack(f))
+
+    def draw(self, b, scale):
+        super(SequenceTrack, self).draw(b, scale)
+
+class TranscriptTrack(TrackGroup):
+    def __init__(self, name, seq, feature):
+        super(TranscriptTrack, self).__init__()
+        self.seq = seq
+        self.length = len(self.seq)
+
+        msize = 500*(max(1,int(self.length/10)/500))
+
+        self.add(MeasureTrack(self.length, 0, msize))
+        self.add(ExonTrack(name, feature))
+
+    def draw(self, b, scale):
+        super(TranscriptTrack, self).draw(b, scale)
+
+class ExonTrack(NamedTrack):
+    def __init__(self, name, feature):
+        super(ExonTrack,self).__init__(name, 0, 10)
+        self.feature = feature
+    def draw(self, b, scale):
+        super(ExonTrack,self).draw(b,scale)
+        def loc_len(loc):
+            return loc.nofuzzy_end - loc.nofuzzy_start
+        exons = [loc_len(sf.location) for sf in self.feature.sub_features]
+
+        count = 0
+        for e in exons:
+            self.draw_vline(b, count, 0, 10, color='black')
+            count += e
+        self.draw_vline(b, count, 0, 10, color='black')
+        self.draw_hline(b, 0, count, 5, color='black')
+
 class FeatureTrack(NamedTrack):
     def __init__(self, feature):
         self.feature = feature
-        super(FeatureTrack, self).__init__(self.feature.type)
+        t = self.feature.type
+        try:
+            if t in ['CDS','mRNA']:
+                name = "%s: %s"%(t,self.feature.qualifiers['product'][0])
+            elif t=='gene':
+                name = '"%s" gene'%self.feature.qualifiers['gene'][0]
+            elif t=='source':
+                organ = self.feature.qualifiers['organism'][0]
+                ch = self.feature.qualifiers['chromosome'][0]
+                name = '%s chromosome %s'%(organ,ch)
+            else:
+                name = t
+        except KeyError:
+            name = self.feature.type
+        super(FeatureTrack, self).__init__(name)
 
     def draw(self, b, scale):
         super(FeatureTrack, self).draw(b, scale)
@@ -147,13 +265,14 @@ class FeatureTrack(NamedTrack):
             self.draw_hbar(b, sf.location.nofuzzy_start, sf.location.nofuzzy_end, self.height/2, 4, color='blue')
 
 
-class SequenceTrack(NamedTrack):
+
+class AtgcColorTrack(NamedTrack):
     def __init__(self, seq):
-        super(SequenceTrack, self).__init__('sequence',len(seq))
+        super(AtgcColorTrack, self).__init__('ATGC',len(seq))
         self.seq = seq
 
     def draw(self, b, scale):
-        super(SequenceTrack, self).draw(b, scale)
+        super(AtgcColorTrack, self).draw(b, scale)
         s = str(self.seq)
         for i,c in enumerate(self.seq):
             color = base_color(c)
@@ -172,16 +291,15 @@ class CpgBarTrack(NamedTrack):
         for i in self.cpg:
             self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
             
-
 def window_search(seq, window, step=1):
     h = int(window/2)
     l = len(seq)
     for i in xrange(0,l,step):
-        yield i, seq[i-h:i+h]
+        yield i, seq[max(0,i-h):min(i+h,l)]
 
 class SeqWindowGraphTrack(NamedTrack):
     def __init__(self, seq, name, calc, maxvalue, window, threshold):
-        super(SeqWindowGraphTrack, self).__init__(name,len(seq),10)
+        super(SeqWindowGraphTrack, self).__init__(name,len(seq),20)
         self.seq = seq
         self.window = window
         self.threshold=threshold
@@ -204,19 +322,41 @@ class SeqWindowGraphTrack(NamedTrack):
         b.polyline(points=points, stroke='black', fill='none')
 
         t = trans(self.threshold)
-        b.line(x1=0, y1=t, x2=l, y2=t, stroke='red')(**{'stroke-width':0.1,'stroke-dasharray':'30,10'})
-    
+        b.line(x1=0, y1=t, x2=l, y2=t, stroke='red')(**{'stroke-width':0.5,'stroke-dasharray':'30,10'})
 
 class GcPercentTrack(SeqWindowGraphTrack):
-    def __init__(self, seq, window=100):
+    def __init__(self, seq, window=200):
         f = lambda subseq: GC(subseq)/100.
         super(GcPercentTrack, self).__init__(seq, 'GC %', f, 1., window, 0.5)
 
 class CpgObsPerExpTrack(SeqWindowGraphTrack):
     def __init__(self, seq, window=200):
         f = lambda subseq: cpg_obs_per_exp(subseq)
-        super(CpgObsPerExpTrack, self).__init__(seq, 'CpG o/e', f, 1.5, window, 0.65)
-            
+        super(CpgObsPerExpTrack, self).__init__(seq, 'Obs/Exp CpG', f, 1.5, window, 0.65)
+
+"""
+pcrs
+"""
+class PcrsTrack(NamedTrack):
+    def __init__(self, name, pcrs):
+        self.pcrs = []
+        fs = FreeSpace()
+        for pcr in pcrs:
+            for p in pcr.get_products():
+                y = fs.set(p.start, p.end)
+                self.pcrs.append( (pcr.name, p, y*20) )
+        super(PcrsTrack, self).__init__(name, 0, 20*fs.num_lines())
+
+    def draw(self, b, scale):
+        super(PcrsTrack, self).draw(b, scale)
+        for name, p, y in self.pcrs:
+            self.draw_hbar(b, p.start, p.start_i, y, 4, color='red')
+            self.draw_hbar(b, p.start_i, p.end_i, y,4, color='gray')
+            self.draw_hbar(b, p.end_i, p.end, y, 4, color='blue')
+            m = (p.start+p.end)/2.
+            self.text(b, name, x=m, y=y+11, color='black', anchor='middle', scale=scale)
+
+
 class PcrTrack(NamedTrack):
     def __init__(self, pcr):
         super(PcrTrack, self).__init__(pcr.name, 0, 20)
@@ -231,19 +371,67 @@ class PcrTrack(NamedTrack):
             
             self.text(b, self.pcr.name, x=(p.start+p.end)/2, y=18, color='black', anchor='middle', scale=scale)
 
-class MeasureTrack(Track):
-    def __init__(self, length, zero, step):
-        super(MeasureTrack, self).__init__(length, 18)
-        self.length = length
-        self.zero = zero
-        self.step = step
-        
+
+"""
+primers
+"""
+class PrimersTrack(Track):
+    def __init__(self, primers, template):
+        fs = FreeSpace()
+        self.primers = []
+        for p in primers:
+            f,r = search_primer(p.seq, template)
+            for ff in f:
+                start,end = ff, ff+len(p)-1
+                y = fs.set(start,end)
+                self.primers.append( (p.name, start, end, y, True) )
+            for rr in r:
+                start,end = rr, rr+len(p)-1
+                y = fs.set(start,end)
+                self.primers.append( (p.name, start, end, y, False) )
+            
+        super(PrimersTrack, self).__init__(0, fs.num_lines() * 20)
+
     def draw(self, b, scale):
-        for i in range(0, self.length, self.step):
-            self.draw_vline(b, i, 10, 15, color='black', scale=scale)
-            self.text(b, str(i), x=i-5, y=10, color='black', anchor='middle', scale=scale)
+        super(PrimersTrack, self).draw(b, scale)
 
+        for name, start, end, y, forward in self.primers:
+            self.draw_hbar(b, start, end, y*20, 3, color = '#f00' if forward else '#00f')
+            self.text(b, name, x=(start+end)/2., y=y*20+10, color='black', anchor='middle',scale=scale)
 
+class PrimerTrack(NamedTrack):
+    def __init__(self, name, primer):
+        super(PrimerTrack, self).__init__(primer.name, 0, 10)
+        self.primer = primer
+    def draw(self, b, scale):
+        super(PrimerTrack, self).draw(b, scale)
+
+        def d(start, end, forward=True):
+            self.draw_hbar(b, start, end, 5, color = '#f00' if forward else '#00f')
+            
+        f,r = search_primer(p.seq, template)
+        for ff in f:
+            draw(ff, ff+len(p)-1, True)
+        for rr in r:
+            draw(rr, rr+len(p)-1, False)
+
+class BisulfiteSequenceTrack(NamedTrack):
+    def __init__(self, name, bsp_map, start, end):
+        super(BisulfiteSequenceTrack, self).__init__(name, 0, 10)
+        self.bsp_map = bsp_map
+        self.start = start
+        self.end = end
+
+    def draw(self, b, scale):
+        super(BisulfiteSequenceTrack, self).draw(b, scale)
+
+        color = {'M':'#F00','U':'#00F','P':'#AA0'}
+        
+        self.draw_hline(b, self.start, self.end, 5, color='black')
+        for index, result in self.bsp_map:
+            if result != '?':
+                self.draw_vline(b, index, 0, 10, color=color[result])
+    
 class SeqView(object):
     def __init__(self, genbank):
         self.genbank = genbank
@@ -258,26 +446,9 @@ class SeqView(object):
         self.pcrs.append(PCR(name, self.seq, fw, rv))
         
     def svg(self, width):
-        t = TrackGroup(self.genbank.description)
-        tt = TrackGroup('template')
-        t.add(tt)
-
-        msize = 500*(max(1,int(self.length/10)/500))
-
-        tt.add(MeasureTrack(self.length, 0, msize))
-        
-        tt.add(CpgBarTrack(self.seq))
-        tt.add(CpgObsPerExpTrack(self.seq))
-        tt.add(GcPercentTrack(self.seq))
-        #tt.add(SequenceTrack(self.seq))
-        for f in self.genbank.features:
-            tt.add(FeatureTrack(f))
-        tt = TrackGroup('pcr')
-        t.add(tt)
-        for p in self.pcrs:
-            tt.add(PcrTrack(p))
-
-        print t.width, t.height
+        t = TrackGroup()
+        t.add(SequenceTrack(self.genbank.seq, self.genbank.features))
+        t.add(PcrsTrack('genome PCR', self.length, self.pcrs))
         return t.svg(width)
 
 if __name__=='__main__':

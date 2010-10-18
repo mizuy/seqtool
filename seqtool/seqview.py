@@ -3,14 +3,25 @@ from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
 
+import os
+from seqtool import htmlwriter
+from seqtool.misc import memoize
 from seqtool.seqcanvas import SeqCanvas, SeqCanvasOverview, Point
 from seqtool.nucleotide import Primer, PCR, bisulfite, is_cpg, search_primer, tm_gc, count_cpg, is_repeat, base_color
+from seqtool.primers import primer_table_html
 
-def load_primer_list_file(fileobj):
-    primer = []
-    for name, value, em in parse_file(fileobj):
-        primer.append(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
-    return primer
+from seqtool import seqtrack
+
+class ListDict(object):
+    def __init__(self):
+        self.list = []
+        self.dict = {}
+    def append(self, value):
+        if not self.dict.has_key(value.name):
+            self.list.append(value)
+        self.dict[value.name] = value
+    def __len__(self):
+        return len(self.list)
 
 def parse_file(fileobj):
     lineno = 0
@@ -29,273 +40,298 @@ def parse_file(fileobj):
         value = ls[1].strip()
         yield name,value,error_message
 
-def parse_structured_file(fileobj):
-    lineno = 0
-    category = []
-    parameter = {}
-    rank=0
-    skipping = False
-    for l in fileobj:
-        lineno += 1
-        l = l.strip()
-        if not l or l.startswith('#') or l.startswith('//'):
-            continue
-        def error_message(msg):
-            print ':%s: %s: "%s"'%(lineno,msg,l)
-        if l.startswith('/+'):
-            skipping = True
-        elif l.startswith('+/'):
-            skipping = False
-        else:
-            if skipping:
-                continue
-            if l.startswith('>'):
-                rank = len(l)-len(l.lstrip('>'))
-                category = category[0:rank-1]+[l.strip('>').strip()]
-            elif l.startswith('@'):
-                ls = l.lstrip('@').split('=')
-                if len(ls)!=2:
-                    error_message('unkown parameter line')
-                    continue
-                parameter[ls[0]]=ls[1]
-            else:
-                ls = l.split(':')
-                if len(ls)!=2:
-                    error_message('unknown line')
-                    continue
-                name = ls[0].strip()
-                value = ls[1].strip()
-                yield category,parameter,name,value,error_message
+def load_primer_list_file(fileobj):
+    primer = []
+    for name, value, em in parse_file(fileobj):
+        primer.append(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
+    return primer
 
-# mask for pcr bars and primers
-class MaskMap(object):
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
-        self.length = end-start
-        self.mask = []
+def all_primers(pcrs):
+    ret = set()
+    for p in pcrs:
+        if p.get_products():
+            ret.add(p.fw)
+            ret.add(p.rv)
+    return ret
 
-    def get(self, start, end):
-        p = max(0,start-self.start)
-        q = min(self.length,end-self.start)
-        if p>q:
-            raise 'error'
-        else:
-            rows = len(self.mask)
-            for y in range(rows):
-                if not any(self.mask[y][p:q]):
-                    self._set(p,q,y)
-                    return y
-            self.mask.append([0]*self.length)
-            self._set(p,q,rows)
-            return rows
 
-    def _set(self, start, end, y):
-        for x in range(start,end):
-            self.mask[y][x] = 1
-
-    def getall(self):
-        return len(self.mask)
-
-class ListDict(object):
-    def __init__(self):
-        self.list = []
-        self.dict = {}
-    def append(self, value):
-        if not self.dict.has_key(value.name):
-            self.list.append(value)
-        self.dict[value.name] = value
-    def __len__(self):
-        return len(self.list)
-
-class GenBankAnnotated(object):
-    def __init__(self,name=None):
-        self.record = None
-
-        self.template_seq = {}
-        self.templates = {
-            'origin': ('original sequence',None),
-            'bs_met': ('Sodium-Bisulfite(Methyl)',lambda s:bisulfite(s,True)),
-            'bs_unmet': ('Sodium-Bisulfite(Unmethyl)',lambda s:bisulfite(s, False)),
-            }
-
-        self.primer = ListDict()
-        self.pcr = defaultdict(ListDict)
-        self.pcr[None] = ListDict()
-
-        self.bisulfite_sequence = defaultdict(list)
-        self.celllines = []
-        self.pattern = ListDict()
-        
-        self.view_start = 0
-        self.view_end = 0
-        
-        self.cpg_location = None
+class PcrEntry(object):
+    def __init__(self, name, fw, rv):
         self.name = name
-        self.general = {}
+        self.fw = fw
+        self.rv = rv
+
+class GenomePcrEntry(PcrEntry):
+    def __init__(self, name, fw, rv):
+        super(GenomePcrEntry,self).__init__(name, fw, rv)
+
+    @property
+    def description(self):
+        return self.name + ' (Genome PCR)'
+
+class RtPcrEntry(PcrEntry):
+    def __init__(self, name, fw, rv):
+        super(RtPcrEntry,self).__init__(name, fw, rv)
+    @property
+    def description(self):
+        return self.name + ' (RT-PCR)'
+
+class BsPcrEntry(PcrEntry):
+    def __init__(self, name, fw, rv):
+        super(BsPcrEntry,self).__init__(name, fw, rv)
+    @property
+    def description(self):
+        return self.name + ' (Bisulfite PCR)'
+
+class BisulfiteSequenceEntry(object):
+    def __init__(self, name, pcr, result):
+        self.name = name
+        self.pcr = pcr
+        self.result = result
+
+        p = pcr.get_products()
+        if not len(p)==1:
+            raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr_name,len(products)))
+        self.product = p[0]
+        if not all(i in 'MUP?' for i in result):
+            raise ValueError('bsp result must contain only M,U,P or ?')
+
+        self.cpg = self.product.detectable_cpg()
+        if len(result)!=self.cpg:
+            raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr_name,self.cpg,len(result)))
+
+        self.cpg_sites = self.product.cpg_sites()
+
+        self.bsp_map = [(n,result[i]) for i,n in enumerate(self.cpg_sites)]
+
+class BisulfiteSequenceEntries(object):
+    def __init__(self):
+        self.entries = []
+    def append(self, entry):
+        self.entries.append(entry)
+
+    def combine(self):
+        start_i = min(e.product.start_i for e in self.entries)
+        end_i = max(e.product.end_i for e in self.entries)
+
+        results = defaultdict(str)
+        for e in self.entries:
+            for i,n in enumerate(e.cpg_sites):
+                if e.result[i]!='?':
+                    results[n] += e.result[i]
+
+        bsp_map = []
+        for index, result in results.items():
+            if all(r in 'M' for r in result):
+                c = 'M'
+            elif all(r in 'U' for r in result):
+                c = 'U'
+            else:
+                c = 'P'
+            bsp_map.append( (index, c) )
+            
+        return bsp_map, start_i, end_i
+
+class BisulfiteSequence(object):
+    def __init__(self):
+        self.keys = []
+        self.entries = defaultdict(BisulfiteSequenceEntries)
+    def __iter__(self):
+        for k in self.keys:
+            yield k, self.entries[k]
+
+    def __getitem__(self, name):
+        if name not in self.keys:
+            raise KeyError
+        return self.entries[name]
+
+    def add(self, name, entry):
+        if name not in self.keys:
+            self.keys.append(name)
+        self.entries[name].append(entry)
+
+class SeqvFileEntry(object):
+    def __init__(self, name=None):
+        self.name_ = name
+        self.genbank = None
+        self.primers = ListDict()
+        self.motifs = ListDict()
+
+        self.pcr_entries = ListDict()
+
+        self.bsps = BisulfiteSequence()
+
+        self.bs_met_pcrs = ListDict()
         
-    def load_genbank(self, genbank_record):
-        self.record = genbank_record
-        self.seq = self.record.seq
-        self.length = len(self.seq)
-        self.template_seq['origin'] = self.seq
-        self.view_end = len(self.record)
-        
-        self.name = self.record.description
+    @property
+    def name(self):
+        return self.name_
 
-    
-        
-    def get_templates(self):
-        for name,(desc,f) in self.templates.items():
-            yield name, desc
-    def get_pcrs(self, template):
-        for pcr in self.pcr[template].list:
-            yield pcr
+    @property
+    def description(self):
+        return self.genbank.description
 
-    def add_primer(self, primer):
-        self.primer.append(primer)
+    @property
+    def seq(self):
+        return self.genbank.seq
+    @property
+    @memoize
+    def bs_met(self):
+        return bisulfite(self.genbank.seq, True)
+    @property
+    @memoize
+    def bs_unmet(self):
+        return bisulfite(self.genbank.seq, False)
 
-    def add_pcr(self, name, fw_primer, rv_primer, tmp_name='origin'):
-        if not self.record:
-            raise ValueError('load genbank first')
-        assert isinstance(name,str)
-        assert isinstance(fw_primer,str)
-        assert isinstance(rv_primer,str)
-        assert (not tmp_name) or isinstance(tmp_name,str)
+    @property
+    def transcripts(self):
+        for f in self.genbank.features:
+            if f.type=='mRNA':
+                yield f, f.extract(self.genbank.seq)
 
-        if not self.primer.dict.has_key(fw_primer):
-            ValueError('no such forward primer: %s'%fw_primer)
-        if not self.primer.dict.has_key(rv_primer):
-            raise ValueError('no such reverse primer: %s'%rv_primer)
+    def load_genbank(self, filename):
+        if self.genbank:
+            raise ValueError('genbank already loaded.')
+        with open(filename) as f:
+            print 'loading genbank: '+filename,
+            self.genbank = SeqIO.read(f, "genbank")
+            print '...done.'
 
-        if tmp_name and (not self.templates.has_key(tmp_name)):
-            raise ValueError('no such pcr template: %s'%tmp_name)
-        if not self.templates.has_key(tmp_name):
-            raise ValueError('no such template: %s'%tmp_name)
+    def load_primers(self, filename):
+        with open(filename,'r') as f:
+            print 'loading primers: '+filename,
+            for p in load_primer_list_file(f):
+                self.primers.append(p)
+                print '.',
+            print 'done.'
+    def add_motif(self, name, seq):
+        seq.name = name
+        self.motifs.append(seq)
 
-        tmp = self._get_template_seq(tmp_name)
-        
-        self.pcr[tmp_name].append(PCR(name,tmp,self.primer.dict[fw_primer],self.primer.dict[rv_primer]))
+    def get_primer(self, name):
+        if not self.primers.dict.has_key(name):
+            ValueError('no such forward primer: %s'%name)
+        return self.primers.dict[name]
 
-    def _get_template_seq(self,tmp_name):
-        if not self.template_seq.has_key(tmp_name):
-            desc, func = self.templates[tmp_name]
-            self.template_seq[tmp_name] = func(self.seq)
-        return self.template_seq[tmp_name]
+    def add_pcr(self, name, fw_primer, rv_primer):
+        assert(self.genbank)
+        fw = self.get_primer(fw_primer)
+        rv = self.get_primer(rv_primer)
+        self.pcr_entries.append(GenomePcrEntry(name, fw, rv))
 
-    def add_bisulfite_sequence_result(self, cellline, pcr_name, result):
-        if not self.record:
-            raise ValueError('load genbank first')
+    def add_bs_pcr(self, name, fw_primer, rv_primer):
+        assert(self.genbank)
+        fw = self.get_primer(fw_primer)
+        rv = self.get_primer(rv_primer)
+        self.pcr_entries.append(BsPcrEntry(name, fw, rv))
+
+        # for add_bsp
+        self.bs_met_pcrs.append(PCR(name, self.bs_met, fw, rv))
+
+    def add_rt_pcr(self, name, fw_primer, rv_primer):
+        assert(self.genbank)
+        fw = self.get_primer(fw_primer)
+        rv = self.get_primer(rv_primer)
+        self.pcr_entries.append(RtPcrEntry(name, fw, rv))
+
+    def add_bsp(self, cellline, pcr_name, result):
+        assert(self.genbank)
         assert isinstance(cellline,str)
         assert isinstance(pcr_name,str)
         assert isinstance(result,str)
-        class BisulfiteSequenceResult(object):
-            pass
-        pcr_bs_met = self.pcr['bs_met']
-        bs = BisulfiteSequenceResult()
-        bs.cellline = cellline
-        if not pcr_bs_met.dict.has_key(pcr_name):
+        try:
+            pcr = self.bs_met_pcrs.dict[pcr_name]
+        except KeyError:
             raise ValueError('no such pcr: %s'%pcr_name)
-        bs.pcr = pcr_bs_met.dict[pcr_name]
-        bs.result = result
-        p = bs.pcr.get_products()
-        if not len(p)==1:
-            raise ValueError('%s must have 1 pcr product but %s'%(pcrname,len(products)))
-        bs.product = p[0]
-        if not all(i in 'MUP?' for i in result):
-            raise ValueError('bsp result must contain only M,U,P or ?')
-        cpg = bs.product.detectable_cpg()
-        if len(result)!=bs.product.detectable_cpg():
-            raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr_name,cpg,len(result)))
-        self.bisulfite_sequence[cellline].append(bs)
-        if not cellline in self.celllines:
-            self.celllines.append(cellline)
 
-    def add_pattern(self, name, pattern_seq):
-        class PatternSeq(object):
-            pass
-        ps = PatternSeq()
-        ps.name = name
-        ps.seq = pattern_seq
-        self.pattern.append(ps)
+        self.bsps.add(cellline, BisulfiteSequenceEntry(cellline, pcr, result))
 
-    def has_bisulfite_sequence_result(self):
-        return len(self.bisulfite_sequence)>0
-    def has_bisulfite_pcr(self):
-        return len(self.pcr['bs_met'])>0 or len(self.pcr['bs_unmet'])>0
+    def render_genome(self, width):
+        if not self.genbank:
+            return None
+        length = len(self.genbank.seq)
 
-    def render_overview(self,filename):
-        if not self.record:
-            raise ValueError('load genbank first')
+        pcr_origin = []
+        pcr_bs_met = []
+        pcr_bs_unmet = []
 
-        if not self.cpg_location:
-            self.cpg_location = self._calc_cpg_location()
+        for pcr in self.pcr_entries.list:
+            if isinstance(pcr, BsPcrEntry):
+                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
+                pcr_bs_met.append(PCR(pcr.name, self.bs_met, pcr.fw, pcr.rv))
+                pcr_bs_unmet.append(PCR(pcr.name, self.bs_unmet, pcr.fw, pcr.rv))
+            elif isinstance(pcr, GenomePcrEntry):
+                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
+            elif isinstance(pcr, RtPcrEntry):
+                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
+            else:
+                raise TypeError("%s"%pcr)
 
-        show_bs = self.has_bisulfite_pcr()
-        w = SeqCanvasOverview(self.view_start, self.view_end)
+        def all_primers(pcrs):
+            ret = set()
+            for p in pcrs:
+                if p.get_products():
+                    ret.add(p.fw)
+                    ret.add(p.rv)
+            return ret
 
-        y = 1
-        y = self._draw_genbank_features(w, y)
+        t = seqtrack.TrackGroup()
+        t.add(seqtrack.SequenceTrack(self.genbank.seq, self.genbank.features))
 
-        # sequence
-        w.put_line(self.view_start, self.view_end, y)
-        for i in range(self.view_start,self.view_end):
-            w.put_yline(i,y+1,y+1.5,base_color(str(self.seq[i])))
-            if show_bs:
-                seq_met = self._get_template_seq('bs_met')
-                w.put_yline(i,y+1.5,y+2,base_color(str(seq_met[i])))
-                if is_repeat(seq_met,i,6):
-                    w.put_yline(i,y+2,y+2.3,base_color(str(seq_met[i])))
-        if show_bs:
-            for i in self.cpg_location:
-                w.put_yline(i,y-0.5,y+0.5,'#000')
-        y += 4
+        for name, bsp in self.bsps:
+            bsp_map, start, end = bsp.combine()
+            t.add(seqtrack.BisulfiteSequenceTrack(name, bsp_map, start, end))
 
-        # draw bisulfite sequences
-        color = {'M':'#F00','U':'#00F','P':'#AA0'}
-        for cl in self.celllines:
-            if cl not in self.bisulfite_sequence.keys():
-                continue
-            w.put_line(self.view_start, self.view_end, y)
-            w.put_char(Point(self.view_start, y-0.5), cl)
-            for bs in self.bisulfite_sequence[cl]:
-                for x,i in enumerate(bs.product.cpg_sites()):
-                    result = bs.result[x]
-                    if result!='?':
-                        w.put_yline(i,y-.5,y+.5,color[result])
-                    continue
-                continue
-            y += 2
-            continue
-        y += 1
+        tracks = [
+            ('genome', pcr_origin, self.seq),
+            ('BS met', pcr_bs_met, self.bs_met),
+            ('BS unmet', pcr_bs_unmet, self.bs_unmet),
+            ]
+        for name, pcrs, template in tracks:
+            print name, len(pcrs)
+            t.add(seqtrack.HbarTrack('', length))
+            t.add(seqtrack.PcrsTrack(name, pcrs))
+            primers = set(self.primers.list) - all_primers(pcrs)
+            t.add(seqtrack.PrimersTrack(primers, template))
+        
+        return t.svg(width)
 
-        for name,(desc,f) in self.templates.items():
-            seq = self._get_template_seq(name)
-            pcr = self.pcr[name]
-            w.put_line(self.view_start, self.view_end, y, color='#999')
-            w.put_char(Point(self.view_start, y), name)
-            y += 1
-            y = self._draw_pattern(w, y, seq)
-            y = self._draw_pcr(w, y, pcr.list)
-            y = self._draw_primer(w, y, seq, pcr.list)
-        w.put_line(self.view_start, self.view_end, y, color='#999')
+    def render_transcript(self, width):
+        if not self.genbank:
+            return None
 
-        w.save(filename, format='PNG', height=y)
-        return True
-    
-    def _calc_cpg_location(self):
-        cpgl = {}
-        count = 0
-        for i in range(self.view_start,self.view_end):
-            if is_cpg(self.seq,i):
-                cpgl[i] = count
-                count += 1
-        return cpgl
+        pcr_rt = []
+        
+        for pcr in self.pcr_entries.list:
+            if isinstance(pcr, BsPcrEntry):
+                pass
+            elif isinstance(pcr, GenomePcrEntry):
+                pass
+            elif isinstance(pcr, RtPcrEntry):
+                pcr_rt.append(pcr)
+            else:
+                raise TypeError("%s"%pcr)
 
-    def render_bsp_overview(self, filename, scale=2, init=50):
+        t = seqtrack.TrackGroup()
+
+        for feature, seq in self.transcripts:
+            length = len(seq)
+            name = feature.qualifiers['product'][0]
+
+            t.add(seqtrack.TranscriptTrack(name, seq, feature))
+
+            pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in pcr_rt]
+            t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
+            primers = set(self.primers.list) - all_primers(pcrs)
+            t.add(seqtrack.PrimersTrack(primers, seq))
+        
+        return t.svg(width)
+
+    def render_bsp(self, width=None, scale=2, init=50):
+        return ''
         '''
-        TODO: fix init
-        '''
+        TODO:
+
         if not self.record:
             raise ValueError('load genbank first')
         if not self.has_bisulfite_sequence_result():
@@ -325,146 +361,173 @@ class GenBankAnnotated(object):
 
         w.save(filename, format='PNG',height=y)
         return True
+        '''
 
-    def render_sequence(self,filename):
-        if not self.record:
-            raise ValueError('load genbank first')
 
-        show_bs = self.has_bisulfite_pcr()
-        w = SeqCanvas(self.view_start, self.view_end, 25, self.view_end)
-        y = 1
+    def write_html(self, b, svg_prefix=''):
+        genome_r = svg_prefix + '.svg'
+        transcript_r = svg_prefix + '_transcript.svg'
+        bsp_r = svg_prefix + '_bsp.svg'
 
-        # sequence
-        for i in range(self.view_start,self.view_end):
-            cpg = is_cpg(self.seq,i)
-            col = '#000' if not cpg else '#FF0'
-            bgcol = '#fff' if not cpg else '#000'
-            w.put_char(Point(i,y), self.seq[i], col, bgcol)
-            if show_bs:
-                seq_met = self._get_template_seq('bs_met')
-                seq_unmet = self._get_template_seq('bs_unmet')
-                w.put_char(Point(i,y+1), seq_met[i], col, bgcol)
-                w.put_char(Point(i,y+2), seq_unmet[i], col, bgcol)
-        y += 4
 
-        for t in self.get_templates():
-            y = self._draw_pcr(w, y, self.pcr[t].list)
+        b.h1(self.description)
+        with b.div(**{'class':'images'}):
+            b.h2('images')
+            with b.div:
+                b.h3('genome overview')
+                with b.a(href=genome_r):
+                    b.img(src=genome_r, width='1000px')
+                b.h3('transcript overview')
+                with b.a(href=transcript_r):
+                    b.img(src=transcript_r,width='1000px')
+                b.h3('bsp overview')
+                with b.a(href=bsp_r):
+                    b.img(src=bsp_r,width='1000px')
 
-        w.save(filename, format='PNG')
-        return True
+        with b.div(**{'class':'primers'}):
+            b.h2('Primers')
+            primer_table_html(b.get_writer(), self.primers.list)
 
-    def _draw_pcr(self, w, y, pcrs):
-        # draw pcrs
-        mask = MaskMap(self.view_start, self.view_end)
-        for pcr in pcrs:
-            for q in pcr.get_products():
-                m = mask.get(q.start, q.end)
-                w.show_pcr(q.start, q.end, y+m, q.primer_fw, q.primer_rv, '#050', '%s'%(pcr.name))
-                #mask.set(q.start, q.end, m+1)
-        return y+mask.getall()
-
-    def _draw_pattern(self, w, y, seq):
-        mask = MaskMap(self.view_start, self.view_end)
-        for p in self.pattern.list:
-            def draw(start, end, forward=True):
-                m = mask.get(start, end)
-                w.put_bar(start, end, y+m, '#f00' if forward else '#00f', p.name, rarrow=forward, larrow=not forward)
-            f,r = search_primer(p.seq, seq)
-            for ff in f:
-                draw(ff, ff+len(p.seq)-1, True)
-            for rr in r:
-                draw(rr, rr+len(p.seq)-1, False)
-        return y + mask.getall()
-
-    def _draw_primer(self, w, y, template, exclude_list=[]):
-        # draw primers
-        mask = MaskMap(self.view_start, self.view_end)
-        pmatch = {}
-        for p in self.primer.list:
-            def draw(start, end, forward=True):
-                m = mask.get(start, end)
-                w.put_bar(start, end, y+m, '#f00' if forward else '#00f', p.name, rarrow=forward, larrow=not forward)
-            
-            f,r = search_primer(p.seq, template)
-            for ff in f:
-                draw(ff, ff+len(p)-1, True)
-            for rr in r:
-                draw(rr, rr+len(p)-1, False)
-        return y + mask.getall()
-
-    def _draw_genbank_features(self, w, y):
-        mask = MaskMap(self.view_start, self.view_end)
-        for f in self.record.features:
-            q = f.qualifiers
-            name = f.type
-                name += ': ' + q['product'][0] or ''
-            if q.has_key('product'):
-            l_p = f.location.nofuzzy_start
-            l_q = f.location.nofuzzy_end
-            yy = mask.get(l_p,l_q-1)
-            w.put_bar(l_p,l_q-1, y+yy, name=name)
-
-            for idx, sf in enumerate(f.sub_features):
-                w.put_bar(sf.location.nofuzzy_start, sf.location.nofuzzy_end-1, y+yy, color='#ff0000')
-        return y+mask.getall()
-
-    def load_seqview(self, fileobj, relative_path):
-        for category, parameter, name, value, em in parse_structured_file(fileobj):
-            if category == ['general']:
-                if self.general.has_key(name):
-                    print 'overwriting general option %s=%s'%(name,value)
-                self.general[name]=value
-                if name=='genbank':
-                    if self.record:
-                        em('genbank file(%s) already loaded. skipped: %s'%(self.genbank,value))
-                        continue
-                    self.genbank = value
-                    with open(relative_path(self.genbank)) as f:
-                        print 'loading genbank: '+self.genbank,
-                        self.load_genbank(SeqIO.read(f, "genbank"))
-                        print '...done.'
-                elif name=='primers':
-                    self.primers_file = value
-                    with open(relative_path(self.primers_file)) as f:
-                        print 'loading primers: '+self.primers_file,
-                        for p in load_primer_list_file(f):
-                            self.add_primer(p)
-                            print '.',
-                        print 'done.'
-            
-            elif category == ['features']:
-                self.add_pattern(name,Seq.Seq(value,IUPAC.ambiguous_dna))
-            elif category == ['pcr']:
-                name = name.split(',')[0].strip()
-                ls = value.split(',')
-                if len(ls)!=2:
-                    em('you must specify 2 primer names separated by "," for each pcr: %s'%name)
-                    continue
-
-                if not parameter.has_key('template'):
-                    em('you must set parameter template')
-                    continue
-                template = parameter['template']
-                if not self.templates.has_key(template):
-                    em('unkown template: "%s"'%(template))
-                    continue
-            
-                self.add_pcr(name, ls[0].strip(), ls[1].strip(), template)
-            elif category == ['bsp']:
-                n = [n.strip() for n in name.split(',')]
-                if not len(n)>=2:
-                    em('each bsp must have at least 2 key; cell line name and pcr name')
-                    continue
-                pcrname = n[0].strip()
-                cellline = n[1].strip().upper()
-                annotations = n[2:]
-                if not pcrname or not cellline:
-                    em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
-                    continue
-                self.add_bisulfite_sequence_result(cellline, pcrname, value.strip().upper())
+        def write_products(pcr):
+            products = pcr.get_products()
+            if len(products) > 0:
+                for c in products:
+                    c.write_html(b.get_writer())
             else:
-                em('unkown category: %s'%category)
+                b.p('no products')
 
+        with b.div(**{'class':'pcrs'}):
+            b.h2('PCRs')
+            for pcr in self.pcr_entries.list:
+                with b.div(**{'class':'pcr'}):
+                    b.h3(pcr.description)
+                    origin = PCR(pcr.name, self.seq, pcr.fw, pcr.rv)
+                    origin.primers.write_html(b.get_writer())
+                    b.h4('products')
+                    with b.div(**{'class':'products'}):
+                        if isinstance(pcr, BsPcrEntry):
+                            b.h5('template = Bisulfite-Treated (Methyl)')
+                            write_products(PCR(pcr.name, self.bs_met, pcr.fw, pcr.rv))
+                            b.h5('template = Bisulfite-Treated (Unmethyl)')
+                            write_products(PCR(pcr.name, self.bs_unmet, pcr.fw, pcr.rv))
+                            b.h5('template = Genome')
+                            write_products(origin)
+                        elif isinstance(pcr, GenomePcrEntry):
+                            write_products(origin)
+                        elif isinstance(pcr, RtPcrEntry):
+                            for feature, seq in self.transcripts:
+                                length = len(seq)
+                                name = feature.qualifiers['product'][0]
+                                b.h5('template = transcripts: %s'%name)
+                                write_products(PCR(pcr.name, seq, pcr.fw, pcr.rv))
+
+                            b.h5('template = Genome')
+                            write_products(origin)
+                        else:
+                            raise TypeError("%s"%pcr)
+
+
+        return [(genome_r, self.render_genome(1200)),
+                (transcript_r, self.render_transcript(1200)),
+                (bsp_r, self.render_bsp())]
+
+
+class SeqvFile(object):
+    def __init__(self, filename):
+        self.entries = []
+
+        def relative_path(name):
+            return os.path.join(os.path.dirname(filename),name)
+
+        with open(filename,'r') as f:
+            self.load_seqview(f, relative_path)
+
+    def __iter__(self):
+        return iter(self.entries)
+
+    def parse(self, fileobj):
+        lineno = 0
+        category = None
+        skipping = False
+        for l in fileobj:
+            lineno += 1
+            l = l.strip()
+
+            def error_message(msg):
+                print ':%s: %s: "%s"'%(lineno,msg,l)
+
+            if not l or l.startswith('#') or l.startswith('//'):
+                continue
+
+            if l.startswith('/+'):
+                skipping = True
+            elif l.startswith('+/'):
+                skipping = False
+            else:
+                if skipping:
+                    continue
+                if l.startswith('>'):
+                    category = l[1:].strip()
+                    yield category, None, None, error_message
+                else:
+                    ls = l.split(':')
+                    if len(ls)!=2:
+                        error_message('unknown line')
+                        continue
+                    name = ls[0].strip()
+                    value = ls[1].strip()
+                    yield category, name, value, error_message
+
+        
+    def load_seqview(self, fileobj, relative_path):
+        for category, name, value, em in self.parse(fileobj):
+            if not name and not value:
+                if category == 'general':
+                    self.entries.append(SeqvFileEntry())
+            else:
+                if not self.entries:
+                    ValueError('no entries')
+
+                e = self.entries[-1]
+                if category == 'general':
+                    if name=='genbank':
+                        e.load_genbank(relative_path(value))
+                    elif name=='primers':
+                        e.load_primers(relative_path(value))
+            
+                elif category == 'motif':
+                    e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
+                elif category in ['pcr','rt_pcr','bs_pcr']:
+                    name = name.split(',')[0].strip()
+                    ls = value.split(',')
+                    if len(ls)!=2:
+                        em('you must specify 2 primer names separated by "," for each pcr: %s'%name)
+                        continue
+                    fw = ls[0].strip()
+                    rv = ls[1].strip()
+                    if category == 'pcr':
+                        e.add_pcr(name, fw, rv)
+                    elif category == 'rt_pcr':
+                        e.add_rt_pcr(name, fw, rv)
+                    elif category == 'bs_pcr':
+                        e.add_bs_pcr(name, fw, rv)
+                    else:
+                        raise ValueError
+                elif category == 'bsp':
+                    n = [n.strip() for n in name.split(',')]
+                    if not len(n)>=2:
+                        em('each bsp must have at least 2 key; cell line name and pcr name')
+                        continue
+                    pcrname = n[0].strip()
+                    cellline = n[1].strip().upper()
+                    annotations = n[2:]
+                    if not pcrname or not cellline:
+                        em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
+                        continue
+                    
+                    e.add_bsp(cellline, pcrname, value.strip().upper())
+                else:
+                    em('unkown category: %s'%category)
 
 def main():
     import sys, os
@@ -487,76 +550,38 @@ def main():
     output_basename = os.path.basename(outputfile).rpartition('.')[0]
     output_dir = os.path.abspath(os.path.dirname(outputfile))
 
-    gbas = []
-    for i in inputfiles:
-        gba = GenBankAnnotated()
-        print 'loading: ',i
-        with open(i,'r') as f:
-            def relative_path(name):
-                return os.path.join(os.path.dirname(i),name)
-            gba.load_seqview(f, relative_path)
-        gbas.append(gba)
+    output = open(outputfile,'w')
 
-    with open(outputfile,'w') as f:
-        print 'writing html...'
-        html = HtmlWriter(f)
-        html.push('html')
-        html.push('head')
-
-        html.push('style',type='text/css')
-        html.text(\
+    html = htmlwriter.HtmlWriter(output)
+    builder = htmlwriter.builder(html)
+    with builder.html:
+        with builder.head:
+            with builder.style(type='text/css'):
+                builder.text(\
 '''
+.images{}
 .image{border: solid 1px;}
 .template{margin-left: 1em;}
-.pcr{margin-left: 4em;}
+.pcr{margin: 1em; padding: 1em; border: solid 1px;}
+.products{margin-left: 2em;}
+.copybox{margin-left:4em;}
+
+.primerpairtable{
+  font-family: monospace
+}
 ''')
-        html.pop()
+        with builder.body:
+            count = 0
+            for inputfile in inputfiles:
+                sv = SeqvFile(inputfile)
+                for e in sv:
+                    prefix = output_basename+'__%d__'%count
+                    count += 1
+                    svgs = e.write_html(builder, prefix)
+                    
+                    for name, svg in svgs:
+                        open(os.path.join(output_dir, name), 'w').write(svg)
 
-        html.pop()
-        html.push('body')
-
-        for num,gba in enumerate(gbas):
-            bn = output_basename + '%02d'%num
-            methyl_r = bn + '__methyl.png'
-            seqovw_r = bn + '__seqoverview.png'
-            sequen_r = bn + '__sequence.png'
-            
-            html.insert('h1', gba.name or 'No Name')
-
-            html.push('div',cls='image')
-            if gba.has_bisulfite_sequence_result():
-                html.insertc('img',src=methyl_r,width='600px')
-                html.insertc('br')
-            html.push('a',href=seqovw_r)
-            html.insertc('img',src=seqovw_r,width='1000px')
-            html.pop()
-
-            html.pop()
-
-            for template,desc in gba.get_templates():
-                pcrs = list(gba.get_pcrs(template))
-                if not len(pcrs):
-                    continue
-                html.push('div',cls='template')
-                html.insert('h2','PCR products, template=%s'%desc)
-                for pcr in pcrs:
-                    html.push('div',cls='pcr')
-                    pcr.debugprint_html(html)
-                    html.pop()
-                html.pop()
-        
-            def render(func, name):
-                print 'rendering %s..'%name,
-                func(os.path.join(output_dir,name))
-                print '...done.'
-            if gba.has_bisulfite_sequence_result():
-                render(gba.render_bsp_overview,methyl_r)
-            render(gba.render_overview,seqovw_r)
-            render(gba.render_sequence,sequen_r)
-
-        html.pop()
-        html.pop()
-        print 'done.'
 
 if __name__=='__main__':
     main()

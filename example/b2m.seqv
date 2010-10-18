@@ -1,7 +1,6 @@
 >general
-genbank: b2m_mrna.gb
+genbank: b2m.gb
 primers: primers.txt
 
->pcr
-@template=origin
+>rt_pcr
 B2M: B2M-common-F,B2M-R3

@@ -1,7 +1,6 @@
 >general
-genbank: actb_mrna.gb
+genbank: actb.gb
 primers: primers.txt
 
->pcr
-@template=origin
+>rt_pcr
 ACTB: ACTB-qRT-FW, ACTB-qRT-RV
