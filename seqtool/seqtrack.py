@@ -1,13 +1,13 @@
+from __future__ import absolute_import
+
 from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
 
-import htmlwriter
-
 from StringIO import StringIO
-from seqtool.seqcanvas import SeqCanvas, SeqCanvasOverview, Point
-from seqtool.nucleotide import Primer, PCR, bisulfite, is_cpg, search_primer, tm_gc, count_cpg, is_repeat, base_color, cpg_sites, cpg_obs_per_exp
+from .nucleotide import Primer, PCR, bisulfite, search_primer,  base_color, cpg_sites, cpg_obs_per_exp
+from . import xmlwriter
 
 # calc free space
 class FreeSpace(object):
@@ -95,7 +95,7 @@ class TrackGroup(TrackBase):
         trans_sy = dst_height/view_h
         
         buff = StringIO()
-        b = htmlwriter.builder(htmlwriter.HtmlWriter(buff))
+        b = xmlwriter.builder(xmlwriter.XmlWriter(buff))
         with b.svg(xmlns="http://www.w3.org/2000/svg", 
                    width=dst_width,
                    height=dst_height,

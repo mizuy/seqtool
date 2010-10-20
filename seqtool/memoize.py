@@ -1,9 +1,5 @@
-# -*- coding:utf-8 mode:Python -*-
-import cStringIO
-import string, os, re, difflib, itertools
-
-# http://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
 import functools
+# http://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
 class memoize(object):
     """Decorator that caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned, and

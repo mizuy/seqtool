@@ -1,16 +1,18 @@
+from __future__ import absolute_import
+
 from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
 
 import os
-from seqtool import htmlwriter
-from seqtool.misc import memoize
-from seqtool.seqcanvas import SeqCanvas, SeqCanvasOverview, Point
-from seqtool.nucleotide import Primer, PCR, bisulfite, is_cpg, search_primer, tm_gc, count_cpg, is_repeat, base_color
-from seqtool.primers import primer_table_html
 
-from seqtool import seqtrack
+from .memoize import memoize
+from .nucleotide import Primer, PCR, bisulfite
+from .parser import parse_file
+from .primers import primers_write_html, load_primer_list_file
+from . import seqtrack
+from . import xmlwriter
 
 class ListDict(object):
     def __init__(self):
@@ -23,28 +25,6 @@ class ListDict(object):
     def __len__(self):
         return len(self.list)
 
-def parse_file(fileobj):
-    lineno = 0
-    for l in fileobj:
-        lineno += 1
-        l = l.strip()
-        if not l or l.startswith('#') or l.startswith('//'):
-            continue
-        def error_message(msg):
-            print ':%s: %s: "%s"'%(lineno,msg,l)
-        ls = l.split(':')
-        if len(ls)!=2:
-            error_message('unknown line')
-            continue
-        name = ls[0].strip()
-        value = ls[1].strip()
-        yield name,value,error_message
-
-def load_primer_list_file(fileobj):
-    primer = []
-    for name, value, em in parse_file(fileobj):
-        primer.append(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
-    return primer
 
 def all_primers(pcrs):
     ret = set()
@@ -206,13 +186,20 @@ class SeqvFileEntry(object):
                 self.primers.append(p)
                 print '.',
             print 'done.'
+
+    def add_primer(self, primer):
+        self.primers.append(primer)
+
     def add_motif(self, name, seq):
         seq.name = name
         self.motifs.append(seq)
 
     def get_primer(self, name):
         if not self.primers.dict.has_key(name):
-            ValueError('no such forward primer: %s'%name)
+            if all(n in 'ATGC' for n in name):
+                self.add_primer(Primer(name, Seq.Seq(name,IUPAC.unambiguous_dna)))
+            else:
+                raise ValueError('no such forward primer: %s'%name)
         return self.primers.dict[name]
 
     def add_pcr(self, name, fw_primer, rv_primer):
@@ -388,7 +375,7 @@ class SeqvFileEntry(object):
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
-            primer_table_html(b.get_writer(), self.primers.list)
+            primers_write_html(b.get_writer(), self.primers.list)
 
         def write_products(pcr):
             products = pcr.get_products()
@@ -496,7 +483,10 @@ class SeqvFile(object):
                         e.load_genbank(relative_path(value))
                     elif name=='primers':
                         e.load_primers(relative_path(value))
-            
+
+                elif category == 'primer':
+                    e.add_primer(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
+                    
                 elif category == 'motif':
                     e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
                 elif category in ['pcr','rt_pcr','bs_pcr']:
@@ -507,6 +497,7 @@ class SeqvFile(object):
                         continue
                     fw = ls[0].strip()
                     rv = ls[1].strip()
+
                     if category == 'pcr':
                         e.add_pcr(name, fw, rv)
                     elif category == 'rt_pcr':
@@ -534,7 +525,6 @@ class SeqvFile(object):
 def main():
     import sys, os
     from optparse import OptionParser
-    from htmlwriter import HtmlWriter
 
     parser = OptionParser('usage: %prog [options] seqviewfile1.seqv ... -o outputfile.html')
     parser.add_option("-o", "--output", dest="output", help="output filename")
@@ -554,8 +544,8 @@ def main():
 
     output = open(outputfile,'w')
 
-    html = htmlwriter.HtmlWriter(output)
-    builder = htmlwriter.builder(html)
+    html = xmlwriter.XmlWriter(output)
+    builder = xmlwriter.builder(html)
     with builder.html:
         with builder.head:
             with builder.style(type='text/css'):
