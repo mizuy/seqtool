@@ -1,4 +1,7 @@
-from nucleotide import Primer, PrimerPair, PCR, bisulfite, is_cpg, search_primer, tm_gc
+from __future__ import absolute_import
+
+from .nucleotide import Primer, PrimerPair
+
 import bisect
 from numpy import *
 from Bio import SeqIO, Seq
@@ -380,7 +383,6 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     '''
     tm_calculator = MeltingTemperature(option.na_conc, option.mg_conc, option.primer_conc)
     
-    #target_seq_bs = bisulfite(target_seq)
     target = TargetSequence(str(target_seq),tm_calculator)
     seq_length = len(target)
     primer_length = option.primer_cond.primer_length.maximum
@@ -775,11 +777,11 @@ def adhoc_primer_search(sequence):
         pl = pl[0:50]
 
 
-if __name__=='__main__':
+def main():
     import sys, os
     from optparse import OptionParser
 
-    parser = OptionParser('usage: %prog [options] inputfile -o outputfile')
+    parser = OptionParser('usage: %prog [options] input.fasta -o outputfile')
 
     parser.add_option('-o', '--output', dest='output', help='output filename')
     parser.add_option('--min_product', type='int', dest='min_product', default=100)
@@ -820,3 +822,5 @@ if __name__=='__main__':
             result = dynamic_primer_search(target,option)
             result.write_seqviewfile(output)
 
+if __name__=='__main__':
+    main()
