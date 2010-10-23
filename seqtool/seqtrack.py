@@ -67,7 +67,7 @@ class TrackGroup(TrackBase):
         return max(i.name_length for i in self)
 
     def __str__(self):
-        "TrackGroup(%s, %s"%(self.name, ','.join(i for i in self))
+        "TrackGroup(%s, %s)"%(self.name, ','.join(i for i in self))
         
     def draw(self, b, scale):
         y = 0
@@ -172,14 +172,14 @@ class HbarTrack(NamedTrack):
 
 class MeasureTrack(Track):
     def __init__(self, length, zero, step):
-        super(MeasureTrack, self).__init__(length, 18)
+        super(MeasureTrack, self).__init__(length, 20)
         self.length = length
         self.zero = zero
         self.step = step
         
     def draw(self, b, scale):
         for i in range(0, self.length, self.step):
-            self.draw_vline(b, i, 10, 15, color='black', scale=scale)
+            self.draw_vline(b, i, 10, 20, color='black', scale=scale)
             self.text(b, str(i), x=i-5, y=10, color='black', anchor='middle', scale=scale)
 
 
@@ -246,7 +246,7 @@ class FeatureTrack(NamedTrack):
             if t in ['CDS','mRNA']:
                 name = "%s: %s"%(t,self.feature.qualifiers['product'][0])
             elif t=='gene':
-                name = '"%s" gene'%self.feature.qualifiers['gene'][0]
+                name = 'gene: %s'%self.feature.qualifiers['gene'][0]
             elif t=='source':
                 organ = self.feature.qualifiers['organism'][0]
                 ch = self.feature.qualifiers['chromosome'][0]
@@ -338,25 +338,53 @@ class CpgObsPerExpTrack(SeqWindowGraphTrack):
 """
 pcrs
 """
-class PcrsTrack(NamedTrack):
-    def __init__(self, name, pcrs):
-        self.pcrs = []
+
+class BasePcrsTrack(NamedTrack):
+    def __init__(self, name, products):
+        self.products = []
         fs = FreeSpace()
-        for pcr in pcrs:
-            for p in pcr.products:
-                y = fs.set(p.start, p.end)
-                self.pcrs.append( (pcr.name, p, y*20) )
-        super(PcrsTrack, self).__init__(name, 0, 20*fs.num_lines())
+        for n, p in products:
+            y = fs.set(p.start, p.end)
+            self.products.append( (n, p, y*20) )
+        super(BasePcrsTrack, self).__init__(name, 0, 20*fs.num_lines())
 
     def draw(self, b, scale):
-        super(PcrsTrack, self).draw(b, scale)
-        for name, p, y in self.pcrs:
+        super(BasePcrsTrack, self).draw(b, scale)
+        for name, p, y in self.products:
             self.draw_hbar(b, p.start, p.start_i, y, 4, color='red')
             self.draw_hbar(b, p.start_i, p.end_i, y,4, color='gray')
             self.draw_hbar(b, p.end_i, p.end, y, 4, color='blue')
             m = (p.start+p.end)/2.
             self.text(b, name, x=m, y=y+11, color='black', anchor='middle', scale=scale)
+    
+class PcrsTrack(BasePcrsTrack):
+    def __init__(self, name, pcrs):
+        def d():
+            for pcr in pcrs:
+                for p in pcr.products:
+                    yield pcr.name, p
+        super(PcrsTrack, self).__init__(name, d())
 
+class BsPcrsTrack(BasePcrsTrack):
+    def __init__(self, name, pcrs):
+        def d():
+            for pcr in pcrs:
+                for met, unmet, genome in pcr.bisulfite_products:
+                    assert(met or unmet or genome)
+                    p = None
+                    r = ''
+                    if met:
+                        r += "M"
+                        p = met
+                    if unmet:
+                        r += "U"
+                        p = unmet
+                    if genome:
+                        r += "G"
+                        p = genome
+                    yield pcr.name+' [%s]'%r, p
+
+        super(BsPcrsTrack, self).__init__(name, d())
 
 
 class PcrTrack(NamedTrack):

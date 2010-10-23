@@ -82,14 +82,20 @@ def count_cpg(seq):
     return count
 
 def bisulfite(seq, methyl):
-    muta = seq.tomutable()
-    old = 'X'
-    for i,c in enumerate(muta[:-2]):
-        if c=='C':
-            if not(muta[i+1]=='G' and methyl):
-                muta[i] = 'T'
-    return muta.toseq()
+    key = '_bisulfite_' + ('met' if methyl else 'unmet')
+    if not hasattr(seq, key):
+        muta = seq.tomutable()
+        old = 'X'
+        for i,c in enumerate(muta[:-2]):
+            if c=='C':
+                if not(muta[i+1]=='G' and methyl):
+                    muta[i] = 'T'
 
+        ret = muta.toseq()
+
+        setattr(seq, key, ret)
+
+    return getattr(seq, key)
 
 class ColorMap(object):
     def __init__(self):

@@ -458,7 +458,6 @@ def primers_write_html(w, primers):
 
         b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
 
-
 class PCR(object):
     def __init__(self, name, template, primer_fw, primer_rv):
         self.name = name
@@ -487,30 +486,60 @@ class PCR(object):
     def primer_score(self):
         return self.primers.score
 
-
     @property
     @memoize
     def products(self):
-        def g(fw,rv,i,j):
-            return PCRProduct(self.template,i,j+len(rv),fw, rv)
-        ret = [] 
-        fpp,fpc = self.fw.search(self.template)
-        rpp,rpc = self.rv.search(self.template)
+        return list(self._search(self.template))
+
+    @property
+    @memoize
+    def bs_met_products(self):
+        return list(self._search(bisulfite(self.template, True)))
+
+    @property
+    @memoize
+    def bs_unmet_products(self):
+        return list(self._search(bisulfite(self.template, False)))
+
+    def _search(self, template):
+        def d(fw, rv, i, j):
+            return PCRProduct(template, i, j+len(rv), fw, rv)
+        fpp,fpc = self.fw.search(template)
+        rpp,rpc = self.rv.search(template)
         for i in fpp:
             for j in fpc:
                 if i<=j:
-                    ret.append(g(self.fw,self.fw,i,j))
+                    yield d(self.fw, self.fw, i, j)
             for j in rpc:
                 if i<=j:
-                    ret.append(g(self.fw,self.rv,i,j))
+                    yield d(self.fw, self.rv, i, j)
         for i in rpp:
             for j in fpc:
                 if i<=j:
-                    ret.append(g(self.rv,self.fw,i,j))
+                    yield d(self.rv, self.fw, i, j)
             for j in rpc:
                 if i<=j:
-                    ret.append(g(self.rv,self.rv,i,j))
-        return ret
+                    yield d(self.rv, self.rv, i, j)
+
+    @property
+    @memoize
+    def bisulfite_products(self):
+        """
+        return list of the tuple: (met_product, unmet_product, genome_product)
+        if not all products are exist, the other values are None.
+        """
+        ret = defaultdict(lambda: [None,None,None])
+        
+        for p in self.bs_met_products:
+            ret[(p.start,p.end,p.fw,p.rv)][0] = p
+
+        for p in self.bs_unmet_products:
+            ret[(p.start,p.end,p.fw,p.rv)][1] = p
+
+        for p in self.products:
+            ret[(p.start,p.end,p.fw,p.rv)][2] = p
+
+        return list(ret.values())
 
     def debugprint(self):
         print '%s: score=%.2f'%(self.name, self.primer_score())
@@ -520,13 +549,13 @@ class PCR(object):
             print c.seq
 
     def write_html(self, w):
-        w.push('div')
-        w.insert('h2', self.name)
+        b = xmlwriter.builder(w)
+        with b.div:
+            b.h2(self.name)
 
-        self.primers.write_html(w)
-        #self.pair_annealing().write_html(w)
-        #self.pair_end_annealing().write_html(w)
-        for c in self.products:
-            c.write_html(w)
-        w.pop()
+            self.primers.write_html(w)
+            #self.pair_annealing().write_html(w)
+            #self.pair_end_annealing().write_html(w)
+            for c in self.products:
+                c.write_html(w)
 

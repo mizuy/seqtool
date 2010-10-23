@@ -43,43 +43,13 @@ def all_primers(pcrs):
             ret.add(p.rv)
     return ret
 
-class PcrEntry(object):
-    def __init__(self, name, fw, rv):
-        self.name = name
-        self.fw = fw
-        self.rv = rv
-
-class GenomePcrEntry(PcrEntry):
-    def __init__(self, name, fw, rv):
-        super(GenomePcrEntry,self).__init__(name, fw, rv)
-
-    @property
-    def description(self):
-        return self.name + ' (Genome PCR)'
-
-class RtPcrEntry(PcrEntry):
-    def __init__(self, name, fw, rv):
-        super(RtPcrEntry,self).__init__(name, fw, rv)
-
-    @property
-    def description(self):
-        return self.name + ' (RT-PCR)'
-
-class BsPcrEntry(PcrEntry):
-    def __init__(self, name, fw, rv):
-        super(BsPcrEntry,self).__init__(name, fw, rv)
-
-    @property
-    def description(self):
-        return self.name + ' (Bisulfite PCR)'
-
 class BisulfiteSequenceEntry(object):
     def __init__(self, name, pcr, result):
         self.name = name
         self.pcr = pcr
         self.result = result
 
-        p = pcr.products
+        p = pcr.bs_met_products
         if not len(p)==1:
             raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr_name,len(products)))
         self.product = p[0]
@@ -140,54 +110,66 @@ class BisulfiteSequence(object):
             self.keys.append(name)
         self.entries[name].append(entry)
 
-class SeqvFileEntry(object):
-    def __init__(self, name=None):
-        self.name_ = name
-        self.genbank = None
-        self.primers = ListDict()
-        self.motifs = ListDict()
+class GenomicTemplate(object):
+    def __init__(self, genbank_filename):
+        with open(genbank_filename) as f:
+            print 'loading genbank: '+genbank_filename,
+            self.genbank_ = SeqIO.read(f, "genbank")
+            print '...done.'
 
-        self.pcr_entries = ListDict()
+    @property
+    def genbank(self):
+        return self.genbank_
 
-        self.bsps = BisulfiteSequence()
-
-        self.bs_met_pcrs = ListDict()
-        
     @property
     def name(self):
         return self.name_
 
     @property
     def description(self):
-        return self.genbank.description
+        return self.genbank_.description
 
     @property
     def seq(self):
-        return self.genbank.seq
+        return self.genbank_.seq
 
     @property
     @memoize
     def bs_met(self):
-        return bisulfite(self.genbank.seq, True)
+        return bisulfite(self.genbank_.seq, True)
 
     @property
     @memoize
     def bs_unmet(self):
-        return bisulfite(self.genbank.seq, False)
+        return bisulfite(self.genbank_.seq, False)
 
     @property
     def transcripts(self):
-        for f in self.genbank.features:
+        for f in self.features:
             if f.type=='mRNA':
-                yield f, f.extract(self.genbank.seq)
+                yield f, f.extract(self.genbank_.seq)
+        
+    @property
+    def features(self):
+        return self.genbank_.features
+
+class SeqvFileEntry(object):
+    def __init__(self, name=None):
+        self.name_ = name
+        self.template = None
+        self.primers = ListDict()
+        self.motifs = ListDict()
+
+        self.pcrs = ListDict()
+        self.bs_pcrs = ListDict()
+        self.rt_pcrs = ListDict()
+
+        self.bsps = BisulfiteSequence()
+
+        self.loaded_ = False
 
     def load_genbank(self, filename):
-        if self.genbank:
-            raise ValueError('genbank already loaded.')
-        with open(filename) as f:
-            print 'loading genbank: '+filename,
-            self.genbank = SeqIO.read(f, "genbank")
-            print '...done.'
+        self.template = GenomicTemplate(filename)
 
     def load_primers(self, filename):
         with open(filename,'r') as f:
@@ -215,121 +197,77 @@ class SeqvFileEntry(object):
             else:
                 raise KeyeError('no such forward primer: %s'%name)
 
-    def add_pcr(self, name, fw_primer, rv_primer):
-        assert(self.genbank)
+    def get_primers(self, fw_primer, rv_primer, name):
         fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
         rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
-        self.pcr_entries.append(GenomePcrEntry(name, fw, rv))
+        return fw, rv
+
+    def get_pcr(self, name, fw_primer, rv_primer):
+        assert(self.template)
+        fw, rv = self.get_primers(fw_primer, rv_primer, name)
+        return PCR(name, self.template.seq, fw, rv)
+
+    def add_pcr(self, name, fw_primer, rv_primer):
+        self.pcrs.append(self.get_pcr(name,fw_primer,rv_primer))
 
     def add_bs_pcr(self, name, fw_primer, rv_primer):
-        assert(self.genbank)
-        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
-        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
-        self.pcr_entries.append(BsPcrEntry(name, fw, rv))
-
-        # for add_bsp
-        self.bs_met_pcrs.append(PCR(name, self.bs_met, fw, rv))
+        self.bs_pcrs.append(self.get_pcr(name,fw_primer,rv_primer))
 
     def add_rt_pcr(self, name, fw_primer, rv_primer):
-        assert(self.genbank)
-        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
-        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
-        self.pcr_entries.append(RtPcrEntry(name, fw, rv))
+        self.rt_pcrs.append(self.get_pcr(name,fw_primer,rv_primer))
 
     def add_bsp(self, cellline, pcr_name, result):
-        assert(self.genbank)
+        assert(self.template)
         assert isinstance(cellline,str)
         assert isinstance(pcr_name,str)
         assert isinstance(result,str)
         try:
-            pcr = self.bs_met_pcrs[pcr_name]
+            pcr = self.bs_pcrs[pcr_name]
         except KeyError:
             raise ValueError('no such pcr: %s'%pcr_name)
 
         self.bsps.add(cellline, BisulfiteSequenceEntry(cellline, pcr, result))
 
     def render_genome(self, width):
-        if not self.genbank:
-            return None
-        length = len(self.genbank.seq)
-
-        pcr_origin = []
-        pcr_bs_met = []
-        pcr_bs_unmet = []
-
-        for pcr in self.pcr_entries:
-            if isinstance(pcr, BsPcrEntry):
-                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
-                pcr_bs_met.append(PCR(pcr.name, self.bs_met, pcr.fw, pcr.rv))
-                pcr_bs_unmet.append(PCR(pcr.name, self.bs_unmet, pcr.fw, pcr.rv))
-            elif isinstance(pcr, GenomePcrEntry):
-                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
-            elif isinstance(pcr, RtPcrEntry):
-                pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
-            else:
-                raise TypeError("%s"%pcr)
-
-        def all_primers(pcrs):
-            ret = set()
-            for p in pcrs:
-                if p.products:
-                    ret.add(p.fw)
-                    ret.add(p.rv)
-            return ret
+        assert(self.template)
+        length = len(self.template.seq)
 
         t = seqtrack.TrackGroup()
-        t.add(seqtrack.SequenceTrack(self.genbank.seq, self.genbank.features))
+        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features))
 
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
             t.add(seqtrack.BisulfiteSequenceTrack(name, bsp_map, start, end))
 
-        tracks = [
-            ('genome', pcr_origin, self.seq),
-            ('BS met', pcr_bs_met, self.bs_met),
-            ('BS unmet', pcr_bs_unmet, self.bs_unmet),
-            ]
-        for name, pcrs, template in tracks:
-            print name, len(pcrs)
-            t.add(seqtrack.HbarTrack('', length))
-            t.add(seqtrack.PcrsTrack(name, pcrs))
-            primers = set(self.primers) - all_primers(pcrs)
-            t.add(seqtrack.PrimersTrack(primers, template))
-        
+        t.add(seqtrack.HbarTrack('', length))
+        t.add(seqtrack.PcrsTrack('genome', self.pcrs))
+
+        t.add(seqtrack.HbarTrack('', length))
+        t.add(seqtrack.BsPcrsTrack('bisulfite pcr', self.bs_pcrs))
+
+        t.add(seqtrack.HbarTrack('', length))
+        t.add(seqtrack.PcrsTrack('rt pcr', self.rt_pcrs))
+
         return t.svg(width)
 
     def render_transcript(self, width):
-        if not self.genbank:
-            return None
-
-        pcr_rt = []
-        
-        for pcr in self.pcr_entries:
-            if isinstance(pcr, BsPcrEntry):
-                pass
-            elif isinstance(pcr, GenomePcrEntry):
-                pass
-            elif isinstance(pcr, RtPcrEntry):
-                pcr_rt.append(pcr)
-            else:
-                raise TypeError("%s"%pcr)
+        assert(self.template)
 
         t = seqtrack.TrackGroup()
 
-        for feature, seq in self.transcripts:
+        for feature, seq in self.template.transcripts:
             length = len(seq)
             name = feature.qualifiers['product'][0]
 
             t.add(seqtrack.TranscriptTrack(name, seq, feature))
 
-            pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in pcr_rt]
+            pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in self.rt_pcrs]
             t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
-            primers = set(self.primers) - all_primers(pcrs)
-            t.add(seqtrack.PrimersTrack(primers, seq))
         
         return t.svg(width)
 
     def render_bsp(self, width=None, scale=2, init=50):
+        assert(self.template)
         return ''
         '''
         TODO:
@@ -370,7 +308,7 @@ class SeqvFileEntry(object):
         transcript_r = svg_prefix + '_transcript.svg'
         bsp_r = svg_prefix + '_bsp.svg'
 
-        b.h1(self.description)
+        b.h1(self.template.description)
         with b.div(**{'class':'images'}):
             b.h2('images')
             with b.div:
@@ -389,8 +327,7 @@ class SeqvFileEntry(object):
             b.h2('Primers')
             primers_write_html(b.get_writer(), self.primers)
 
-        def write_products(pcr):
-            products = pcr.products
+        def write_products(products):
             if len(products) > 0:
                 for c in products:
                     c.write_html(b.get_writer())
@@ -399,36 +336,46 @@ class SeqvFileEntry(object):
 
         with b.div(**{'class':'pcrs'}):
             b.h2('PCRs')
-            for pcr in self.pcr_entries:
+            for pcr in self.pcrs:
                 with b.div(**{'class':'pcr'}):
-                    b.h3(pcr.description)
-                    origin = PCR(pcr.name, self.seq, pcr.fw, pcr.rv)
-                    origin.primers.write_html(b.get_writer())
+                    b.h3(pcr.name + " (Genome PCR)")
+                    pcr.primers.write_html(b.get_writer())
+
                     b.h4('products')
                     with b.div(**{'class':'products'}):
-                        if isinstance(pcr, BsPcrEntry):
-                            b.h5('template = Bisulfite-Treated (Methyl)')
-                            write_products(PCR(pcr.name, self.bs_met, pcr.fw, pcr.rv))
-                            b.h5('template = Bisulfite-Treated (Unmethyl)')
-                            write_products(PCR(pcr.name, self.bs_unmet, pcr.fw, pcr.rv))
-                            b.h5('template = Genome')
-                            write_products(origin)
-                        elif isinstance(pcr, GenomePcrEntry):
-                            write_products(origin)
-                        elif isinstance(pcr, RtPcrEntry):
-                            for feature, seq in self.transcripts:
-                                length = len(seq)
-                                name = feature.qualifiers['product'][0]
-                                b.h5('template = transcripts: %s'%name)
-                                write_products(PCR(pcr.name, seq, pcr.fw, pcr.rv))
+                        write_products(pcr.products)
 
-                            b.h5('template = Genome')
-                            write_products(origin)
-                        else:
-                            raise TypeError("%s"%pcr)
+            for pcr in self.bs_pcrs:
+                with b.div(**{'class':'pcr'}):
+                    b.h3(pcr.name + " (Bisulfite PCR)")
+                    pcr.primers.write_html(b.get_writer())
 
+                    b.h4('products')
+                    with b.div(**{'class':'products'}):
+                        b.h5('template = Bisulfite-Treated (Methyl)')
+                        write_products(pcr.bs_met_products)
+                        b.h5('template = Bisulfite-Treated (Unmethyl)')
+                        write_products(pcr.bs_unmet_products)
+                        b.h5('template = Genome')
+                        write_products(pcr.products)
 
-        return [(genome_r, self.render_genome(1200)),
+            for pcr in self.rt_pcrs:
+                with b.div(**{'class':'pcr'}):
+                    b.h3(pcr.name + " (RT PCR)")
+                    pcr.primers.write_html(b.get_writer())
+
+                    b.h4('products')
+                    with b.div(**{'class':'products'}):
+                        for feature, seq in self.template.transcripts:
+                            length = len(seq)
+                            name = feature.qualifiers['product'][0]
+                            b.h5('template = transcripts: %s'%name)
+                            write_products(PCR(pcr.name, seq, pcr.fw, pcr.rv).products)
+
+                        b.h5('template = Genome')
+                        write_products(pcr.products)
+
+        return [(genome_r, self.render_genome(5000)),
                 (transcript_r, self.render_transcript(1200)),
                 (bsp_r, self.render_bsp())]
 
