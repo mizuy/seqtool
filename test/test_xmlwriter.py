@@ -1,12 +1,12 @@
 # encoding:utf-8
-from seqtool import htmlwriter
+from seqtool import xmlwriter
 from nose.tools import *
 
 from StringIO import StringIO
 
-def test_htmlwriter():
+def test_xmlwriter():
     s = StringIO()
-    w = htmlwriter.HtmlWriter(s)
+    w = xmlwriter.XmlWriter(s)
     w.push('body')
     w.push('body')
     w.push('a')
@@ -38,12 +38,12 @@ hoganonahdkkaskdfnhoganona3  <a lalal="asdf" href="http://&amp;&amp;Jlkjasdf.lkj
 
 def test_listwriter():
     s = StringIO()
-    w = htmlwriter.HtmlWriter(s)
+    w = xmlwriter.XmlWriter(s)
 
     w.push('html')
     w.push('body')
 
-    o = htmlwriter.OUListWriter(w)
+    o = xmlwriter.OUListWriter(w)
     o.move(1)
     w.text('a')
     o.move(2)
@@ -91,7 +91,7 @@ def test_listwriter():
 def test_unicode():
     "note: do not use cStringIO.StringIO, which can not handle unicode"
     s = StringIO()
-    w = htmlwriter.HtmlWriter(s)
+    w = xmlwriter.XmlWriter(s)
 
     w.push('body')
     w.insert('title',u'タイトル')
@@ -106,8 +106,8 @@ u"""<body>
 
 def test_builder():
     buff = StringIO()
-    w = htmlwriter.HtmlWriter(buff)
-    b = htmlwriter.builder(w)
+    w = xmlwriter.XmlWriter(buff)
+    b = xmlwriter.builder(w)
     with b.html(hoge='hogehoge'):
         with b.head(div='div'):
             b.meta(name='meta name')

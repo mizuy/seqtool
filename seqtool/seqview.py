@@ -8,32 +8,40 @@ from collections import defaultdict
 import os
 
 from .memoize import memoize
-from .nucleotide import Primer, PCR, bisulfite
+from .nucleotide import bisulfite
+from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file
-from .primers import primers_write_html, load_primer_list_file
+from .primers import load_primer_list_file
 from . import seqtrack
 from . import xmlwriter
 
 class ListDict(object):
     def __init__(self):
-        self.list = []
-        self.dict = {}
-    def append(self, value):
-        if not self.dict.has_key(value.name):
-            self.list.append(value)
-        self.dict[value.name] = value
-    def __len__(self):
-        return len(self.list)
+        self._list = []
+        self._dict = {}
 
+    def append(self, value):
+        if value.name in self._dict:
+            raise ValueError('already exist: %s'%value.name)
+        self._dict[value.name] = value
+        self._list.append(value)
+
+    def __len__(self):
+        return len(self._list)
+
+    def __getitem__(self, name):
+        return self._dict[name]
+
+    def __iter__(self):
+        return iter(self._list)
 
 def all_primers(pcrs):
     ret = set()
     for p in pcrs:
-        if p.get_products():
+        if p.products:
             ret.add(p.fw)
             ret.add(p.rv)
     return ret
-
 
 class PcrEntry(object):
     def __init__(self, name, fw, rv):
@@ -71,7 +79,7 @@ class BisulfiteSequenceEntry(object):
         self.pcr = pcr
         self.result = result
 
-        p = pcr.get_products()
+        p = pcr.products
         if not len(p)==1:
             raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr_name,len(products)))
         self.product = p[0]
@@ -156,10 +164,12 @@ class SeqvFileEntry(object):
     @property
     def seq(self):
         return self.genbank.seq
+
     @property
     @memoize
     def bs_met(self):
         return bisulfite(self.genbank.seq, True)
+
     @property
     @memoize
     def bs_unmet(self):
@@ -194,24 +204,27 @@ class SeqvFileEntry(object):
         seq.name = name
         self.motifs.append(seq)
 
-    def get_primer(self, name):
-        if not self.primers.dict.has_key(name):
+    def get_primer(self, name, pcr_name):
+        try:
+            return self.primers[name]
+        except KeyError:
             if all(n in 'ATGC' for n in name):
-                self.add_primer(Primer(name, Seq.Seq(name,IUPAC.unambiguous_dna)))
+                p = Primer(pcr_name, Seq.Seq(name,IUPAC.unambiguous_dna))
+                self.add_primer(p)
+                return p
             else:
-                raise ValueError('no such forward primer: %s'%name)
-        return self.primers.dict[name]
+                raise KeyeError('no such forward primer: %s'%name)
 
     def add_pcr(self, name, fw_primer, rv_primer):
         assert(self.genbank)
-        fw = self.get_primer(fw_primer)
-        rv = self.get_primer(rv_primer)
+        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
+        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
         self.pcr_entries.append(GenomePcrEntry(name, fw, rv))
 
     def add_bs_pcr(self, name, fw_primer, rv_primer):
         assert(self.genbank)
-        fw = self.get_primer(fw_primer)
-        rv = self.get_primer(rv_primer)
+        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
+        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
         self.pcr_entries.append(BsPcrEntry(name, fw, rv))
 
         # for add_bsp
@@ -219,8 +232,8 @@ class SeqvFileEntry(object):
 
     def add_rt_pcr(self, name, fw_primer, rv_primer):
         assert(self.genbank)
-        fw = self.get_primer(fw_primer)
-        rv = self.get_primer(rv_primer)
+        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
+        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
         self.pcr_entries.append(RtPcrEntry(name, fw, rv))
 
     def add_bsp(self, cellline, pcr_name, result):
@@ -229,7 +242,7 @@ class SeqvFileEntry(object):
         assert isinstance(pcr_name,str)
         assert isinstance(result,str)
         try:
-            pcr = self.bs_met_pcrs.dict[pcr_name]
+            pcr = self.bs_met_pcrs[pcr_name]
         except KeyError:
             raise ValueError('no such pcr: %s'%pcr_name)
 
@@ -244,7 +257,7 @@ class SeqvFileEntry(object):
         pcr_bs_met = []
         pcr_bs_unmet = []
 
-        for pcr in self.pcr_entries.list:
+        for pcr in self.pcr_entries:
             if isinstance(pcr, BsPcrEntry):
                 pcr_origin.append(PCR(pcr.name, self.seq, pcr.fw, pcr.rv))
                 pcr_bs_met.append(PCR(pcr.name, self.bs_met, pcr.fw, pcr.rv))
@@ -259,7 +272,7 @@ class SeqvFileEntry(object):
         def all_primers(pcrs):
             ret = set()
             for p in pcrs:
-                if p.get_products():
+                if p.products:
                     ret.add(p.fw)
                     ret.add(p.rv)
             return ret
@@ -280,7 +293,7 @@ class SeqvFileEntry(object):
             print name, len(pcrs)
             t.add(seqtrack.HbarTrack('', length))
             t.add(seqtrack.PcrsTrack(name, pcrs))
-            primers = set(self.primers.list) - all_primers(pcrs)
+            primers = set(self.primers) - all_primers(pcrs)
             t.add(seqtrack.PrimersTrack(primers, template))
         
         return t.svg(width)
@@ -291,7 +304,7 @@ class SeqvFileEntry(object):
 
         pcr_rt = []
         
-        for pcr in self.pcr_entries.list:
+        for pcr in self.pcr_entries:
             if isinstance(pcr, BsPcrEntry):
                 pass
             elif isinstance(pcr, GenomePcrEntry):
@@ -311,7 +324,7 @@ class SeqvFileEntry(object):
 
             pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in pcr_rt]
             t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
-            primers = set(self.primers.list) - all_primers(pcrs)
+            primers = set(self.primers) - all_primers(pcrs)
             t.add(seqtrack.PrimersTrack(primers, seq))
         
         return t.svg(width)
@@ -352,7 +365,6 @@ class SeqvFileEntry(object):
         return True
         '''
 
-
     def write_html(self, b, svg_prefix=''):
         genome_r = svg_prefix + '.svg'
         transcript_r = svg_prefix + '_transcript.svg'
@@ -375,10 +387,10 @@ class SeqvFileEntry(object):
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
-            primers_write_html(b.get_writer(), self.primers.list)
+            primers_write_html(b.get_writer(), self.primers)
 
         def write_products(pcr):
-            products = pcr.get_products()
+            products = pcr.products
             if len(products) > 0:
                 for c in products:
                     c.write_html(b.get_writer())
@@ -387,7 +399,7 @@ class SeqvFileEntry(object):
 
         with b.div(**{'class':'pcrs'}):
             b.h2('PCRs')
-            for pcr in self.pcr_entries.list:
+            for pcr in self.pcr_entries:
                 with b.div(**{'class':'pcr'}):
                     b.h3(pcr.description)
                     origin = PCR(pcr.name, self.seq, pcr.fw, pcr.rv)

@@ -6,7 +6,8 @@ from Bio.SeqUtils import GC
 from collections import defaultdict
 
 from StringIO import StringIO
-from .nucleotide import Primer, PCR, bisulfite, search_primer,  base_color, cpg_sites, cpg_obs_per_exp
+from .nucleotide import bisulfite, base_color, cpg_sites, cpg_obs_per_exp
+from .pcr import PCR, Primer
 from . import xmlwriter
 
 # calc free space
@@ -342,7 +343,7 @@ class PcrsTrack(NamedTrack):
         self.pcrs = []
         fs = FreeSpace()
         for pcr in pcrs:
-            for p in pcr.get_products():
+            for p in pcr.products:
                 y = fs.set(p.start, p.end)
                 self.pcrs.append( (pcr.name, p, y*20) )
         super(PcrsTrack, self).__init__(name, 0, 20*fs.num_lines())
@@ -357,6 +358,7 @@ class PcrsTrack(NamedTrack):
             self.text(b, name, x=m, y=y+11, color='black', anchor='middle', scale=scale)
 
 
+
 class PcrTrack(NamedTrack):
     def __init__(self, pcr):
         super(PcrTrack, self).__init__(pcr.name, 0, 20)
@@ -364,7 +366,7 @@ class PcrTrack(NamedTrack):
 
     def draw(self, b, scale):
         super(PcrTrack, self).draw(b, scale)
-        for i,p in enumerate(self.pcr.get_products()):
+        for i,p in enumerate(self.pcr.products):
             self.draw_hbar(b, p.start, p.start_i, 4, 4, color='red')
             self.draw_hbar(b, p.start_i, p.end_i, 4,4, color='gray')
             self.draw_hbar(b. p.end_i, p.end, 4, 4, color='blue')
@@ -380,7 +382,7 @@ class PrimersTrack(Track):
         fs = FreeSpace()
         self.primers = []
         for p in primers:
-            f,r = search_primer(p.seq, template)
+            f,r = p.search(template)
             for ff in f:
                 start,end = ff, ff+len(p)-1
                 y = fs.set(start,end)
@@ -409,7 +411,7 @@ class PrimerTrack(NamedTrack):
         def d(start, end, forward=True):
             self.draw_hbar(b, start, end, 5, color = '#f00' if forward else '#00f')
             
-        f,r = search_primer(p.seq, template)
+        f,r = p.search(template)
         for ff in f:
             draw(ff, ff+len(p)-1, True)
         for rr in r:

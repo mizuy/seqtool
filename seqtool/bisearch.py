@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from .nucleotide import Primer, PrimerPair
+from .pcr import Primer, PrimerPair, PrimerCondition
 
 import bisect
 from numpy import *
@@ -147,27 +147,6 @@ class TargetSequence(object):
     def is_cpg_c(self, index):
         return 1 if (0<=index-1 and self.seqint[index]==2 and self.seqint[index-1]==3) else 0
 
-class Condition(object):
-    def __init__(self, weight, optimal, minimum, maximum):
-        self.optimal = optimal
-        self.weight = weight
-        self.minimum = minimum
-        self.maximum = maximum
-    def score(self, value):
-        return self.weight * abs(value-self.optimal)
-    def bound(self, value):
-        return self.minimum <= value <= self.maximum
-
-class PrimerCondition(object):
-    def __init__(self):
-        self.primer_length = Condition(0.5, 23., 10, 30)
-        self.gc            = Condition(1.0, 50., 30, 70)
-        self.gc_bsp        = Condition(1.0, 30., 0, 60)
-        self.tm            = Condition(1.0, 60., 45, 70)
-        self.sa            = Condition(0.1, 0., 0, 25)
-        self.sea           = Condition(0.2, 0., 0, 15)
-        self.pa            = Condition(0.1, 0., 0, 25)
-        self.pea           = Condition(0.2, 0., 0, 15)
 
 class PrimerSearchOptions(object):
     MODE_NORMAL = 0
