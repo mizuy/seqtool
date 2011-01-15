@@ -11,3 +11,5 @@ primers: calculate primer properties
 python setup.py install
 
 
+** develop
+/opt/local/bin/virtualenv-2.7 environ
