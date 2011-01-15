@@ -35,4 +35,5 @@ setup(name='seqtool',
 seqview = seqtool.seqview:main
 primers = seqtool.primers:main
 bisearch = seqtool.bisearch:main
+make_bs_index = seqtool.make_bs_index:main
 """)
