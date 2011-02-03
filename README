@@ -5,7 +5,7 @@ miscellaneous tools for molecular biology.
 seqview: render overview image of sequence, primers, bisulfite sequence results.
 bisearch: design primer based on primer3 algorithm.
 primers: calculate primer properties
-
+virtualpcr: PCR primer alignment tool using bowtie
 
 ** Install
 python setup.py install
@@ -13,3 +13,6 @@ python setup.py install
 
 ** develop
 /opt/local/bin/virtualenv-2.7 environ
+source environ/bin/activate
+pip install numpy
+python setup.py develop
