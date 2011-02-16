@@ -3,8 +3,30 @@ from __future__ import absolute_import
 from collections import defaultdict
 import subprocess
 import sys, os, time
+import tempfile
 
-bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie')
+'''
+-p 2 : number of thread
+--best : matches are ordered on number of mismatches.
+-k 1000 : maximum number of matches.
+-n 2 : allowed number of mismatches per primer.
+'''
+bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie -p 2 --best -k 1000 -n 2')
+
+class PrimerAlign(object):
+    def __init__(self, template, seq, mismatch, offset):
+        self.template = template
+        self.origin = seq
+        self.mismatch = mismatch
+        self.offset = offset
+
+class PCRFragment(object):
+    def __init__(self, template, fw, rv):
+        self.template = template
+        self.fw = fw
+        self.rv = rv
+    def __len__(self):
+        return self.rv.offset - self.fw.offset + len(self.rv.origin)
 
 def virtualpcr(template, seqstrs, threshold=None):
     '''
@@ -12,12 +34,15 @@ def virtualpcr(template, seqstrs, threshold=None):
     parser for default bowtie output
     '''
 
-    command = '%s -a -n 2 %s -c %s' %(os.path.abspath(bowtie_path), template, ','.join(seqstrs))
+    stdout = tempfile.TemporaryFile()
+    stderr = tempfile.TemporaryFile()
+    command = '%s %s -c %s' %(os.path.abspath(bowtie_path), template, ','.join(seqstrs))
     try:
         print command
-        p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # note. using subprocess.PIPE with p.wait() dead locks if output is large.
+        p = subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
         sys.stdout.write('waiting for bowtie.')
-        while p.poll()==None:
+        while p.poll() is None:
             sys.stdout.write('.')
             sys.stdout.flush()
             time.sleep(1)
@@ -30,6 +55,8 @@ def virtualpcr(template, seqstrs, threshold=None):
         print >>sys.stderr, "failed to invoke bowtie. command: ", command, ' error=', e
         return None
 
+    stdout.seek(0)
+    stderr.seek(0)
 
     # matched-align list for each template(chromosome). positive means forward strand match.
     matches_positive = defaultdict(list)
@@ -38,7 +65,7 @@ def virtualpcr(template, seqstrs, threshold=None):
     primer_full_count = defaultdict(int)
     primer_miss_count = defaultdict(int)
 
-    for l in p.stdout:
+    for l in stdout:
         '''see http://bowtie-bio.sourceforge.net/manual.shtml#default-bowtie-output for output format. '''
         r = [c.strip() for c in l.split()]
         assert( int(r[0]) in [0,1] )
@@ -58,12 +85,12 @@ def virtualpcr(template, seqstrs, threshold=None):
         else:
             primer_full_count[primer_i] += 1
 
-        match = (primer, offset, difference)
+        align = PrimerAlign(template, primer, difference, offset)
         if direction == '+':
-            matches_positive[template].append(match)
+            matches_positive[template].append(align)
         else:
-            matches_negative[template].append(match)
-
+            matches_negative[template].append(align)
+        
     print 'primer statistics'
     for i,p in enumerate(seqstrs):
         print 'primer %s:' % p
@@ -71,9 +98,9 @@ def virtualpcr(template, seqstrs, threshold=None):
         print ' miss match = %4d' % primer_miss_count[i]
 
     for v in matches_positive.values():
-        v.sort(key=lambda x:x[1])
+        v.sort(key=lambda x:x.offset)
     for v in matches_negative.values():
-        v.sort(key=lambda x:x[1])
+        v.sort(key=lambda x:x.offset)
 
     templates = set(matches_positive.keys()) & set(matches_negative.keys())
 
@@ -83,25 +110,25 @@ def virtualpcr(template, seqstrs, threshold=None):
         p = 0
         n = 0
         while p < len(pl):
-            while not pl[p][1] <= nl[n][1]:
+            while not pl[p].offset <= nl[n].offset:
                 n += 1
                 if not (n < len(nl)):
                     return
-            while p+1 < len(pl) and pl[p+1][1] <= nl[n][1]:
+            while p+1 < len(pl) and pl[p+1].offset <= nl[n].offset:
                 p += 1
-            if not threshold or nl[n][1]-pl[p][1] < threshold:
-                yield p, n
+            if not threshold or nl[n].offset-pl[p].offset < threshold:
+                yield pl[p], nl[n]
             p += 1
-        
+
+    result = []
 
     for t in templates:
         pl = matches_positive[t]
         nl = matches_negative[t]
         for p,n in pcr_pair(pl, nl):
-            pp = pl[p]
-            nn = nl[n]
-            l = nn[1] - pp[1]
-            print 'match at %s length=%d(%d->%d) %s(%s) -> %s(%s)' %(t, l, pp[1],nn[1], pp[0],pp[2], nn[0],nn[2])
+            result.append(PCRFragment(t, p, n))
+
+    return result
 
 def main():
     import sys, os
@@ -112,24 +139,34 @@ def main():
     parser.add_option('-b', '--bisulfite', dest='bisulfite', action='store_true', default=False)
     parser.add_option('-l', '--length', dest='length', type=int, default=-1)
 
-    (options, args) = parser.parse_args()
+    (options, primers) = parser.parse_args()
 
-    if len(args) == 0:
+    if len(primers) == 0:
         parser.error("no sequence input")
 
     if options.bisulfite and options.template:
         parser.error('bisulfite option and template option are exclusive.')
-    
+
+    def s(template):
+        result = virtualpcr(template, primers, length)
+        if result:
+            for r in result:
+                print 'match at %s length=%10d %s(%s) -> %s(%s)' %(str(r.template).ljust(10), len(r), r.fw.origin,r.fw.mismatch, r.rv.origin,r.rv.mismatch)
+        else:
+            print 'no result'
+        
+                          
     length = options.length if options.length > 0 else None
+    result = None
     if options.template:
-        virtualpcr(options.template, args, length)
+        s(options.template)
     elif options.bisulfite:
         print 'METHYL'
-        virtualpcr('bs_sense_met', args, length)
-        virtualpcr('bs_antisense_met', args, length)
+        s('bs_sense_met')
+        s('bs_antisense_met')
         print 'UNMETHYL'
-        virtualpcr('bs_sense_unmet', args, length)
-        virtualpcr('bs_antisense_unmet', args, length)
+        s('bs_sense_unmet')
+        s('bs_antisense_unmet')
     else:
         parser.error('no template specified.')
 
