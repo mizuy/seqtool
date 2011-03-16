@@ -190,12 +190,12 @@ class SeqvFileEntry(object):
         try:
             return self.primers[name]
         except KeyError:
-            if all(n in 'ATGC' for n in name):
+            if all(n.upper() in 'ATGC' for n in name):
                 p = Primer(pcr_name, Seq.Seq(name,IUPAC.unambiguous_dna))
                 self.add_primer(p)
                 return p
             else:
-                raise KeyeError('no such forward primer: %s'%name)
+                raise KeyError('no such forward primer: %s'%name)
 
     def get_primers(self, fw_primer, rv_primer, name):
         fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
@@ -238,6 +238,10 @@ class SeqvFileEntry(object):
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
             t.add(seqtrack.BisulfiteSequenceTrack(name, bsp_map, start, end))
+
+        for m in self.motifs:
+            t.add(seqtrack.HbarTrack('', length))
+            t.add(seqtrack.PrimerTrack(m.name, Primer(m.name,m), self.template.seq))
 
         t.add(seqtrack.HbarTrack('', length))
         t.add(seqtrack.PcrsTrack('genome', self.pcrs))

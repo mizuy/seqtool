@@ -120,7 +120,7 @@ class Track(TrackBase):
 
     def draw(self, b, scale):
         print "drawing %s: %s"%(self.__class__.__name__,self.name)
-        self.text(b, self.name, x=-5*scale[0], y=8, anchor='end', scale=scale)
+        self.text(b, self.name, x=-5*scale[0], y=6, anchor='end', scale=scale)
         
     def _sty(self, color):
         if color:
@@ -197,12 +197,12 @@ class SequenceTrack(TrackGroup):
         msize = 500*(max(1,int(self.length/10)/500))
 
         self.add(MeasureTrack(self.length, 0, msize))
-        self.add(CpgBarTrack(self.seq))
         self.add(CpgObsPerExpTrack(self.seq))
         self.add(GcPercentTrack(self.seq))
         #self.add(SequenceTrack(self.seq))
         for f in self.features:
             self.add(FeatureTrack(f))
+        self.add(CpgBarTrack(self.seq))
 
     def draw(self, b, scale):
         super(SequenceTrack, self).draw(b, scale)
@@ -430,20 +430,21 @@ class PrimersTrack(Track):
             self.text(b, name, x=(start+end)/2., y=y*20+10, color='black', anchor='middle',scale=scale)
 
 class PrimerTrack(NamedTrack):
-    def __init__(self, name, primer):
-        super(PrimerTrack, self).__init__(primer.name, 0, 10)
+    def __init__(self, name, primer, template):
+        super(PrimerTrack, self).__init__(name, 0, 10)
         self.primer = primer
+        self.template = template
     def draw(self, b, scale):
         super(PrimerTrack, self).draw(b, scale)
 
         def d(start, end, forward=True):
-            self.draw_hbar(b, start, end, 5, color = '#f00' if forward else '#00f')
+            self.draw_hbar(b, start, end, 0, 10, color = '#f00' if forward else '#00f')
             
-        f,r = p.search(template)
+        f,r = self.primer.search(self.template)
         for ff in f:
-            draw(ff, ff+len(p)-1, True)
+            d(ff, ff+len(self.primer)-1, True)
         for rr in r:
-            draw(rr, rr+len(p)-1, False)
+            d(rr, rr+len(self.primer)-1, False)
 
 class BisulfiteSequenceTrack(NamedTrack):
     def __init__(self, name, bsp_map, start, end):
