@@ -12,106 +12,107 @@ from . import xmlwriter
 
 from .nucleotide import *
 
-__all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html']
+__all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv']
+
+
+def annealing_score_n(x,y):
+    if (x=='A' and y=='T') or (x=='T' and y=='A'):
+        return 2
+    elif (x=='G' and y=='C') or (x=='C' and y=='G'):
+        return 4
+    else:
+        return 0
+
+def annealing_score(p,q,end_annealing=False,getindex=False):
+    sv = annealing_score_n
+    p = str(p).upper()
+    q = str(q).upper()
+    w = p
+    v = q[::-1]
+    n = len(w)
+    m = len(v)
+
+    def ea(ss):
+        ret = 0
+        for n in ss:
+            if n==0:
+                return ret
+            ret += n
+        return ret
+    def ea_l(ss):
+        return ea(ss)
+    def ea_r(ss):
+        return ea(ss[::-1])
+    def ea_lr(ss):
+        return max(ea_l(ss),ea_r(ss))
+
+    def max_(old, new):
+        old_s,v = old
+        new_s,vv = new
+        if old_s<new_s:
+            return new
+        return old
+
+    eav = (-1, None)
+    av = (-1, None)
+    if n<=m:
+        assert m-n >= 0
+        for k in xrange(-(n-1),m-1 +1):
+            if k<=0:
+                # 5'- w[0]....w[-k]....w[n-1] -3'
+                #         3'- v[0].....v[n+k-1]....v[m-1] -5'
+                ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
+                av = max_(av, (sum(ss),(k,ss)))
+                eav = max_(eav,(ea_lr(ss),(k,ss)))
+            elif k<=m-n:
+                #         w[0]....w[n-1]
+                # v[0]....v[k]....v[k+n-1].....v[m-1]
+                ss = [sv(w[0+i],v[k+i]) for i in xrange(n)]
+                av = max_(av, (sum(ss),(k,ss)))
+                eav = max_(eav,(ea_r(ss),(k,ss)))
+            else:
+                #        w[0]...w[m-k-1]....w[n-1]
+                # v[0]...v[k]...v[m-1]
+                ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
+                av = max_(av, (sum(ss),(k,ss)))
+    else:
+        assert m-n <= 0
+        for k in xrange(-(n-1),m-1 +1):
+            if k<=m-n:
+                # w[0]....w[-k]....w[n-1]
+                #         v[0].....v[n+k-1]....v[m-1]
+                ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
+                av = max_(av, (sum(ss),(k,ss)))
+                eav = max_(eav,(ea_lr(ss),(k,ss)))
+            elif k<=0:
+                # w[0]....w[k]....w[m-k-1].....w[n-1]
+                #         v[0]....v[m-1]
+                ss = [sv(w[k+i],v[0+i]) for i in xrange(m)]
+                av = max_(av, (sum(ss),(k,ss)))
+                eav = max_(eav,(ea_l(ss),(k,ss)))
+            else:
+                #        w[0]...w[m-k-1]....w[n-1]
+                # v[0]...v[k]...v[m-1]
+                ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
+                av = max_(av, (sum(ss),(k,ss)))
+
+    if not end_annealing:
+        return av[0], av[1]
+    else:
+        return eav[0], eav[1]
 
 class Annealing(object):
     def __init__(self, p, q, end_annealing=False):
-        s, (i, ss) = Annealing.annealing_score(p,q,end_annealing)
+        s, (i, ss) = annealing_score(p,q,end_annealing)
         self.p = p
         self.q = q
         self.score = s
         self.scores = ss
         self.index = i
 
-    @classmethod
-    def annealing_score_n(cls,x,y):
-        if (x=='A' and y=='T') or (x=='T' and y=='A'):
-            return 2
-        elif (x=='G' and y=='C') or (x=='C' and y=='G'):
-            return 4
-        else:
-            return 0
-
-    @classmethod
-    def annealing_score(cls, p,q,end_annealing=False,getindex=False):
-        def sv(x,y):
-            return Annealing.annealing_score_n(str(x),str(y))
-        w = p
-        v = q[::-1]
-        n = len(w)
-        m = len(v)
-        
-        def ea(ss):
-            ret = 0
-            for n in ss:
-                if n==0:
-                    return ret
-                ret += n
-            return ret
-        def ea_l(ss):
-            return ea(ss)
-        def ea_r(ss):
-            return ea(ss[::-1])
-        def ea_lr(ss):
-            return max(ea_l(ss),ea_r(ss))
-
-        def max_(old, new):
-            old_s,v = old
-            new_s,vv = new
-            if old_s<new_s:
-                return new
-            return old
-        
-        eav = (-1, None)
-        av = (-1, None)
-        if n<=m:
-            assert m-n >= 0
-            for k in xrange(-(n-1),m-1 +1):
-                if k<=0:
-                    # 5'- w[0]....w[-k]....w[n-1] -3'
-                    #         3'- v[0].....v[n+k-1]....v[m-1] -5'
-                    ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
-                    av = max_(av, (sum(ss),(k,ss)))
-                    eav = max_(eav,(ea_lr(ss),(k,ss)))
-                elif k<=m-n:
-                    #         w[0]....w[n-1]
-                    # v[0]....v[k]....v[k+n-1].....v[m-1]
-                    ss = [sv(w[0+i],v[k+i]) for i in xrange(n)]
-                    av = max_(av, (sum(ss),(k,ss)))
-                    eav = max_(eav,(ea_r(ss),(k,ss)))
-                else:
-                    #        w[0]...w[m-k-1]....w[n-1]
-                    # v[0]...v[k]...v[m-1]
-                    ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
-                    av = max_(av, (sum(ss),(k,ss)))
-        else:
-            assert m-n <= 0
-            for k in xrange(-(n-1),m-1 +1):
-                if k<=m-n:
-                    # w[0]....w[-k]....w[n-1]
-                    #         v[0].....v[n+k-1]....v[m-1]
-                    ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
-                    av = max_(av, (sum(ss),(k,ss)))
-                    eav = max_(eav,(ea_lr(ss),(k,ss)))
-                elif k<=0:
-                    # w[0]....w[k]....w[m-k-1].....w[n-1]
-                    #         v[0]....v[m-1]
-                    ss = [sv(w[k+i],v[0+i]) for i in xrange(m)]
-                    av = max_(av, (sum(ss),(k,ss)))
-                    eav = max_(eav,(ea_l(ss),(k,ss)))
-                else:
-                    #        w[0]...w[m-k-1]....w[n-1]
-                    # v[0]...v[k]...v[m-1]
-                    ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
-                    av = max_(av, (sum(ss),(k,ss)))
-
-        if not end_annealing:
-            return av[0], av[1]
-        else:
-            return eav[0], eav[1]
 
     def get_bar(self):
-        sv = Annealing.annealing_score_n
+        sv = annealing_score_n
 
         i = self.index
         p = self.p
@@ -135,7 +136,7 @@ class Annealing(object):
         w.pop()
         w.pop()
 
-_nnt_dh = {
+NNT_DH = {
     'AA': 9.1,
     'TT': 9.1,
     'AT': 8.6,
@@ -153,7 +154,7 @@ _nnt_dh = {
     'GG': 11.0,
     'CC': 11.0,
 }
-_nnt_dg = {
+NNT_DG = {
     'AA': 1.55,
     'TT': 1.55,
     'AT': 1.25,
@@ -171,6 +172,43 @@ _nnt_dg = {
     'GG': 2.3,
     'CC': 2.3,
 }
+
+DEFAULT_C_NA = 33.*10**-3
+DEFAULT_C_MG = (2+4.5)*10**-3
+DEFAULT_C_PRIMER = 0.5*10**-6
+
+def melting_temperature_unambiguous(seq, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER):
+    '''
+    c_na, c_mg: final concentration in molar of Na and Mg in PCR reaction mix
+                these are used for calculation of salt concentration
+    c_primer:   final concentration in molar of each primer in PCR reaction mix
+    unmethyl:   if 'unmethyl' is true, all CpGs of template are assumed to be unmethyled
+                then unmethyl version of primer are used for calculation
+    '''
+
+    # c_salt: salt concentration in molar
+    c_salt = c_na + 4*(c_mg**0.5)
+
+    l = len(seq)
+    t0 = 298.2
+    r = 1.987
+    d_h_e = 5.
+    d_h_p = -1000. * ( 2*d_h_e + sum([NNT_DH[seq[i:i+2]] for i in range(l-1)]) )
+    d_g_e = 1.
+    d_g_i = -2.2
+    d_g_p = -1000. * ( 2*d_g_e + d_g_i + sum([NNT_DG[seq[i:i+2]] for i in range(l-1)]) )
+    t_p = t0*d_h_p / (d_h_p-d_g_p + r*t0*log(c_primer) ) + 16.6*log10(c_salt / (1.+0.7*c_salt)) - 269.3
+    return t_p
+
+def melting_temperature_unmethyl(seq, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER, unmethyl=True):
+    seq = str(seq).upper()
+    if unmethyl:
+        seq = seq.replace('R','A').replace('Y','T')
+    else:
+        seq = seq.replace('R','G').replace('Y','C')
+
+    return melting_temperature_unambiguous(seq, c_na, c_mg, c_primer)
+
 
 class Primer(object):
     def __init__(self, name, seq):
@@ -191,36 +229,8 @@ class Primer(object):
     def gc_ratio(self):
         return GC(self.seq)
 
-    def melting_temperature(self, c_na=33.*10**-3, c_mg=(2+4.5)*10**-3, c_primer=0.5*10**-6, unmethyl=True):
-        '''
-        c_na, c_mg: final concentration in molar of Na and Mg in PCR reaction mix
-                    these are used for calculation of salt concentration
-        c_primer:   final concentration in molar of each primer in PCR reaction mix
-        unmethyl:   if 'unmethyl' is true, all CpGs of template are assumed to be unmethyled
-                    then unmethyl version of primer are used for calculation
-        
-        '''
-        if unmethyl:
-            seq = Seq.Seq(str(self.seq).replace('R','A').replace('Y','T'),IUPAC.unambiguous_dna)
-        else:
-            seq = Seq.Seq(str(self.seq).replace('R','G').replace('Y','C'),IUPAC.unambiguous_dna)
-
-        '''
-        c_salt: salt concentration in molar, = 
-        c_primer: primer concentration in molar
-        '''
-        c_salt = c_na + 4*(c_mg**0.5)
-
-        l = len(self)
-        t0 = 298.2
-        r = 1.987
-        d_h_e = 5.
-        d_h_p = -1000. * ( 2*d_h_e + sum([_nnt_dh[str(seq[i:i+2]).upper()] for i in range(l-1)]) )
-        d_g_e = 1.
-        d_g_i = -2.2
-        d_g_p = -1000. * ( 2*d_g_e + d_g_i + sum([_nnt_dg[str(seq[i:i+2]).upper()] for i in range(l-1)]) )
-        t_p = t0*d_h_p / (d_h_p-d_g_p + r*t0*log(c_primer) ) + 16.6*log10(c_salt / (1.+0.7*c_salt)) - 269.3
-        return t_p
+    def melting_temperature(self, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER, unmethyl=True):
+        return melting_temperature_unmethyl(self.seq, c_na, c_mg, c_primer, unmethyl)
 
     @property
     @memoize
@@ -234,14 +244,7 @@ class Primer(object):
     sa = self_annealing
     sea = self_end_annealing
 
-    def debugprint(self):
-        print "%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % self.get_table_row()
-        print 'sa=%s, index=%s'%(self.sa.score, self.sa.index)
-        print '\n'.join(self.sa.get_bar())
-        print 'sea=%s, index=%s'%(self.sea.score, self.sea.index)
-        print '\n'.join(self.sea.get_bar())
-
-    def search(self, seq):
+    def search(self, template):
         def _gen_re_seq(seq):
             table = {
                 'A': 'A',
@@ -266,12 +269,12 @@ class Primer(object):
         cprimer = self.seq.reverse_complement()
         reg = re.compile('(%s)|(%s)'%(_gen_re_seq(primer),_gen_re_seq(cprimer)))
 
-        seqs = str(seq).upper()
+        template = str(template).upper()
         pp = []
         pc = []
         start = 0
         while True:
-            m = reg.search(seqs, start)
+            m = reg.search(template, start)
             if not m:
                 break
             start = m.start()+1
@@ -281,10 +284,17 @@ class Primer(object):
                 pc.append(m.start())
         return pp,pc
 
+    def debugprint(self):
+        print "%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % self.get_table_row()
+        print 'sa=%s, index=%s'%(self.sa.score, self.sa.index)
+        print '\n'.join(self.sa.get_bar())
+        print 'sea=%s, index=%s'%(self.sea.score, self.sea.index)
+        print '\n'.join(self.sea.get_bar())
+
+
     @classmethod
     def get_table_head(cls):
-        return ['name', 'sequence', 'length[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]',
-                'sa.', 'sea.']
+        return ['name', 'sequence', 'length[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
 
     def get_table_row(self):
         return [str(v) for v in [self.name,
@@ -306,6 +316,73 @@ class Primer(object):
               + pc.tm.score(self.melting_temperature()) \
               + pc.sa.score(self.sa.score) \
               + pc.sea.score(self.sea.score)
+
+'''
+class PrimerAnneal(object):
+    def __init__(self, template, primer, location, strand, match):
+        self.template = template
+        self.primer = primer
+        self.location = location
+        self.strand = strand
+        self.match = match
+        
+class PrimerAnneals(object):
+    def __init__(self, template, primer, partial=-1):
+        def _gen_re_seq(seq):
+            table = {
+                'A': 'A',
+                'T': 'T',
+                'G': 'G',
+                'C': 'C',
+                'R': '[GA]',
+                'Y': '[TC]',
+                'M': '[AC]',
+                'K': '[GT]',
+                'S': '[GC]',
+                'W': '[AT]',
+                'H': '[ACT]',
+                'B': '[GTC]',
+                'V': '[GCA]',
+                'D': '[GAT]',
+                'N': '[GATC]',
+                }
+            return ''.join([table[s] for s in str(seq).upper()])
+
+        seqs = str(template).upper()
+
+        cprimer = primer.reverse_complement()
+        if str(primer).upper()==str(cprimer).upper():
+            p = []
+            reg = re.compile('(%s)'%(_gen_re_seq(primer)))
+
+            start = 0
+            while True:
+                m = reg.search(seqs, start)
+                if not m:
+                    break
+                start = m.start()+1
+                if m.group(1):
+                    pp.append(m.start())
+            self.fwrv_match = p
+            return
+        else:
+             reg = re.compile('(%s)|(%s)'%(_gen_re_seq(primer),_gen_re_seq(cprimer)))
+
+        seqs = str(template).upper()
+        pp = []
+        pc = []
+        start = 0
+        while True:
+            m = reg.search(seqs, start)
+            if not m:
+                break
+            start = m.start()+1
+            if m.group(1):
+                pp.append(m.start())
+            if m.group(2):
+                pc.append(m.start())
+        return pp,pc
+'''    
 
 
 class PCRProduct(object):
@@ -442,6 +519,16 @@ class PrimerPair(object):
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
 
+def primers_write_csv(primers):
+    ret = ""
+    ret += ", ".join(Primer.get_table_head())
+    ret += "\n"
+
+    for r in primers:
+        ret += (", ".join([str(v) for v in r.get_table_row()]) + "\n")
+
+    return ret+"\n"
+
 def primers_write_html(w, primers):
     b = xmlwriter.builder(w)
     # primer table
@@ -457,6 +544,7 @@ def primers_write_html(w, primers):
                         b.td(str(v))
 
         b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
+
 
 class PCR(object):
     def __init__(self, name, template, primer_fw, primer_rv):
@@ -526,6 +614,7 @@ class PCR(object):
     def bisulfite_products(self):
         """
         return list of the tuple: (met_product, unmet_product, genome_product)
+        products in the same position are in the same tuple.
         if not all products are exist, the other values are None.
         """
         ret = defaultdict(lambda: [None,None,None])

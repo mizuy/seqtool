@@ -1,12 +1,14 @@
 *.pyc
 *.pyo
 *~
+*.svg
 #*
 environ
 output
 build
 dist
-example/*.svg
 example/*.html
 seqtool.egg-info
-private
+_private
+_env
+env
