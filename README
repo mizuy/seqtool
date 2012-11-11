@@ -10,9 +10,48 @@ virtualpcr: PCR primer alignment tool using bowtie
 ** Install
 python setup.py install
 
-
 ** develop
 /opt/local/bin/virtualenv-2.7 environ
 source environ/bin/activate
 pip install numpy
 python setup.py develop
+
+** Mac OS X, homebrew and python Environment
+
+*** Installing Brew's python
+http://penandpants.com/2012/02/24/install-python/
+https://github.com/mxcl/homebrew/wiki/Homebrew-and-Python
+
+% which python
+/usr/bin/python
+% python --version
+Python 2.7.1
+% brew install python
+% which python
+/usr/local/bin/python
+% sudo easy_install virtualenv
+% virtualenv --version
+1.8.2
+% which virtualenv
+/usr/local/share/python/virtualenv
+% pip install numpy
+
+% brew install gfortran
+% pip install scipy
+  --> failed. ;-P
+
+*** virtualenv setup
+
+% virtualenv env
+New python executable in env/bin/python
+Installing setuptools............done.
+Installing pip...............done.
+% source env/bin/activate   
+(env)% python setup.py develop 
+  --> numpy compile failed ;-PPP
+(env)% pip install numpy
+  --> success
+(env)% python setup.py develop 
+...
+Using /Users/mizuy/projects/seqtool/env/lib/python2.7/site-packages
+Finished processing dependencies for seqtool==0.1.1
