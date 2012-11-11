@@ -41,12 +41,10 @@ def virtualpcr(template, seqstrs, threshold=None):
         print command
         # note. using subprocess.PIPE with p.wait() dead locks if output is large.
         p = subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
-        sys.stdout.write('waiting for bowtie.')
-        while p.poll() is None:
-            sys.stdout.write('.')
-            sys.stdout.flush()
-            time.sleep(1)
-        print 'finished.'
+        with prompt('waiting for bowtie.') as pr:
+            while p.poll() is None:
+                pr.progress()
+                time.sleep(1)
         retcode = p.wait()
         if retcode < 0:
             print >>sys.stderr, 'bowtie exist with return code ', retcode, '  command:', command

@@ -1,0 +1,4 @@
+biopython==1.60
+numpy==1.6.2
+-e git+git@github.com:mizuy/seqtool.git@a3369f4f9d56f392aae7860de0ba70c0de17cef0#egg=seqtool-dev
+wsgiref==0.1.2

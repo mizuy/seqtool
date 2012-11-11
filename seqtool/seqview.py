@@ -12,6 +12,7 @@ from .nucleotide import bisulfite
 from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file
 from .primers import load_primer_list_file
+from .prompt import prompt
 from . import seqtrack
 from . import xmlwriter
 
@@ -172,12 +173,11 @@ class SeqvFileEntry(object):
         self.template = GenomicTemplate(filename)
 
     def load_primers(self, filename):
-        with open(filename,'r') as f:
-            print 'loading primers: '+filename,
-            for p in load_primer_list_file(f):
-                self.primers.append(p)
-                print '.',
-            print 'done.'
+        with prompt('loading primers: '+filename) as pr:
+            with open(filename,'r') as f:
+                for i in load_primer_list_file(f):
+                    self.primers.append(i)
+                    pr.progress()
 
     def add_primer(self, primer):
         self.primers.append(primer)

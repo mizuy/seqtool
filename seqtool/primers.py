@@ -7,6 +7,9 @@ from Bio.SeqUtils import GC
 from .xmlwriter import XmlWriter, builder
 from .pcr import primers_write_html, primers_write_csv, Primer
 from .parser import parse_file
+from .prompt import prompt
+
+import sys
 
 __all__ = ['load_primer_list_file']
 
@@ -36,15 +39,12 @@ def main():
     inputfiles = args
     
     primers = []
-    for filename in inputfiles:
-        with open(filename,'r') as f:
-            print 'loading primers: '+filename,
-            for p in load_primer_list_file(f):
-                primers.append(p)
-                sys.stdout.write('.'),
-                sys.stdout.flush()
-            print 'done.'
-
+    with prompt('loading primers: ') as pr:
+        for filename in inputfiles:
+            with open(filename,'r') as f:
+                for i in load_primer_list_file(f):
+                    primers.append(i)
+                    pr.progress()
     
     if options.output:
         output = open(options.output, 'w')
