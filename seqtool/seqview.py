@@ -269,6 +269,7 @@ class SeqvFileEntry(object):
         length = len(self.template.seq)
 
         t = seqtrack.TrackGroup()
+        t.add(seqtrack.Track(0,10))
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
         for m in self.tss:

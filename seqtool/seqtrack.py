@@ -4,12 +4,13 @@ from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
-from math import ceil
+from math import ceil, log, log10
 
 from StringIO import StringIO
 from .nucleotide import bisulfite, base_color, cpg_sites, cpg_obs_per_exp
 from .pcr import PCR, Primer
 from . import xmlwriter
+
 
 # calc free space
 class FreeSpace(object):
@@ -129,10 +130,10 @@ class Track(TrackBase):
         else:
             return {}
         
-    def draw_vline(self, b, x, start, end, color, scale=(1.,1.)):
+    def draw_vline(self, b, x, start, end, color, stroke=1, scale=(1.,1.)):
         with b.g(transform='translate(%s,0) scale(%s,%s)'%(x,scale[0],scale[1])):
-            b.line(x1=0, y1=start, x2=0, y2=end, stroke=color)
-    
+            b.line(x1=0, y1=start, x2=0, y2=end, stroke=color)(**{'stroke-width':stroke})
+
     def draw_vgraph(self, b, x, start, end, value, color):
         f = (end-start)*(1.-value)
         b.line(x1=x, y1=f, x2=x, y2=end, stroke=color)
@@ -317,9 +318,13 @@ class DbtssTrack(NamedTrack):
         super(DbtssTrack, self).draw(b,scale)
         h = self.height
         self.draw_hline(b, 0, self.width, h, color='gray')
-        for k,v in self.tssfile.items():
-            v = v/3.
-            self.draw_vline(b, k, h-v, h, color='red', scale=scale)
+        for x,v in self.tssfile.items():
+            v = v/4.
+            if v < h:
+                self.draw_vline(b, x, h-v, h, color='red', scale=scale)
+            else:
+                st = 1.*v/h
+                self.draw_vline(b, x, 0, h, color='blue', stroke=st, scale=scale)
             
 def window_search(seq, window, step=1):
     h = int(window/2)

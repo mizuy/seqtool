@@ -45,7 +45,7 @@ def main():
     """
 
     if options.output:
-        output = open(options.output)
+        output = open(options.output,'w')
     else:
         output = sys.stdout
 
@@ -67,9 +67,9 @@ def main():
 
         if t_start <= start and start <= t_end:
             if t_strand == '+':
-                print start - t_start, start, number
+                print >>output, start - t_start, start, number
             else:
-                print t_end-start, start, number
+                print >>output, t_end-start, start, number
 
 
 """
