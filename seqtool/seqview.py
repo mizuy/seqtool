@@ -163,12 +163,36 @@ class GenomicTemplate(object):
     def features(self):
         return self.genbank_.features
 
+class TssFile(object):
+    def __init__(self, name, filename):
+        self.name = name
+        self.tsstag = defaultdict(int) # 0
+        with open(filename,'r') as f:
+            for l in f:
+                ll = l.split()
+                self.tsstag[int(ll[0])] = int(ll[2])
+
+    def count_range(self, start, end):
+        c = 0
+        for i in range(start,end):
+            c += self.tsstag[i]
+        return c
+
+    def __getitem__(self, index):
+        return self.tsstag[index]
+
+    def items(self):
+        for k,v in self.tsstag.items():
+            yield k,v
+
+
 class SeqvFileEntry(object):
     def __init__(self, name=None):
         self.name_ = name
         self.template = None
         self.primers = ListDict()
         self.motifs = ListDict()
+        self.tss = ListDict()
 
         self.pcrs = ListDict()
         self.bs_pcrs = ListDict()
@@ -187,6 +211,9 @@ class SeqvFileEntry(object):
                 for i in load_primer_list_file(f):
                     self.primers.append(i)
                     pr.progress()
+                    
+    def add_tss(self, name, tssfile):
+        self.tss.append(TssFile(name, tssfile))
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -243,6 +270,11 @@ class SeqvFileEntry(object):
 
         t = seqtrack.TrackGroup()
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
+
+        for m in self.tss:
+            t.add(seqtrack.HbarTrack('', length))
+            t.add(seqtrack.DbtssTrack(m, self.template.seq))
+        t.add(seqtrack.HbarTrack('', length))
 
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
@@ -461,6 +493,9 @@ class SeqvFile(object):
                     
                 elif category == 'motif':
                     e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
+                elif category == 'tss':
+                    e.add_tss(name, relative_path(value))
+
                 elif category in ['pcr','rt_pcr','bs_pcr']:
                     name = name.split(',')[0].strip()
                     ls = value.split(',')

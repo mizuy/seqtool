@@ -307,12 +307,26 @@ class CpgBarTrack(NamedTrack):
         self.draw_hline(b, 0, self.length, self.height/2, color='black')
         for i in self.cpg:
             self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
+
+class DbtssTrack(NamedTrack):
+    def __init__(self, tssfile, seq):
+        self.tssfile = tssfile
+        super(DbtssTrack, self).__init__(tssfile.name, len(seq), 100)
+
+    def draw(self, b, scale):
+        super(DbtssTrack, self).draw(b,scale)
+        h = self.height
+        self.draw_hline(b, 0, self.width, h, color='gray')
+        for k,v in self.tssfile.items():
+            v = v/3.
+            self.draw_vline(b, k, h-v, h, color='red', scale=scale)
             
 def window_search(seq, window, step=1):
     h = int(window/2)
     l = len(seq)
     for i in xrange(0,l,step):
         yield i, seq[max(0,i-h):min(i+h,l)]
+
 
 class SeqWindowGraphTrack(NamedTrack):
     def __init__(self, seq, name, calc, maxvalue, window, threshold):
@@ -350,6 +364,7 @@ class CpgObsPerExpTrack(SeqWindowGraphTrack):
     def __init__(self, seq, window=200):
         f = lambda subseq: cpg_obs_per_exp(subseq)
         super(CpgObsPerExpTrack, self).__init__(seq, 'Obs/Exp CpG', f, 1.5, window, 0.65)
+
 
 """
 pcrs
