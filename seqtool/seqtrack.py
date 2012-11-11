@@ -4,6 +4,7 @@ from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
+from math import ceil
 
 from StringIO import StringIO
 from .nucleotide import bisulfite, base_color, cpg_sites, cpg_obs_per_exp
@@ -171,24 +172,39 @@ class HbarTrack(NamedTrack):
         self.draw_hbar(b, 0, self.width, 2, 2, color='black')
 
 class MeasureTrack(Track):
-    def __init__(self, length, zero, step):
+    def __init__(self, length, start=0, step=500, substep=100, subsubstep=10):
         super(MeasureTrack, self).__init__(length, 20)
         self.length = length
-        self.zero = zero
+        self.start = start
         self.step = step
+        self.substep = substep
+        self.subsubstep = subsubstep
         
     def draw(self, b, scale):
-        for i in range(0, self.length, self.step):
-            self.draw_vline(b, i, 10, 20, color='black', scale=scale)
-            self.text(b, str(i), x=i-5, y=10, color='black', anchor='middle', scale=scale)
+        self.draw_hline(b, 0, self.length, 20, color='black')
+        # step
+        ss = self.step * int(ceil(1.0*self.start/self.step))
+        for i in range(ss, self.start + self.length, self.step):
+            x = i - self.start
+            self.draw_vline(b, x, 10, 20, color='black', scale=scale)
+            self.text(b, str(i), x=x-5, y=10, color='black', anchor='middle', scale=scale)
+        # substep
+        ss = self.substep * int(ceil(1.0*self.start/self.substep))
+        for i in range(ss, self.start + self.length, self.substep):
+            x = i - self.start
+            self.draw_vline(b, x, 13, 20, color='black', scale=scale)
 
+        ss = self.subsubstep * int(ceil(1.0*self.start/self.subsubstep))
+        for i in range(ss, self.start + self.length, self.subsubstep):
+            x = i - self.start
+            self.draw_vline(b, x, 18, 20, color='black', scale=scale)
 
 
 """
 sequences
 """
 class SequenceTrack(TrackGroup):
-    def __init__(self, seq, features):
+    def __init__(self, seq, features, start=0):
         super(SequenceTrack, self).__init__()
         self.seq = seq
         self.features = features
@@ -196,7 +212,7 @@ class SequenceTrack(TrackGroup):
 
         msize = 500*(max(1,int(self.length/10)/500))
 
-        self.add(MeasureTrack(self.length, 0, msize))
+        self.add(MeasureTrack(self.length, start, msize))
         self.add(CpgObsPerExpTrack(self.seq))
         self.add(GcPercentTrack(self.seq))
         #self.add(SequenceTrack(self.seq))

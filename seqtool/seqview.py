@@ -114,9 +114,8 @@ class BisulfiteSequence(object):
 class GenomicTemplate(object):
     def __init__(self, genbank_filename):
         with open(genbank_filename) as f:
-            print 'loading genbank: '+genbank_filename,
-            self.genbank_ = SeqIO.read(f, "genbank")
-            print '...done.'
+            with prompt('loading genbank: '+genbank_filename, '...done.'):
+                self.genbank_ = SeqIO.read(f, "genbank")
 
     @property
     def genbank(self):
@@ -149,6 +148,16 @@ class GenomicTemplate(object):
         for f in self.features:
             if f.type=='mRNA':
                 yield f, f.extract(self.genbank_.seq)
+    
+    @property
+    @memoize
+    def transcript_start_site(self):
+        v = [int(t.location.start) for t in self.features if t.type=='mRNA']
+        if v:
+            i = min(v)
+        else:
+            i = 0
+        return i
         
     @property
     def features(self):
@@ -233,7 +242,7 @@ class SeqvFileEntry(object):
         length = len(self.template.seq)
 
         t = seqtrack.TrackGroup()
-        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features))
+        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
