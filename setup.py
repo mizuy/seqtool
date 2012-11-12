@@ -38,4 +38,5 @@ bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
 dbtssconv = seqtool.dbtss:main
+tssfile_count_range =  seqtool.dbtss:tssfile_count_range
 """)

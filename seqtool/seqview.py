@@ -13,6 +13,7 @@ from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
+from .dbtss import TssFile
 from . import seqtrack
 from . import xmlwriter
 
@@ -162,33 +163,6 @@ class GenomicTemplate(object):
     @property
     def features(self):
         return self.genbank_.features
-
-class TssFile(object):
-    def __init__(self, name, filename):
-        self.name = name
-        self.tsstag = defaultdict(int) # 0
-        self.maxtag = 0
-        with open(filename,'r') as f:
-            for l in f:
-                ll = l.split()
-                location = int(ll[0])
-                value = int(ll[2])
-                self.tsstag[location] = value
-                self.maxtag = max(self.maxtag, value)
-
-    def count_range(self, start, end):
-        c = 0
-        for i in range(start,end):
-            c += self.tsstag[i]
-        return c
-
-    def __getitem__(self, index):
-        return self.tsstag[index]
-
-    def items(self):
-        for k,v in self.tsstag.items():
-            yield k,v
-
 
 class SeqvFileEntry(object):
     def __init__(self, name=None):
