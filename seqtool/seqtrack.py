@@ -160,7 +160,6 @@ class NamedTrack(Track):
     def name(self):
         return self.name_
 
-
 """
 misc
 """
@@ -310,17 +309,19 @@ class CpgBarTrack(NamedTrack):
             self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
 
 class DbtssTrack(NamedTrack):
-    def __init__(self, tssfile, seq):
+    def __init__(self, tssfile, maxtag, seq):
         self.tssfile = tssfile
-        super(DbtssTrack, self).__init__(tssfile.name, len(seq), 100)
+        self.maxtag = maxtag
+        super(DbtssTrack, self).__init__(tssfile.name, len(seq), 50)
 
     def draw(self, b, scale):
         super(DbtssTrack, self).draw(b,scale)
         h = self.height
+        vh = 1.*min(500,self.maxtag)
         self.draw_hline(b, 0, self.width, h, color='gray')
         for x,v in self.tssfile.items():
-            v = v/4.
-            if v < h:
+            v = h*v/vh
+            if v <= h:
                 self.draw_vline(b, x, h-v, h, color='red', scale=scale)
             else:
                 st = 1.*v/h

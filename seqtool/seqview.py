@@ -167,10 +167,14 @@ class TssFile(object):
     def __init__(self, name, filename):
         self.name = name
         self.tsstag = defaultdict(int) # 0
+        self.maxtag = 0
         with open(filename,'r') as f:
             for l in f:
                 ll = l.split()
-                self.tsstag[int(ll[0])] = int(ll[2])
+                location = int(ll[0])
+                value = int(ll[2])
+                self.tsstag[location] = value
+                self.maxtag = max(self.maxtag, value)
 
     def count_range(self, start, end):
         c = 0
@@ -193,6 +197,7 @@ class SeqvFileEntry(object):
         self.primers = ListDict()
         self.motifs = ListDict()
         self.tss = ListDict()
+        self.tssmaxtag = 0
 
         self.pcrs = ListDict()
         self.bs_pcrs = ListDict()
@@ -213,7 +218,9 @@ class SeqvFileEntry(object):
                     pr.progress()
                     
     def add_tss(self, name, tssfile):
-        self.tss.append(TssFile(name, tssfile))
+        t = TssFile(name, tssfile)
+        self.tssmaxtag = max(t.maxtag, self.tssmaxtag)
+        self.tss.append(t)
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -274,7 +281,7 @@ class SeqvFileEntry(object):
 
         for m in self.tss:
             t.add(seqtrack.HbarTrack('', length))
-            t.add(seqtrack.DbtssTrack(m, self.template.seq))
+            t.add(seqtrack.DbtssTrack(m, self.tssmaxtag, self.template.seq))
         t.add(seqtrack.HbarTrack('', length))
 
         for name, bsp in self.bsps:
