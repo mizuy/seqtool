@@ -172,6 +172,7 @@ class SeqvFileEntry(object):
         self.motifs = ListDict()
         self.tss = ListDict()
         self.tssmaxtag = 0
+        self.tss_count = []
 
         self.pcrs = ListDict()
         self.bs_pcrs = ListDict()
@@ -195,6 +196,9 @@ class SeqvFileEntry(object):
         t = TssFile(name, tssfile)
         self.tssmaxtag = max(t.maxtag, self.tssmaxtag)
         self.tss.append(t)
+    
+    def add_tss_count(self, name, start, end):
+        self.tss_count.append((name, start, end))
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -329,6 +333,11 @@ class SeqvFileEntry(object):
         w.save(filename, format='PNG',height=y)
         return True
         '''
+
+    def write_tss_count_csv(self, output):
+        print >>output, ', '.join(['range \\ tissue']+[t.name for t in self.tss])
+        for name,start,end in self.tss_count:
+            print >>output, ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
 
     def write_html(self, b, svg_prefix=''):
         genome_r = svg_prefix + '.svg'
@@ -477,7 +486,9 @@ class SeqvFile(object):
                     e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
                 elif category == 'tss':
                     e.add_tss(name, relative_path(value))
-
+                elif category == 'tss_count':
+                    p,q = value.split('-')
+                    e.add_tss_count(name, int(p), int(q))
                 elif category in ['pcr','rt_pcr','bs_pcr']:
                     name = name.split(',')[0].strip()
                     ls = value.split(',')
@@ -556,7 +567,12 @@ def main():
             for inputfile in inputfiles:
                 sv = SeqvFile(inputfile)
                 for e in sv:
-                    prefix = output_basename+'__%d__'%count
+                    if e.tss_count:
+                        name = os.path.join(output_dir, output_basename+'_tss.csv')
+                        with open(name, 'w') as f:
+                            e.write_tss_count_csv(f)
+
+                    prefix = output_basename+'_%d_'%count
                     count += 1
                     svgs = e.write_html(builder, prefix)
                     

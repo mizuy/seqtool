@@ -35,36 +35,6 @@ class TssFile(object):
         for k,v in self.tsstag.items():
             yield k,v
 
-def tssfile_count_range():
-    import sys, os
-    from optparse import OptionParser
-
-
-    parser = OptionParser('usage: %prog [options] tss_filenames')
-    parser.add_option("-o", "--output", dest="output", help="output csv filename")
-    parser.add_option("-r", "--range", dest="range", type='str', help='list of start:edn pairs splitted by ,')
-
-    (options, args) = parser.parse_args()
-
-    if len(args) == 0:
-        parser.error("no input file")
-        return
-
-    tssfiles = args
-    ranges = options.range.split(',')
-
-    if options.output:
-        output = open(options.output,'w')
-    else:
-        output = sys.stdout
-
-    ts = [TssFile(filename, filename) for filename in tssfiles]
-    print >>output, ', '.join([' ']+[t.name for t in ts])
-    for r in ranges:
-        s,e = r.split(':')
-        print >>output, ','.join([s+' to '+e]+[str(t.count_range(int(s),int(e))) for t in ts])
-    
-
 def main():
     import sys, os
     from optparse import OptionParser
