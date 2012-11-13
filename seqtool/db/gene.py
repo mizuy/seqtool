@@ -19,6 +19,12 @@ gene_table = hgnc.GeneTable()
 
 Entrez.email = 'mizugy@gmail.com'
 
+class EntrezEfetchError(Exception):
+    def __init__(self, m):
+        self.m = str(m)
+    def __str__(self):
+        return 'Entrez.efetch Error: %s"'%self.m
+
 class CachedEntrez(object):
     def __init__(self, cache_dir=default_cache):
         self.cache_dir = default_cache
@@ -32,18 +38,18 @@ class CachedEntrez(object):
             with open(fname,'r') as f:
                 return f.read()
         try:
-            print "Entrez.efetch %s"%args
+            print "Entrez.efetch..: %s"%(args)
             handle = Entrez.efetch(**args)
             ret = handle.read()
         except:
-            print "Entrez.efetch error:", sys.exc_info()[0]
-            return None
+            raise EntrezEfetchError(args)
+        finally:
+            print "..efetch finished."
         
         with open(fname, 'w') as f:
             f.write(ret)
 
         return ret
-
 
 class GeneXml(object):
     def __init__(self, xml):
@@ -61,21 +67,51 @@ class GeneXml(object):
 
 
             a = self.xml.findall(".//Entrezgene/Entrezgene_locus/Gene-commentary[1]/Gene-commentary_seqs/Seq-loc/Seq-loc_int/Seq-interval")[0]
-            self.locus.start = a.findall('Seq-interval_from')[0].text
-            self.locus.end = a.findall('Seq-interval_to')[0].text
+            self.locus.start = int(a.findall('Seq-interval_from')[0].text)
+            self.locus.end = int(a.findall('Seq-interval_to')[0].text)
             self.locus.strand = True if (a.findall('Seq-interval_strand/Na-strand')[0].attrib['value'] == "plus") else False
             self.locus.id_gi = a.findall('Seq-interval_id/Seq-id/Seq-id_gi')[0].text
         except:
-            print "XML parse error: ", sys.exec_info()[0]
+            raise Exception("GeneXml XML parse error")
     
 
-def genomic_context_genbank(gene_id):
+def get_genomic_context_genbank(gene_text):
+    gene_id, gene_symbol = get_gene_from_text(gene_text)
+    return get_genomic_context_genbank(gene_id)
+
+def get_gene_from_text(text):
+    """
+    text must be gene-id integer OR gene symbol
+    """
+    try:
+        gene_id = int(text)
+        gene_symbol = gene_table.get_gene_symbol(gene_id)
+    except ValueError:
+        gene_symbol = text
+        gene_id = gene_table.get_gene_id(gene_symbol)
+    return gene_id, gene_symbol
+
+def get_genomic_context_genbank(gene_id, upstream=1000, downstream=1000):
     entrez = CachedEntrez()
 
-    g = GeneXml(entrez.efetch(db='gene', id=gene_id, retmode='xml'))
+    xml = entrez.efetch(db='gene', id=gene_id, retmode='xml')
 
-    return entrez.efetch(db='nuccore', id=g.locus.id_gi, seq_start=g.locus.start, seq_stop=g.locus.end, strand=g.locus.strand, rettype='gb', retmode='text')
+    g = GeneXml(xml)
 
+    if g.locus.strand:
+        start = g.locus.start - upstream
+        end = g.locus.end + downstream
+        strand = 1
+    else:
+        start = g.locus.end + upstream
+        end = g.locus.start - downstream
+        strand = 2
+
+    return entrez.efetch(db='nuccore',
+                         id=g.locus.id_gi,
+                         seq_start=start, seq_stop=end, strand=strand,
+                         rettype='gb', retmode='text')
+    
 
 def main():
     import sys, os
@@ -93,16 +129,14 @@ def main():
         output = sys.stdout
 
     try:
-        gene_id = int(args.gene)
-    except ValueError:
-        gene_id = gene_table.get_gene_id(args.gene)
-        if not gene_id:
-            print "No such gene: ",args.gene
-            return
+        genbank = get_genomic_context_genbank(args.gene)
+    except Exception,e:
+        print str(e)
+        return
 
-    genbank = genomic_context_genbank(gene_id)
     if not genbank:
         print "GenBank retrieve error: ", gene_id
+        return
     print >>output, genbank
 
 if __name__=='__main__':

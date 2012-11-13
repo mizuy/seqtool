@@ -1,11 +1,17 @@
 import os
 import cPickle as pickle
 
-__all__ = ['GeneTable']
+__all__ = ['GeneTable', 'NoSuchGene']
 
 directory = os.path.dirname(os.path.abspath(__file__))
 default_tab_file = os.path.join(directory,'../../_db/hgnc.tab')
 default_cache_file = os.path.join(directory,'../../_cache/hgnc.cache')
+
+class NoSuchGene(Exception):
+    def __init__(self, m):
+        self.gene_text = str(m)
+    def __str__(self):
+        return 'No Such Gene "%s"'%self.gene_text
 
 class GeneTable(object):
     def __init__(self, tab_file=default_tab_file, cache_file=default_cache_file):
@@ -51,10 +57,10 @@ class GeneTable(object):
         try:
             return self.symbol[gene_id]
         except LookupError:
-            return None
+            raise NoSuchGene(gene_id)
     
     def get_gene_id(self, symbol):
         try:
             return self.gene_id[symbol]
         except LookupError:
-            return None
+            raise NoSuchGene(symbol)

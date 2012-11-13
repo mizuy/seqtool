@@ -39,4 +39,6 @@ convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
 dbtssconv = seqtool.dbtss:main
 get_genbank = seqtool.db.gene:main
+seqvcmd = seqtool.seqvcmd:main
+geneview = seqtool.seqview:main_geneview
 """)

@@ -4,6 +4,7 @@ from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
+from cStringIO import StringIO
 
 import os
 
@@ -14,6 +15,7 @@ from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
 from .dbtss import TssFile
+from .db import gene
 from . import seqtrack
 from . import xmlwriter
 
@@ -113,10 +115,9 @@ class BisulfiteSequence(object):
         self.entries[name].append(entry)
 
 class GenomicTemplate(object):
-    def __init__(self, genbank_filename):
-        with open(genbank_filename) as f:
-            with prompt('loading genbank: '+genbank_filename, '...done.'):
-                self.genbank_ = SeqIO.read(f, "genbank")
+    def __init__(self, genbank_content):
+        with prompt('loading genbank...', '...done.'):
+            self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
 
     @property
     def genbank(self):
@@ -164,10 +165,52 @@ class GenomicTemplate(object):
     def features(self):
         return self.genbank_.features
 
-class SeqvFileEntry(object):
+class GeneBankEntry(object):
     def __init__(self, name=None):
         self.name_ = name
         self.template = None
+        self.loaded_ = False
+    
+    def load_genbank(self, content):
+        self.template = GenomicTemplate(content)
+
+    def render_genome(self, width):
+        assert(self.template)
+        length = len(self.template.seq)
+
+        t = seqtrack.TrackGroup()
+        t.add(seqtrack.Track(0,10))
+        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
+
+        return t.svg(width)
+
+
+    def write_html(self, b, subfs):
+        """
+        subfs must have 2 methods
+        def write(self, filename, content_text)
+        def get_link_path(self, filename)
+        """
+        genome_n = 'genome.svg'
+
+        # writing svgs
+        subfs.write(genome_n, self.render_genome(5000))
+
+        # link path for svg files
+        genome_l = subfs.get_link_path(genome_n)
+
+        # writing html
+        b.h1(self.template.description)
+        with b.div(**{'class':'images'}):
+            b.h2('images')
+            with b.div:
+                b.h3('genome overview')
+                with b.a(href=genome_l):
+                    b.img(src=genome_l, width='1000px')
+
+    
+class SeqvFileEntry(GeneBankEntry):
+    def __init__(self, name=None):
         self.primers = ListDict()
         self.motifs = ListDict()
         self.tss = ListDict()
@@ -180,10 +223,7 @@ class SeqvFileEntry(object):
 
         self.bsps = BisulfiteSequence()
 
-        self.loaded_ = False
-
-    def load_genbank(self, filename):
-        self.template = GenomicTemplate(filename)
+        super(SeqvFileEntry, self).__init__(name)
 
     def load_primers(self, filename):
         with prompt('loading primers: '+filename) as pr:
@@ -334,30 +374,50 @@ class SeqvFileEntry(object):
         return True
         '''
 
-    def write_tss_count_csv(self, output):
-        print >>output, ', '.join(['range \\ tissue']+[t.name for t in self.tss])
+    def write_tss_count_csv(self, subfs):
+        content = ''
+        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
+        content += '\n'
         for name,start,end in self.tss_count:
-            print >>output, ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
+            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
+            content += '\n'
+        subfs.write('tss.csv', content)
 
-    def write_html(self, b, svg_prefix=''):
-        genome_r = svg_prefix + '.svg'
-        transcript_r = svg_prefix + '_transcript.svg'
-        bsp_r = svg_prefix + '_bsp.svg'
+    def write_html(self, b, subfs):
+        """
+        subfs must have 2 methods
+        def write(self, filename, content_text)
+        def get_link_path(self, filename)
+        """
+        genome_n = 'genome.svg'
+        transcript_n = 'transcript.svg'
+        bsp_n = 'bsp.svg'
 
+        # writing svgs
+        subfs.write(genome_n, self.render_genome(5000))
+        subfs.write(transcript_n, self.render_transcript(1200))
+        subfs.write(bsp_n, self.render_bsp())
+
+        # link path for svg files
+        genome_l = subfs.get_link_path(genome_n)
+        transcript_l = subfs.get_link_path(transcript_n)
+        bsp_l = subfs.get_link_path(bsp_n)
+
+        # writing html
         b.h1(self.template.description)
         with b.div(**{'class':'images'}):
             b.h2('images')
             with b.div:
                 b.h3('genome overview')
-                with b.a(href=genome_r):
-                    b.img(src=genome_r, width='1000px')
+                with b.a(href=genome_l):
+                    b.img(src=genome_l, width='1000px')
                 b.h3('transcript overview')
-                with b.a(href=transcript_r):
-                    b.img(src=transcript_r,width='1000px')
+                with b.a(href=transcript_l):
+                    b.img(src=transcript_l,width='1000px')
                 b.h3('bsp overview')
                 b.text('Not Implemented Yet')
-                #with b.a(href=bsp_r):
-                #b.img(src=bsp_r,width='1000px')
+                #with b.a(href=bsp_l):
+                #b.img(src=bsp_l,width='1000px')
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
@@ -410,10 +470,6 @@ class SeqvFileEntry(object):
 
                         b.h5('template = Genome')
                         write_products(pcr.products)
-
-        return [(genome_r, self.render_genome(5000)),
-                (transcript_r, self.render_transcript(1200)),
-                (bsp_r, self.render_bsp())]
 
 
 class SeqvFile(object):
@@ -475,7 +531,8 @@ class SeqvFile(object):
                 e = self.entries[-1]
                 if category == 'general':
                     if name=='genbank':
-                        e.load_genbank(relative_path(value))
+                        with open(relative_path(value), 'r') as f:
+                            e.load_genbank(f.read())
                     elif name=='primers':
                         e.load_primers(relative_path(value))
 
@@ -522,63 +579,128 @@ class SeqvFile(object):
                 else:
                     em('unkown category: %s'%category)
 
+seqview_css = '''
+    .images{}
+    .image{border: solid 1px;}
+    .template{margin-left: 1em;}
+    .pcr{margin: 1em; padding: 1em; border: solid 1px;}
+    .products{margin-left: 2em;}
+    .copybox{margin-left:4em;}
+
+    .primerpairtable{
+      font-family: monospace
+    }
+'''
+
+class DefaultSubFileSystem(object):
+    """just store"""
+    def __init__(self):
+        self.storage = []
+
+    def write(self, filename, content_text):
+        self.storage.append((self.get_link_path(filename), content_text))
+
+    def get_link_path(self, filename):
+        return filename
+
+class SubFileSystem(object):
+    def __init__(self, basename):
+        self.basename = basename
+        self.storage = []
+
+    def write(self, filename, content_text):
+        self.storage.append((self.get_link_path(filename), content_text))
+
+    def get_link_path(self, filename):
+        return self.basename + '_' + filename
+
+    def finish(self, output_dir):
+        for name, content in self.storage:
+            with open(os.path.join(output_dir, name), 'w') as f:
+                f.write(content)
+        
+
+
 def main():
     import sys, os
-    from optparse import OptionParser
+    from argparse import ArgumentParser
 
-    parser = OptionParser('usage: %prog [options] seqviewfile1.seqv ... -o outputfile.html')
-    parser.add_option("-o", "--output", dest="output", help="output filename")
+    parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
+    parser.add_argument("seqvfile", help=".seqv file")
+    parser.add_argument("-o", "--output", dest="output", help="output filename")
     
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
 
-    if len(args) == 0:
-        parser.error("no input file")
+    inputfile = args.seqvfile
     
-    if not options.output:
-        parser.error("no output file")
+    if args.output:
+        outputfile = args.output
+    else:
+        output_dir = os.path.abspath(os.path.dirname(inputfile))
+        outputfile = os.path.join(output_dir, os.path.basename(inputfile).rpartition('.')[0] + '.html')
 
-    inputfiles = args
-    outputfile = options.output
-    output_basename = os.path.basename(outputfile).rpartition('.')[0]
+
     output_dir = os.path.abspath(os.path.dirname(outputfile))
+    output_basename = os.path.basename(outputfile).rpartition('.')[0]
 
-    output = open(outputfile,'w')
+    sv = SeqvFile(inputfile)
 
-    html = xmlwriter.XmlWriter(output)
-    builder = xmlwriter.builder(html)
-    with builder.html:
-        with builder.head:
-            with builder.style(type='text/css'):
-                builder.text(\
-'''
-.images{}
-.image{border: solid 1px;}
-.template{margin-left: 1em;}
-.pcr{margin: 1em; padding: 1em; border: solid 1px;}
-.products{margin-left: 2em;}
-.copybox{margin-left:4em;}
+    with open(outputfile,'w') as output:
+        html = xmlwriter.XmlWriter(output)
+        b = xmlwriter.builder(html)
+        with b.html:
+            with b.head:
+                with b.style(type='text/css'):
+                    b.text(seqview_css)
+        with b.body:
+            for e in sv:
+                subfs = SubFileSystem(output_basename)
 
-.primerpairtable{
-  font-family: monospace
-}
-''')
-        with builder.body:
-            count = 0
-            for inputfile in inputfiles:
-                sv = SeqvFile(inputfile)
-                for e in sv:
-                    if e.tss_count:
-                        name = os.path.join(output_dir, output_basename+'_tss.csv')
-                        with open(name, 'w') as f:
-                            e.write_tss_count_csv(f)
+                e.write_html(b, subfs)
 
-                    prefix = output_basename+'_%d_'%count
-                    count += 1
-                    svgs = e.write_html(builder, prefix)
-                    
-                    for name, svg in svgs:
-                        open(os.path.join(output_dir, name), 'w').write(svg)
+                if e.tss_count:
+                    e.write_tss_count_csv(subfs)
 
+                subfs.finish(output_dir)
+
+def main_geneview():
+    import sys, os
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(prog='seqview_gene', description='pretty HTML+SVG report of gene')
+    parser.add_argument("gene_symbol", help="Gene Symbol")
+    parser.add_argument("-o", "--output", dest="output", help="output filename")
+    
+    args = parser.parse_args()
+
+    if not args.output:
+        parser.error('no output')
+        return
+
+    outputfile = args.output
+    output_dir = os.path.abspath(os.path.dirname(outputfile))
+    output_basename = os.path.basename(outputfile).rpartition('.')[0]
+    
+    try:
+        gene_id, gene_symbol = gene.get_gene_from_text(args.gene_symbol)
+    except NoSuchGene, e:
+        print e
+        return
+
+    e = GeneBankEntry(gene_symbol)
+    e.load_genbank(gene.get_genomic_context_genbank(gene_id))
+
+    with open(outputfile,'w') as output:
+        html = xmlwriter.XmlWriter(output)
+        b = xmlwriter.builder(html)
+        with b.html:
+            with b.head:
+                with b.style(type='text/css'):
+                    b.text(seqview_css)
+        with b.body:
+            subfs = SubFileSystem(output_basename)
+            e.write_html(b, subfs)
+            subfs.finish(output_dir)
 
 if __name__=='__main__':
     main()
