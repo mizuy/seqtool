@@ -67,8 +67,8 @@ class GeneXml(object):
 
 
             a = self.xml.findall(".//Entrezgene/Entrezgene_locus/Gene-commentary[1]/Gene-commentary_seqs/Seq-loc/Seq-loc_int/Seq-interval")[0]
-            self.locus.start = a.findall('Seq-interval_from')[0].text
-            self.locus.end = a.findall('Seq-interval_to')[0].text
+            self.locus.start = int(a.findall('Seq-interval_from')[0].text)
+            self.locus.end = int(a.findall('Seq-interval_to')[0].text)
             self.locus.strand = True if (a.findall('Seq-interval_strand/Na-strand')[0].attrib['value'] == "plus") else False
             self.locus.id_gi = a.findall('Seq-interval_id/Seq-id/Seq-id_gi')[0].text
         except:
@@ -91,18 +91,25 @@ def get_gene_from_text(text):
         gene_id = gene_table.get_gene_id(gene_symbol)
     return gene_id, gene_symbol
 
-def get_genomic_context_genbank(gene_id):
+def get_genomic_context_genbank(gene_id, upstream=1000, downstream=1000):
     entrez = CachedEntrez()
 
     xml = entrez.efetch(db='gene', id=gene_id, retmode='xml')
 
     g = GeneXml(xml)
 
+    if g.locus.strand:
+        start = g.locus.start - upstream
+        end = g.locus.end + downstream
+        strand = 1
+    else:
+        start = g.locus.end + upstream
+        end = g.locus.start - downstream
+        strand = 2
+
     return entrez.efetch(db='nuccore',
                          id=g.locus.id_gi,
-                         seq_start=g.locus.start,
-                         seq_stop=g.locus.end,
-                         strand=g.locus.strand,
+                         seq_start=start, seq_stop=end, strand=strand,
                          rettype='gb', retmode='text')
     
 
