@@ -52,6 +52,9 @@ class GeneTssEntry(GeneBankEntry):
 
     
     def add_tss_site(self, tss_name, start=None, end=None):
+        if not start or not end:
+            p = self.template.transcript_start_site
+            start,end = p-200, p+200
         self.tsss.append((tss_name, start, end))
 
     def tss_count_csv(self):

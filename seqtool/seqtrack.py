@@ -339,7 +339,6 @@ class RegiontssTrack(NamedTrack):
         vh = 1.*min(500,self.rt.maxtag)
         self.draw_hline(b, 0, self.width, h, color='gray')
         for x,v in self.rt.items():
-            print x,v
             v = h*v/vh
             if v <= h:
                 self.draw_vline(b, x, h-v, h, color='red', scale=scale)
