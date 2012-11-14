@@ -5,6 +5,7 @@ from collections import defaultdict
 from glob import glob
 from . import xmlwriter
 from .db import gene
+from .parser import SettingFile
 
 directory = os.getcwd()
 input_dir = os.path.join(directory,'input')
@@ -51,7 +52,8 @@ class Block(object):
 
 class IndexFile(object):
     def __init__(self, fileobj):
-        self.blocks = self._parse(fileobj)
+        self.setting = SettingFile()
+        self.setting.parse(fileobj)
 
         indexgenes = set()
         for b in self.blocks:
@@ -62,9 +64,9 @@ class IndexFile(object):
         othergenes = seqvgenes - indexgenes
         self.seqvs = list(seqvgenes | indexgenes)
         
-        o = Block('Other seqv files')
-        o.list = list(othergenes)
-        self.blocks.append(o)
+        self.setting.add_block('Other seqv files')
+        for l in othergenes:
+            self.setting.add_line(l)
                 
     def write(self, fileobj):
         html = xmlwriter.XmlWriter(fileobj)
@@ -75,10 +77,10 @@ class IndexFile(object):
             with b.body:
                 b.h1('Index of Gene List')
                 
-                for block in self.blocks:
+                for block in self.setting:
                     b.h2(block.name)
                     with b.ul:
-                        for g in block.list:
+                        for line,lineno in block:
                             with b.li:
                                 b.a(g, href=g+'.html')
 

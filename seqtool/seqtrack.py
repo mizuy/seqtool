@@ -327,6 +327,26 @@ class DbtssTrack(NamedTrack):
                 st = 1.*v/h
                 self.draw_vline(b, x, 0, h, color='blue', stroke=st, scale=scale)
             
+
+class RegiontssTrack(NamedTrack):
+    def __init__(self, rt, seq):
+        self.rt = rt
+        super(RegiontssTrack, self).__init__(rt.name, len(seq), 50)
+
+    def draw(self, b, scale):
+        super(RegiontssTrack, self).draw(b,scale)
+        h = self.height
+        vh = 1.*min(500,self.rt.maxtag)
+        self.draw_hline(b, 0, self.width, h, color='gray')
+        for x,v in self.rt.items():
+            print x,v
+            v = h*v/vh
+            if v <= h:
+                self.draw_vline(b, x, h-v, h, color='red', scale=scale)
+            else:
+                st = 1.*v/h
+                self.draw_vline(b, x, 0, h, color='blue', stroke=st, scale=scale)
+            
 def window_search(seq, window, step=1):
     h = int(window/2)
     l = len(seq)

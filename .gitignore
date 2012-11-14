@@ -15,3 +15,5 @@ _cache
 _db
 _output
 env
+input
+temp

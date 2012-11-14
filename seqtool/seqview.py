@@ -18,26 +18,8 @@ from .dbtss import TssFile
 from .db import gene
 from . import seqtrack
 from . import xmlwriter
-
-class ListDict(object):
-    def __init__(self):
-        self._list = []
-        self._dict = {}
-
-    def append(self, value):
-        if value.name in self._dict:
-            raise ValueError('already exist: %s'%value.name)
-        self._dict[value.name] = value
-        self._list.append(value)
-
-    def __len__(self):
-        return len(self._list)
-
-    def __getitem__(self, name):
-        return self._dict[name]
-
-    def __iter__(self):
-        return iter(self._list)
+from .listdict import ListDict
+from .subfs import SubFileSystem
 
 def all_primers(pcrs):
     ret = set()
@@ -486,38 +468,24 @@ class SeqvFile(object):
         return iter(self.entries)
 
     def parse(self, fileobj):
-        lineno = 0
-        category = None
-        skipping = False
-        for l in fileobj:
-            lineno += 1
-            l = l.strip()
+        s = SettingFile()
+        s.parse(fileobj)
 
-            def error_message(msg):
-                print ':%s: %s: "%s"'%(lineno,msg,l)
-
-            if not l or l.startswith('#') or l.startswith('//'):
-                continue
-
-            if l.startswith('/+'):
-                skipping = True
-            elif l.startswith('+/'):
-                skipping = False
-            else:
-                if skipping:
+        def error(msg,l,lineno):
+            print ':%s: %s: "%s"'%(lineno,msg,l)
+        
+        for block in s:
+            category = block.name
+            yield category, None, None, lambda x:error(x, block.line, block.lineno)
+            for line,lineno in block:
+                ls = line.split(':')
+                if len(ls)!=2:
+                    error('unknown line', line, lineno)
                     continue
-                if l.startswith('>'):
-                    category = l[1:].strip()
-                    yield category, None, None, error_message
-                else:
-                    ls = l.split(':')
-                    if len(ls)!=2:
-                        error_message('unknown line')
-                        continue
-                    name = ls[0].strip()
-                    value = ls[1].strip()
-                    yield category, name, value, error_message
-
+                name = ls[0].strip()
+                value = ls[1].strip()
+                yield category, name, value, lambda x:error(x, line, lineno)
+                
         
     def load_seqview(self, fileobj, relative_path):
         for category, name, value, em in self.parse(fileobj):
@@ -591,34 +559,6 @@ seqview_css = '''
       font-family: monospace
     }
 '''
-
-class DefaultSubFileSystem(object):
-    """just store"""
-    def __init__(self):
-        self.storage = []
-
-    def write(self, filename, content_text):
-        self.storage.append((self.get_link_path(filename), content_text))
-
-    def get_link_path(self, filename):
-        return filename
-
-class SubFileSystem(object):
-    def __init__(self, basename):
-        self.basename = basename
-        self.storage = []
-
-    def write(self, filename, content_text):
-        self.storage.append((self.get_link_path(filename), content_text))
-
-    def get_link_path(self, filename):
-        return self.basename + '_' + filename
-
-    def finish(self, output_dir):
-        for name, content in self.storage:
-            with open(os.path.join(output_dir, name), 'w') as f:
-                f.write(content)
-        
 
 
 def main():

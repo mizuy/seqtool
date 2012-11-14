@@ -41,4 +41,5 @@ dbtssconv = seqtool.dbtss:main
 get_genbank = seqtool.db.gene:main
 seqvcmd = seqtool.seqvcmd:main
 geneview = seqtool.seqview:main_geneview
+tssview = seqtool.tssview:main
 """)
