@@ -638,9 +638,9 @@ def main_geneview():
                 with b.style(type='text/css'):
                     b.text(seqview_css)
         with b.body:
-            subfs = SubFileSystem(output_basename)
+            subfs = SubFileSystem(output_dir, output_basename)
             e.write_html(b, subfs)
-            subfs.finish(output_dir)
+            subfs.finish()
 
 if __name__=='__main__':
     main()
