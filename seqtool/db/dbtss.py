@@ -5,6 +5,7 @@ import cPickle as pickle
 from collections import defaultdict, OrderedDict
 from .locus import Locus
 from ..listdict import ListDict
+import numpy
 import os
 
 directory = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,7 @@ bed/
 -strand
 -Number of tags
 """
+
 
 t_dbtss = """
 Brain1: adult-tissue/ambion_brain.bed
@@ -58,13 +60,42 @@ for tissue in db.get_tissues():
         print loc, value
 """
 
+
+"""
+import scipy.io
+class NumpyArrays(object):
+    def __init__(self):
+        self.d = {}
+        self.cache = os.path.join(directory,'../../_cache/fn.cache')
+        
+    def get(self, name):
+        self.d[name]
+
+    def set(self, name, array):
+        self.d[name] = array
+
+    def save(self, ):
+        fname = {}
+        count = 0
+        for k self.d.keys():
+            fname[k] = "na_%d.cache" % count
+        pickle.dump(fname, open(self.cache,'wb'), -1)
+        
+        for k,fname in fname.items():
+            fname, self.d[k]
+         scipy.io.savemat(
+        
+    def load(self):
+        pass
+"""
+
 class Dbtss(object):
     def __init__(self):
         self.tissues = None
 
         if os.path.exists(default_cache_file):
             try:
-                print "loading %s"%default_cache_file
+                print "loading cache %s"%default_cache_file
                 self.tissues = pickle.load(open(default_cache_file,'rb'))
                 print "done."
             except pickle.PickleError:
@@ -77,7 +108,7 @@ class Dbtss(object):
                 tabfile = os.path.join(database_dir, fname)
                 tab = TssTab(name, open(tabfile,'r'))
                 self.tissues[name] = tab
-            pickle.dump(self.tissues, open(default_cache_file,'wb'))
+            pickle.dump(self.tissues, open(default_cache_file,'wb'), -1)
 
     def gets_tissue(self, name):
         return self.tissues[name]
@@ -96,8 +127,12 @@ def get_dbtss():
 class TssTab(object):
     def __init__(self, name, fileobj):
         self.name = name
+        
         self.locs = defaultdict(list)
         self.vals = defaultdict(list)
+
+        locs = defaultdict(list)
+        vals = defaultdict(list)
 
         print 'loading tss...: %s'%name
         for l in fileobj:
@@ -107,8 +142,12 @@ class TssTab(object):
             strand = ll[3].strip()=='+'
             value = int(ll[4])
 
-            self.locs[(chromosome,strand)].append(location)
-            self.vals[(chromosome,strand)].append(value)
+            locs[(chromosome,strand)].append(location)
+            vals[(chromosome,strand)].append(value)
+
+        for k,v in locs.items():
+            self.locs[k] = numpy.array(v)
+            self.vals[k] = numpy.array(vals[k])
 
         print 'done.'
 
