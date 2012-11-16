@@ -2,19 +2,16 @@ miscellaneous tools for molecular biology.
 
 ** Commands
 
+get_genbank: get GenBank file from ncbi.
+geneview: render overview image of gene sequence, annotation
 seqview: render overview image of sequence, primers, bisulfite sequence results.
+tssview: count the number of tss tags of specific genes, by DBTSS
 bisearch: design primer based on primer3 algorithm.
 primers: calculate primer properties
 virtualpcr: PCR primer alignment tool using bowtie
 
 ** Install
 python setup.py install
-
-** develop
-/opt/local/bin/virtualenv-2.7 environ
-source environ/bin/activate
-pip install numpy
-python setup.py develop
 
 ** Mac OS X, homebrew and python Environment
 
@@ -55,7 +52,6 @@ Installing pip...............done.
 ...
 Using /Users/mizuy/projects/seqtool/env/lib/python2.7/site-packages
 Finished processing dependencies for seqtool==0.1.1
-
 
 ** databases
 
