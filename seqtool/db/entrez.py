@@ -1,21 +1,15 @@
 from __future__ import absolute_import
 
 from Bio import Entrez
-from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
 
 import xml.etree.ElementTree as ET
-from collections import defaultdict
-import sys, os
-from cStringIO import StringIO
+import os
 
 from .locus import Locus
+from . import hgnc
 
 directory = os.path.dirname(os.path.abspath(__file__))
 default_cache = os.path.join(directory,'../../_cache/')
-
-from . import hgnc
 
 gene_table = hgnc.GeneTable()
 
@@ -161,34 +155,3 @@ def get_genomic_context_genbank(gene_id, upstream=1000, downstream=1000):
                          rettype='gb', retmode='text')
     
 
-def main():
-    import sys, os
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
-    parser.add_argument("gene", help="Gene ID or Gene Symbol")
-    parser.add_argument("-o", "--output", dest="output", help="output filename")
-
-    args = parser.parse_args()
-
-    if args.output:
-        output = open(outputfile,'w')
-    else:
-        output = sys.stdout
-
-    try:
-        genbank = get_genomic_context_genbank(args.gene)
-    except Exception,e:
-        print str(e)
-        return
-
-    if not genbank:
-        print "GenBank retrieve error: ", gene_id
-        return
-    print >>output, genbank
-
-if __name__=='__main__':
-    main()
-
-# irx5
-#    print genome_context(10265)

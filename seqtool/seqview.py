@@ -11,15 +11,30 @@ import os
 from .memoize import memoize
 from .nucleotide import bisulfite
 from .pcr import Primer, PCR, primers_write_html
-from .parser import parse_file
+from .parser import parse_file, SettingFile
 from .primers import load_primer_list_file
 from .prompt import prompt
-from .dbtss import TssFile
-from .db import gene
+from .db import entrez
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
 from .subfs import SubFileSystem
+from .dirutils import Filepath
+from .db.dbtss import RegionTissueset
+
+seqview_css = '''
+    .images{}
+    .image{border: solid 1px;}
+    .template{margin-left: 1em;}
+    .pcr{margin: 1em; padding: 1em; border: solid 1px;}
+    .products{margin-left: 2em;}
+    .copybox{margin-left:4em;}
+
+    .primerpairtable{
+      font-family: monospace
+    }
+'''
+
 
 def all_primers(pcrs):
     ret = set()
@@ -152,7 +167,7 @@ class GeneBankEntry(object):
         self.name_ = name
         self.template = None
         self.loaded_ = False
-    
+
     def load_genbank(self, content):
         self.template = GenomicTemplate(content)
 
@@ -165,7 +180,6 @@ class GeneBankEntry(object):
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
         return t.svg(width)
-
 
     def write_html(self, b, subfs):
         """
@@ -190,14 +204,15 @@ class GeneBankEntry(object):
                 with b.a(href=genome_l):
                     b.img(src=genome_l, width='1000px')
 
-    
 class SeqvFileEntry(GeneBankEntry):
     def __init__(self, name=None):
         self.primers = ListDict()
         self.motifs = ListDict()
-        self.tss = ListDict()
-        self.tssmaxtag = 0
-        self.tss_count = []
+
+        # RegionTissueSet * tsss
+        self.rts = None
+        self.tsss = []
+        self.tss_name_counter = 1
 
         self.pcrs = ListDict()
         self.bs_pcrs = ListDict()
@@ -207,20 +222,34 @@ class SeqvFileEntry(GeneBankEntry):
 
         super(SeqvFileEntry, self).__init__(name)
 
+    def add_default_tss(self, tss_name="Assumed TSS"):
+        p = self.template.transcript_start_site
+        start,end = p-200, p+200
+        self.tsss.append((tss_name, start, end))
+
+    def add_tss_tissues(self, tissues, locus):
+        self.rts = RegionTissueset(tissues, locus)
+
+    def add_tss(self, start, end, name=None):
+        assert(not not start and not not end)
+        if not name:
+            name = "%s TSS No. %s" % (self.name, self.tss_name_counter)
+            self.tss_name_counter += 1
+        self.tsss.append((name, start, end))
+    
+    def tss_count_csv(self):
+        content = ''
+        for name, start, stop in self.tsss:
+            content += ','.join([name] + self.rts.count_tags(start,stop)) + '\n'
+        return content
+
     def load_primers(self, filename):
         with prompt('loading primers: '+filename) as pr:
             with open(filename,'r') as f:
                 for i in load_primer_list_file(f):
                     self.primers.append(i)
                     pr.progress()
-                    
-    def add_tss(self, name, tssfile):
-        t = TssFile(name, tssfile)
-        self.tssmaxtag = max(t.maxtag, self.tssmaxtag)
-        self.tss.append(t)
-    
-    def add_tss_count(self, name, start, end):
-        self.tss_count.append((name, start, end))
+
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -279,10 +308,11 @@ class SeqvFileEntry(GeneBankEntry):
         t.add(seqtrack.Track(0,10))
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
-        for m in self.tss:
+        if self.rts:
+            for r in self.rts:
+                t.add(seqtrack.HbarTrack('', length))
+                t.add(seqtrack.DbtssTrack(r, self.rts.maxtag, self.template.seq))
             t.add(seqtrack.HbarTrack('', length))
-            t.add(seqtrack.DbtssTrack(m, self.tssmaxtag, self.template.seq))
-        t.add(seqtrack.HbarTrack('', length))
 
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
@@ -455,17 +485,70 @@ class SeqvFileEntry(GeneBankEntry):
 
 
 class SeqvFile(object):
-    def __init__(self, filename):
+    def __init__(self):
         self.entries = []
 
-        def relative_path(name):
-            return os.path.join(os.path.dirname(filename),name)
+    def load_genbankentry(self, genbankentry):
+        self.entries.append(genbankentry)
 
-        with open(filename,'r') as f:
-            self.load_seqview(f, relative_path)
+    def load_seqvfileentry(self, filename):
+        inputp = Filepath(filename)
+        relative_path = lambda x: inputp.relative(x)
 
-    def __iter__(self):
-        return iter(self.entries)
+        with open(filename,'r') as fileobj:
+            for category, name, value, em in self.parse(fileobj):
+                if not name and not value:
+                    if category == 'general':
+                        self.entries.append(SeqvFileEntry())
+                else:
+                    if not self.entries:
+                        raise ValueError('no entries')
+
+                    e = self.entries[-1]
+                    if category == 'general':
+                        if name=='genbank':
+                            with open(relative_path(value), 'r') as f:
+                                e.load_genbank(f.read())
+                        elif name=='primers':
+                            e.load_primers(relative_path(value))
+
+                    elif category == 'primer':
+                        e.add_primer(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
+
+                    elif category == 'motif':
+                        e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
+                    elif category in ['pcr','rt_pcr','bs_pcr']:
+                        name = name.split(',')[0].strip()
+                        ls = value.split(',')
+                        if len(ls)!=2:
+                            em('you must specify 2 primer names separated by "," for each pcr: %s'%name)
+                            continue
+                        fw = ls[0].strip()
+                        rv = ls[1].strip()
+
+                        if category == 'pcr':
+                            e.add_pcr(name, fw, rv)
+                        elif category == 'rt_pcr':
+                            e.add_rt_pcr(name, fw, rv)
+                        elif category == 'bs_pcr':
+                            e.add_bs_pcr(name, fw, rv)
+                        else:
+                            raise ValueError
+                    elif category == 'bsp':
+                        n = [n.strip() for n in name.split(',')]
+                        if not len(n)>=2:
+                            em('each bsp must have at least 2 key; cell line name and pcr name')
+                            continue
+                        pcrname = n[0].strip()
+                        cellline = n[1].strip().upper()
+                        annotations = n[2:]
+                        if not pcrname or not cellline:
+                            em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
+                            continue
+
+                        e.add_bsp(cellline, pcrname, value.strip().upper())
+                    else:
+                        em('unkown category: %s'%category)
 
     def parse(self, fileobj):
         s = SettingFile()
@@ -485,162 +568,21 @@ class SeqvFile(object):
                 name = ls[0].strip()
                 value = ls[1].strip()
                 yield category, name, value, lambda x:error(x, line, lineno)
-                
-        
-    def load_seqview(self, fileobj, relative_path):
-        for category, name, value, em in self.parse(fileobj):
-            if not name and not value:
-                if category == 'general':
-                    self.entries.append(SeqvFileEntry())
-            else:
-                if not self.entries:
-                    ValueError('no entries')
-
-                e = self.entries[-1]
-                if category == 'general':
-                    if name=='genbank':
-                        with open(relative_path(value), 'r') as f:
-                            e.load_genbank(f.read())
-                    elif name=='primers':
-                        e.load_primers(relative_path(value))
-
-                elif category == 'primer':
-                    e.add_primer(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
-                    
-                elif category == 'motif':
-                    e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
-                elif category == 'tss':
-                    e.add_tss(name, relative_path(value))
-                elif category == 'tss_count':
-                    p,q = value.split('-')
-                    e.add_tss_count(name, int(p), int(q))
-                elif category in ['pcr','rt_pcr','bs_pcr']:
-                    name = name.split(',')[0].strip()
-                    ls = value.split(',')
-                    if len(ls)!=2:
-                        em('you must specify 2 primer names separated by "," for each pcr: %s'%name)
-                        continue
-                    fw = ls[0].strip()
-                    rv = ls[1].strip()
-
-                    if category == 'pcr':
-                        e.add_pcr(name, fw, rv)
-                    elif category == 'rt_pcr':
-                        e.add_rt_pcr(name, fw, rv)
-                    elif category == 'bs_pcr':
-                        e.add_bs_pcr(name, fw, rv)
-                    else:
-                        raise ValueError
-                elif category == 'bsp':
-                    n = [n.strip() for n in name.split(',')]
-                    if not len(n)>=2:
-                        em('each bsp must have at least 2 key; cell line name and pcr name')
-                        continue
-                    pcrname = n[0].strip()
-                    cellline = n[1].strip().upper()
-                    annotations = n[2:]
-                    if not pcrname or not cellline:
-                        em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
-                        continue
-                    
-                    e.add_bsp(cellline, pcrname, value.strip().upper())
-                else:
-                    em('unkown category: %s'%category)
-
-seqview_css = '''
-    .images{}
-    .image{border: solid 1px;}
-    .template{margin-left: 1em;}
-    .pcr{margin: 1em; padding: 1em; border: solid 1px;}
-    .products{margin-left: 2em;}
-    .copybox{margin-left:4em;}
-
-    .primerpairtable{
-      font-family: monospace
-    }
-'''
 
 
-def main():
-    import sys, os
-    from argparse import ArgumentParser
+    def write_html(self, outputp):
+        with open(outputp.path,'w') as f:
+            html = xmlwriter.XmlWriter(f)
+            b = xmlwriter.builder(html)
+            with b.html:
+                with b.head:
+                    with b.style(type='text/css'):
+                        b.text(seqview_css)
+            with b.body:
+                for e in self.entries:
+                    subfs = SubFileSystem(outputp.dir, outputp.suffix)
 
-    parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
-    parser.add_argument("seqvfile", help=".seqv file")
-    parser.add_argument("-o", "--output", dest="output", help="output filename")
-    
-    args = parser.parse_args()
+                    e.write_html(b, subfs)
 
-    inputfile = args.seqvfile
-    
-    if args.output:
-        outputfile = args.output
-    else:
-        output_dir = os.path.abspath(os.path.dirname(inputfile))
-        outputfile = os.path.join(output_dir, os.path.basename(inputfile).rpartition('.')[0] + '.html')
+                    subfs.finish()
 
-
-    output_dir = os.path.abspath(os.path.dirname(outputfile))
-    output_basename = os.path.basename(outputfile).rpartition('.')[0]
-
-    sv = SeqvFile(inputfile)
-
-    with open(outputfile,'w') as output:
-        html = xmlwriter.XmlWriter(output)
-        b = xmlwriter.builder(html)
-        with b.html:
-            with b.head:
-                with b.style(type='text/css'):
-                    b.text(seqview_css)
-        with b.body:
-            for e in sv:
-                subfs = SubFileSystem(output_basename)
-
-                e.write_html(b, subfs)
-
-                if e.tss_count:
-                    e.write_tss_count_csv(subfs)
-
-                subfs.finish(output_dir)
-
-def main_geneview():
-    import sys, os
-    from argparse import ArgumentParser
-
-    parser = ArgumentParser(prog='seqview_gene', description='pretty HTML+SVG report of gene')
-    parser.add_argument("gene_symbol", help="Gene Symbol")
-    parser.add_argument("-o", "--output", dest="output", help="output filename")
-    
-    args = parser.parse_args()
-
-    if not args.output:
-        parser.error('no output')
-        return
-
-    outputfile = args.output
-    output_dir = os.path.abspath(os.path.dirname(outputfile))
-    output_basename = os.path.basename(outputfile).rpartition('.')[0]
-    
-    try:
-        gene_id, gene_symbol = gene.get_gene_from_text(args.gene_symbol)
-    except NoSuchGene, e:
-        print e
-        return
-
-    e = GeneBankEntry(gene_symbol)
-    e.load_genbank(gene.get_genomic_context_genbank(gene_id))
-
-    with open(outputfile,'w') as output:
-        html = xmlwriter.XmlWriter(output)
-        b = xmlwriter.builder(html)
-        with b.html:
-            with b.head:
-                with b.style(type='text/css'):
-                    b.text(seqview_css)
-        with b.body:
-            subfs = SubFileSystem(output_dir, output_basename)
-            e.write_html(b, subfs)
-            subfs.finish()
-
-if __name__=='__main__':
-    main()

@@ -4,17 +4,28 @@ import cPickle as pickle
 
 from collections import defaultdict, OrderedDict
 from .locus import Locus
+from ..listdict import ListDict
 import os
 
 directory = os.path.dirname(os.path.abspath(__file__))
-database_dir = os.path.join(directory,'../../_db/dbtss/')
 
+database_dir = os.path.join(directory,'../../_db/dbtss/')
 default_cache_file = os.path.join(directory,'../../_cache/bed.cache')
 
 import bisect
 
 def settings(text, sp=','):
     return [[x.strip() for x in c.split(sp)] for c in text.strip().split('\n')]
+
+"""
+bed/
+# Definition of each column (tab limited):
+-chromosome
+-TSStag_start
+-tag_end
+-strand
+-Number of tags
+"""
 
 t_dbtss = """
 Brain1: adult-tissue/ambion_brain.bed
@@ -74,6 +85,14 @@ class Dbtss(object):
     def __getitem__(self,name):
         return self.tissues[name]
 
+_dbtss = None
+def get_dbtss():
+    global _dbtss
+    if not _dbtss:
+        _dbtss = Dbtss()
+    return _dbtss
+
+
 class TssTab(object):
     def __init__(self, name, fileobj):
         self.name = name
@@ -119,7 +138,7 @@ class RegionTss(object):
         self.name = name
         self.maxtag = 1
         self.locus = locus
-        self.db = dbtss[tissue]
+        self.db = get_dbtss()[tissue]
         for loc, val in self.db.search_locus(locus):
             self.maxtag = max(self.maxtag, val)
 
@@ -140,5 +159,26 @@ class RegionTss(object):
         for k,v in iterator:
             yield self.locus.rel_5(k),v
 
-            
-dbtss = Dbtss()
+class RegionTissueset(object):
+    def __init__(self, tissue_names, locus):
+        self.tissue_names = tissue_names
+        self.rtsss = ListDict()
+        self.maxtag = 1
+
+        for tissue in tissue_names:
+            self.rtsss.append(RegionTss(tissue, tissue, locus))
+
+        for r in self.rtsss:
+            self.maxtag = max(self.maxtag, r.maxtag)
+
+    def __iter__(self):
+        return iter(self.rtsss)
+
+    def get_tissue(self, name):
+        return self.rtss[name]
+
+    def count_tags_header(self):
+        return self.tissue_names
+        
+    def count_tags(self, start, stop):
+        return [str(r.count_range(start, stop)) for r in self.rtsss]

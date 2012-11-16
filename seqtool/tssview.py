@@ -1,12 +1,8 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
-from collections import defaultdict, OrderedDict
-from cStringIO import StringIO
-
 import os
+from collections import OrderedDict
+from cStringIO import StringIO
 
 from .memoize import memoize
 from .nucleotide import bisulfite
@@ -15,109 +11,34 @@ from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
 from .dbtss import TssFile
-from .db import gene
+from .db import entrez
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
 
 from .parser import SettingFile
-from .seqview import GenomicTemplate, GeneBankEntry, seqview_css, SubFileSystem
+from .seqview import GenomicTemplate, GeneBankEntry, seqview_css, SubFileSystem, SeqvFileEntry
 from .db.dbtss import Dbtss, RegionTss
-from .db import gene as genedb
 
-class TissueSet(object):
-    def __init__(self, names):
-        self.tissues = names
+seqview_css = '''
+    .images{}
+    .image{border: solid 1px;}
+    .template{margin-left: 1em;}
+    .pcr{margin: 1em; padding: 1em; border: solid 1px;}
+    .products{margin-left: 2em;}
+    .copybox{margin-left:4em;}
 
-    def __iter__(self):
-        return iter(self.tissues)
-
-class GeneTssEntry(GeneBankEntry):
-    def __init__(self, gene_symbol, tissueset):
-        super(GeneTssEntry, self).__init__(gene_symbol)
-
-        self.gene_symbol = gene_symbol
-        gene_id, symbol = genedb.get_gene_from_text(gene_symbol)
-        self.gene_id = gene_id
-        self.locus = genedb.get_gene_locus(gene_id)
-
-        self.tissues = tissueset
-        self.rtss = []
-        for t in tissueset:
-            self.rtss.append(RegionTss(t, t, self.locus))
-
-        self.tsss = []
-
-        self.load_genbank(genedb.get_genomic_context_genbank(gene_id))
-
-    
-    def add_tss_site(self, tss_name, start=None, end=None):
-        if not start or not end:
-            p = self.template.transcript_start_site
-            start,end = p-200, p+200
-        self.tsss.append((tss_name, start, end))
-
-    def tss_count_csv(self):
-        content = ''
-        for name, start, stop in self.tsss:
-            l = [name] + [str(r.count_range(start, stop)) for r in self.rtss]
-            content += ','.join(l) + '\n'
-        return content
-
-    def render_genome(self, width):
-        assert(self.template)
-        length = len(self.template.seq)
-
-        t = seqtrack.TrackGroup()
-        t.add(seqtrack.Track(0,10))
-        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
-        for rt in self.rtss:
-            t.add(seqtrack.HbarTrack('', length))
-            t.add(seqtrack.RegiontssTrack(rt, self.template.seq))
-        t.add(seqtrack.HbarTrack('', length))
-
-        return t.svg(width)
-
-
-    def write_html(self, b, subfs):
-        """
-        subfs must have 2 methods
-        def write(self, filename, content_text)
-        def get_link_path(self, filename)
-        """
-        genome_n = 'genome.svg'
-
-        # writing svgs
-        subfs.write(genome_n, self.render_genome(5000))
-
-        # link path for svg files
-        genome_l = subfs.get_link_path(genome_n)
-
-        # writing html
-        b.h1(self.gene_symbol)
-        with b.div(**{'class':'images'}):
-            with b.a(href=genome_l):
-                b.img(src=genome_l, width='1000px')
+    .primerpairtable{
+      font-family: monospace
+    }
+'''
 
 class TssvFile(object):
-    def __init__(self, filename):
-        with open(filename,'r') as f:
-            self.parse(f)
+    def __init__(self, fileobj):
+        self.parse(fileobj)
 
     def __iter__(self):
         return iter(self.entries)
-
-    def write_html(self, b, subfs):
-        for gt in self.entries:
-            subsubfs = subfs.get_subfs(gt.gene_symbol)
-            gt.write_html(b, subsubfs)
-
-    def csv(self):
-        content = ''
-        content += ', '.join(['tss \\ tissue']+[n for n in self.tissueset]) + '\n'
-        for gt in self.entries:
-            content += gt.tss_count_csv()
-        return content
 
     def parse(self, fileobj):
         tissues = []
@@ -154,67 +75,46 @@ class TssvFile(object):
                     else:
                         genes[gene].append((name,start,stop))
 
-        self.tissueset = TissueSet(tissues)
+        self.tissueset = tissues
         self.entries = []
         for gene in genes.keys():
-            g = GeneTssEntry(gene, self.tissueset)
+            gene_id, symbol = entrez.get_gene_from_text(gene)
+            locus = entrez.get_gene_locus(gene_id)
+            sv = SeqvFileEntry(gene)
+
+            sv.load_genbank(entrez.get_genomic_context_genbank(gene_id))
+            sv.add_tss_tissues(self.tissueset, locus)
+
             for name,start,stop in genes[gene]:
-                g.add_tss_site(name, start, stop)
-            self.entries.append(g)
+                if not start or not stop:
+                    sv.add_default_tss(name)
+                else:
+                    sv.add_tss(start, stop, name)
+            self.entries.append(sv)
 
-seqview_css = '''
-    .images{}
-    .image{border: solid 1px;}
-    .template{margin-left: 1em;}
-    .pcr{margin: 1em; padding: 1em; border: solid 1px;}
-    .products{margin-left: 2em;}
-    .copybox{margin-left:4em;}
 
-    .primerpairtable{
-      font-family: monospace
-    }
-'''
+    def write_csv(self, outputfile):
+        with open(outputfile, 'w') as f:
+            f.write(', '.join(['tss \\ tissue']+[n for n in self.tissueset]) + '\n')
+            for gt in self.entries:
+                f.write(gt.tss_count_csv())
 
-def main():
-    import sys, os
-    from argparse import ArgumentParser
+    def write_html(self, outputp):
+        subfs = SubFileSystem(outputp.dir, outputp.suffix)
 
-    parser = ArgumentParser(prog='tssview', description='pretty HTML+SVG report of dbtss of multiple genes')
-    parser.add_argument("tssvfile", help=".tssv file")
-    parser.add_argument("-o", "--output", dest="output", help="output filename")
+        with open(outputp.path,'w') as output:
+            html = xmlwriter.XmlWriter(output)
+            b = xmlwriter.builder(html)
+            with b.html:
+                with b.head:
+                    with b.style(type='text/css'):
+                        b.text(seqview_css)
+            with b.body:
+                for gt in self.entries:
+                    subsubfs = subfs.get_subfs(gt.name_)
+                    gt.write_html(b, subsubfs)
+
+        subfs.finish()
+
     
-    args = parser.parse_args()
 
-    inputfile = args.tssvfile
-    
-    if args.output:
-        outputfile = args.output
-    else:
-        output_dir = os.path.abspath(os.path.dirname(inputfile))
-        outputfile = os.path.join(output_dir, os.path.basename(inputfile).rpartition('.')[0] + '.html')
-
-
-    output_dir = os.path.abspath(os.path.dirname(outputfile))
-    output_basename = os.path.basename(outputfile).rpartition('.')[0]
-
-    tssv = TssvFile(inputfile)
-
-    output_csv = os.path.join(output_dir, output_basename + '.csv')
-    open(output_csv, 'w').write(tssv.csv())
-
-    subfs = SubFileSystem(output_dir, output_basename)
-
-    with open(outputfile,'w') as output:
-        html = xmlwriter.XmlWriter(output)
-        b = xmlwriter.builder(html)
-        with b.html:
-            with b.head:
-                with b.style(type='text/css'):
-                    b.text(seqview_css)
-        with b.body:
-            tssv.write_html(b, subfs)
-
-    subfs.finish()
-
-if __name__=='__main__':
-    main()

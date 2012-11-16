@@ -37,7 +37,7 @@ class SettingFile(object):
 
     def add_line(self,line,lineno):
         if not self.blocks:
-            self.blocks.append(Block('No Name'))
+            self.blocks.append(Block('No Name',line,lineno))
         self.blocks[-1].add(line,lineno)
 
     def __iter__(self):
