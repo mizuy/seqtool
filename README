@@ -2,7 +2,10 @@ miscellaneous tools for molecular biology.
 
 ** Commands
 
+get_genbank: get GenBank file from ncbi.
+geneview: render overview image of gene sequence, annotation
 seqview: render overview image of sequence, primers, bisulfite sequence results.
+tssview: count the number of tss tags of specific genes, by DBTSS
 bisearch: design primer based on primer3 algorithm.
 primers: calculate primer properties
 virtualpcr: PCR primer alignment tool using bowtie
@@ -10,9 +13,47 @@ virtualpcr: PCR primer alignment tool using bowtie
 ** Install
 python setup.py install
 
+** Mac OS X, homebrew and python Environment
 
-** develop
-/opt/local/bin/virtualenv-2.7 environ
-source environ/bin/activate
-pip install numpy
-python setup.py develop
+*** Installing Brew's python
+http://penandpants.com/2012/02/24/install-python/
+https://github.com/mxcl/homebrew/wiki/Homebrew-and-Python
+
+% which python
+/usr/bin/python
+% python --version
+Python 2.7.1
+% brew install python
+% which python
+/usr/local/bin/python
+% sudo easy_install virtualenv
+% virtualenv --version
+1.8.2
+% which virtualenv
+/usr/local/share/python/virtualenv
+% pip install numpy
+
+% brew install gfortran
+% pip install scipy
+  --> failed. ;-P
+
+*** virtualenv setup
+
+% virtualenv env
+New python executable in env/bin/python
+Installing setuptools............done.
+Installing pip...............done.
+% source env/bin/activate   
+(env)% python setup.py develop 
+  --> numpy compile failed ;-PPP
+(env)% pip install numpy
+  --> success
+(env)% python setup.py develop 
+...
+Using /Users/mizuy/projects/seqtool/env/lib/python2.7/site-packages
+Finished processing dependencies for seqtool==0.1.1
+
+** databases
+
+ucsc table browser
+http://genome.ucsc.edu/cgi-bin/hgTables?hgsid=310886027&clade=mammal&org=Human&db=hg19&hgta_group=genes&hgta_track=refGene&hgta_table=refGene&hgta_regionType=genome&position=chr21%3A33031597-33041570&hgta_outputType=primaryTable&hgta_outFileName=

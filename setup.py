@@ -1,7 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
-version = '0.1.1'
+version = '0.2.0'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'
@@ -32,8 +32,12 @@ setup(name='seqtool',
       entry_points=\
 """
 [console_scripts]
-seqview = seqtool.seqview:main
-primers = seqtool.primers:main
+seqview = seqtool.command:seqview
+get_genbank = seqtool.command:get_genbank
+geneview = seqtool.command:geneview
+tssview = seqtool.command:tssview
+primers = seqtool.command:primers
+seqvcmd = seqtool.seqvcmd:main
 bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main

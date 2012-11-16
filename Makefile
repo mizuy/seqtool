@@ -1,3 +1,4 @@
+
 all: example/primers.html example/b2m.html example/actb.html example/btg3.html
 	open $+
 

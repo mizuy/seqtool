@@ -4,11 +4,13 @@ from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
 from collections import defaultdict
+from math import ceil, log, log10
 
 from StringIO import StringIO
 from .nucleotide import bisulfite, base_color, cpg_sites, cpg_obs_per_exp
 from .pcr import PCR, Primer
 from . import xmlwriter
+
 
 # calc free space
 class FreeSpace(object):
@@ -128,10 +130,10 @@ class Track(TrackBase):
         else:
             return {}
         
-    def draw_vline(self, b, x, start, end, color, scale=(1.,1.)):
+    def draw_vline(self, b, x, start, end, color, stroke=1, scale=(1.,1.)):
         with b.g(transform='translate(%s,0) scale(%s,%s)'%(x,scale[0],scale[1])):
-            b.line(x1=0, y1=start, x2=0, y2=end, stroke=color)
-    
+            b.line(x1=0, y1=start, x2=0, y2=end, stroke=color)(**{'stroke-width':stroke})
+
     def draw_vgraph(self, b, x, start, end, value, color):
         f = (end-start)*(1.-value)
         b.line(x1=x, y1=f, x2=x, y2=end, stroke=color)
@@ -158,7 +160,6 @@ class NamedTrack(Track):
     def name(self):
         return self.name_
 
-
 """
 misc
 """
@@ -171,24 +172,39 @@ class HbarTrack(NamedTrack):
         self.draw_hbar(b, 0, self.width, 2, 2, color='black')
 
 class MeasureTrack(Track):
-    def __init__(self, length, zero, step):
+    def __init__(self, length, start=0, step=500, substep=100, subsubstep=10):
         super(MeasureTrack, self).__init__(length, 20)
         self.length = length
-        self.zero = zero
+        self.start = start
         self.step = step
+        self.substep = substep
+        self.subsubstep = subsubstep
         
     def draw(self, b, scale):
-        for i in range(0, self.length, self.step):
-            self.draw_vline(b, i, 10, 20, color='black', scale=scale)
-            self.text(b, str(i), x=i-5, y=10, color='black', anchor='middle', scale=scale)
+        self.draw_hline(b, 0, self.length, 20, color='black')
+        # step
+        ss = self.step * int(ceil(1.0*self.start/self.step))
+        for i in range(ss, self.start + self.length, self.step):
+            x = i - self.start
+            self.draw_vline(b, x, 10, 20, color='black', scale=scale)
+            self.text(b, str(i), x=x-5, y=10, color='black', anchor='middle', scale=scale)
+        # substep
+        ss = self.substep * int(ceil(1.0*self.start/self.substep))
+        for i in range(ss, self.start + self.length, self.substep):
+            x = i - self.start
+            self.draw_vline(b, x, 13, 20, color='black', scale=scale)
 
+        ss = self.subsubstep * int(ceil(1.0*self.start/self.subsubstep))
+        for i in range(ss, self.start + self.length, self.subsubstep):
+            x = i - self.start
+            self.draw_vline(b, x, 18, 20, color='black', scale=scale)
 
 
 """
 sequences
 """
 class SequenceTrack(TrackGroup):
-    def __init__(self, seq, features):
+    def __init__(self, seq, features, start=0):
         super(SequenceTrack, self).__init__()
         self.seq = seq
         self.features = features
@@ -196,7 +212,7 @@ class SequenceTrack(TrackGroup):
 
         msize = 500*(max(1,int(self.length/10)/500))
 
-        self.add(MeasureTrack(self.length, 0, msize))
+        self.add(MeasureTrack(self.length, start, msize))
         self.add(CpgObsPerExpTrack(self.seq))
         self.add(GcPercentTrack(self.seq))
         #self.add(SequenceTrack(self.seq))
@@ -291,12 +307,32 @@ class CpgBarTrack(NamedTrack):
         self.draw_hline(b, 0, self.length, self.height/2, color='black')
         for i in self.cpg:
             self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
+
+class DbtssTrack(NamedTrack):
+    def __init__(self, rt, maxtag, seq):
+        self.rt = rt
+        self.maxtag = maxtag
+        super(DbtssTrack, self).__init__(rt.name, len(seq), 50)
+
+    def draw(self, b, scale):
+        super(DbtssTrack, self).draw(b,scale)
+        h = self.height
+        vh = 1.*min(500,self.maxtag)
+        self.draw_hline(b, 0, self.width, h, color='gray')
+        for x,v in self.rt.items():
+            v = h*v/vh
+            if v <= h:
+                self.draw_vline(b, x, h-v, h, color='red', scale=scale)
+            else:
+                st = 1.*v/h
+                self.draw_vline(b, x, 0, h, color='blue', stroke=st, scale=scale)
             
 def window_search(seq, window, step=1):
     h = int(window/2)
     l = len(seq)
     for i in xrange(0,l,step):
         yield i, seq[max(0,i-h):min(i+h,l)]
+
 
 class SeqWindowGraphTrack(NamedTrack):
     def __init__(self, seq, name, calc, maxvalue, window, threshold):
@@ -334,6 +370,7 @@ class CpgObsPerExpTrack(SeqWindowGraphTrack):
     def __init__(self, seq, window=200):
         f = lambda subseq: cpg_obs_per_exp(subseq)
         super(CpgObsPerExpTrack, self).__init__(seq, 'Obs/Exp CpG', f, 1.5, window, 0.65)
+
 
 """
 pcrs

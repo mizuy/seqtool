@@ -11,4 +11,10 @@ example/*.html
 seqtool.egg-info
 _private
 _env
+_cache
+_db
+_output
+_tmp
 env
+input
+temp
