@@ -32,13 +32,13 @@ setup(name='seqtool',
       entry_points=\
 """
 [console_scripts]
-seqview = seqtool.seqview:main
-primers = seqtool.primers:main
+seqview = seqtool.command:seqview
+get_genbank = seqtool.command:get_genbank
+geneview = seqtool.command:geneview
+tssview = seqtool.command:tssview
+primers = seqtool.command:primers
+seqvcmd = seqtool.seqvcmd:main
 bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
-dbtssconv = seqtool.dbtss:main
-get_genbank = seqtool.db.gene:main
-seqvcmd = seqtool.seqvcmd:main
-geneview = seqtool.seqview:main_geneview
 """)

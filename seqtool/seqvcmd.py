@@ -4,7 +4,8 @@ import sys, os
 from collections import defaultdict
 from glob import glob
 from . import xmlwriter
-from .db import gene
+from .db import entrez
+from .parser import SettingFile
 
 directory = os.getcwd()
 input_dir = os.path.join(directory,'input')
@@ -38,7 +39,7 @@ def gene_list_of_seqv_file():
     for f in glob(os.path.join(input_dir,'*.seqv')):
         basename = os.path.basename(f)
         gene_text = os.path.splitext(basename)[0]
-        #gene_id, gene_symbol = gene.get_gene_from_text(gene_text)
+        #gene_id, gene_symbol = entrez.get_gene_from_text(gene_text)
         ret.append(gene_text)
     return ret
 
@@ -51,7 +52,8 @@ class Block(object):
 
 class IndexFile(object):
     def __init__(self, fileobj):
-        self.blocks = self._parse(fileobj)
+        self.setting = SettingFile()
+        self.setting.parse(fileobj)
 
         indexgenes = set()
         for b in self.blocks:
@@ -62,9 +64,9 @@ class IndexFile(object):
         othergenes = seqvgenes - indexgenes
         self.seqvs = list(seqvgenes | indexgenes)
         
-        o = Block('Other seqv files')
-        o.list = list(othergenes)
-        self.blocks.append(o)
+        self.setting.add_block('Other seqv files')
+        for l in othergenes:
+            self.setting.add_line(l)
                 
     def write(self, fileobj):
         html = xmlwriter.XmlWriter(fileobj)
@@ -75,10 +77,10 @@ class IndexFile(object):
             with b.body:
                 b.h1('Index of Gene List')
                 
-                for block in self.blocks:
+                for block in self.setting:
                     b.h2(block.name)
                     with b.ul:
-                        for g in block.list:
+                        for line,lineno in block:
                             with b.li:
                                 b.a(g, href=g+'.html')
 
@@ -125,7 +127,7 @@ def cmd_index(isopen):
 def cmd_add(gene_list):
     for g in gene_list:
         print "adding %s..." % g
-        gene_id, gene_symbol = gene.get_gene_from_text(g)
+        gene_id, gene_symbol = entrez.get_gene_from_text(g)
 
         print "Gene ID is %s, Gene Symbol is %s"%(gene_id, gene_symbol)
 
@@ -141,7 +143,7 @@ def cmd_add(gene_list):
             print "Already exists. skipping...: ",genbank_file
         else:
             print "retrieving genbank..."
-            t = gene.get_genomic_context_genbank(gene_id)
+            t = entrez.get_genomic_context_genbank(gene_id)
             print "writing...: ",genbank_file
             open(genbank_file,'w').write(t)
 

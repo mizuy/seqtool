@@ -55,3 +55,9 @@ Installing pip...............done.
 ...
 Using /Users/mizuy/projects/seqtool/env/lib/python2.7/site-packages
 Finished processing dependencies for seqtool==0.1.1
+
+
+** databases
+
+ucsc table browser
+http://genome.ucsc.edu/cgi-bin/hgTables?hgsid=310886027&clade=mammal&org=Human&db=hg19&hgta_group=genes&hgta_track=refGene&hgta_table=refGene&hgta_regionType=genome&position=chr21%3A33031597-33041570&hgta_outputType=primaryTable&hgta_outFileName=
