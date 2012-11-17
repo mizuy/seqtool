@@ -29,6 +29,7 @@ def region_growing(items, gap=0):
             return [(p,q)]+region_growing(rest[i:],gap)
     return [(p,q)]
 
+# http://genomewiki.ucsc.edu/index.php/CpG_Islands
 # NOTE: this cpg island implementation is ad-hoc.
 class cpgisland_searcher(object):
     def __init__(self, length, window):

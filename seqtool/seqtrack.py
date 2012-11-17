@@ -374,12 +374,19 @@ class CpgObsPerExpTrack(GraphTrack):
 class CpgIslandBarTrack(NamedTrack):
     def __init__(self, seq, cpg_islands):
         super(CpgIslandBarTrack, self).__init__("CpG island")
+        self.length = len(seq)
         self.cpg_islands = cpg_islands
 
     def draw(self, b, scale):
         super(CpgIslandBarTrack, self).draw(b, scale)
         for start,stop in self.cpg_islands:
-            self.draw_hbar(b, start, stop, self.height/2, 4, color='black')
+            p,q = max(0,start), min(self.length,stop)
+            self.draw_hbar(b, p, q, self.height/2, 4, color='black')
+            
+            if start < 0:
+                self.draw_hbar(b, 0, (q-p)/20., self.height/2, 4, color='red')
+            if self.length < stop:
+                self.draw_hbar(b, self.length-(q-p)/20., self.length, self.height/2, 4, color='red')
 
 
 class CpgIslandTrack(TrackGroup):
