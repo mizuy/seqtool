@@ -8,6 +8,10 @@ from . import seqview as sv
 from . import tssview as tv
 from . import primers
 from . import db
+from .primers import load_primer_list_file, primers_write_csv
+from .prompt import prompt
+from . import xmlwriter
+from .pcr import primers_write_html
 
 def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
     gene_id, gene_symbol = db.get_gene_from_text(gene_text)
@@ -94,46 +98,35 @@ def get_genbank():
     print >>output, genbank
 
 def primers():
-    from optparse import OptionParser
+    parser = ArgumentParser(prog='primers', description='Print primer properties')
+    parser.add_argument('primers', nargs='+', help='primer text file')
+    parser.add_argument('-c', '--csv', action='store_true', dest='csv', help='write a csv file(default is html file)')
+    parser.add_argument("-o", "--output", dest="output", help="output filename")
 
-    parser = OptionParser('usage: %prog inputfile -o outputfile')
-    parser.add_option('-o', '--output', dest='output', help='output filename')
-    parser.add_option('-c', '--csv', action='store_true', dest='csv', default='False', help='write a csv file(default is html file)')
+    args = parser.parse_args()
 
-    if len(sys.argv) == 0:
-        parser.error('no input file')
-
-    (options, args) = parser.parse_args()
+    inputfiles = args.primers
     
-    if not args:
-        parser.print_help()
-        return
-
-    inputfiles = args
+    ps = []
+    for filename in inputfiles:
+        with open(filename,'r') as f:
+            for i in load_primer_list_file(f):
+                ps.append(i)
     
-    primers = []
-    with prompt('loading primers: ') as pr:
-        for filename in inputfiles:
-            with open(filename,'r') as f:
-                for i in load_primer_list_file(f):
-                    primers.append(i)
-                    pr.progress()
-    
-    if options.output:
-        output = open(options.output, 'w')
+    if args.output:
+        output = open(args.output,'w')
     else:
         output = sys.stdout
 
-    if options.csv:
-        output.write(primers_write_csv(primers))
+    if args.csv:
+        output.write(primers_write_csv(ps))
     else:
-        print 'writing html...'
-        html = XmlWriter(output)
-        b = builder(html)
+        html = xmlwriter.XmlWriter(output)
+        b = xmlwriter.builder(html)
         with b.html:
             with b.head:
                 pass
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
-                primers.primers_write_html(html, primers)
+                primers_write_html(html, ps)
 
