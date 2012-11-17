@@ -18,7 +18,6 @@ from .listdict import ListDict
 
 from .parser import SettingFile
 from .seqview import GenomicTemplate, GeneBankEntry, seqview_css, SubFileSystem, SeqvFileEntry
-from .db.dbtss import Dbtss, RegionTss
 
 seqview_css = '''
     .images{}

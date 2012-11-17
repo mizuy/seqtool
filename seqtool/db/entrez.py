@@ -110,13 +110,13 @@ class GeneXml(object):
             a = self.xml.findall(".//Entrezgene/Entrezgene_locus/Gene-commentary[1]/Gene-commentary_seqs/Seq-loc/Seq-loc_int/Seq-interval")[0]
             start = int(a.findall('Seq-interval_from')[0].text)
             stop = int(a.findall('Seq-interval_to')[0].text)
-            strand = True if (a.findall('Seq-interval_strand/Na-strand')[0].attrib['value'] == "plus") else False
+            sense = True if (a.findall('Seq-interval_strand/Na-strand')[0].attrib['value'] == "plus") else False
 
             id_gi = a.findall('Seq-interval_id/Seq-id/Seq-id_gi')[0].text
 
             lower, higher = start, stop
 
-            self.locus = Locus(chromosome, strand, lower, higher)
+            self.locus = Locus(chromosome, sense, lower, higher)
             self.locus.id_gi = id_gi
         finally:
             pass
@@ -150,8 +150,8 @@ def get_genomic_context_genbank(gene_id, upstream=1000, downstream=1000):
 
     return entrez.efetch(db='nuccore',
                          id=g.locus.id_gi,
-                         seq_start=locus.start, seq_stop=locus.stop,
-                         strand=1 if locus.strand else 2,
+                         seq_start=locus.pos.start, seq_stop=locus.pos.stop,
+                         strand=1 if locus.pos.sense else 2,
                          rettype='gb', retmode='text')
     
 

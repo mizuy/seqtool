@@ -20,7 +20,7 @@ from . import xmlwriter
 from .listdict import ListDict
 from .subfs import SubFileSystem
 from .dirutils import Filepath
-from .db.dbtss import RegionTissueset
+from .db.dbtss import TissuesetLocus
 
 seqview_css = '''
     .images{}
@@ -210,7 +210,7 @@ class SeqvFileEntry(GeneBankEntry):
         self.motifs = ListDict()
 
         # RegionTissueSet * tsss
-        self.rts = None
+        self.tsl = None
         self.tsss = []
         self.tss_name_counter = 1
 
@@ -228,7 +228,7 @@ class SeqvFileEntry(GeneBankEntry):
         self.tsss.append((tss_name, start, end))
 
     def add_tss_tissues(self, tissues, locus):
-        self.rts = RegionTissueset(tissues, locus)
+        self.tsl = TissuesetLocus(tissues, locus)
 
     def add_tss(self, start, end, name=None):
         assert(not not start and not not end)
@@ -240,7 +240,7 @@ class SeqvFileEntry(GeneBankEntry):
     def tss_count_csv(self):
         content = ''
         for name, start, stop in self.tsss:
-            content += ','.join([name] + self.rts.count_tags(start,stop)) + '\n'
+            content += ','.join([name] + self.tsl.count_tags(start,stop)) + '\n'
         return content
 
     def load_primers(self, filename):
@@ -308,10 +308,10 @@ class SeqvFileEntry(GeneBankEntry):
         t.add(seqtrack.Track(0,10))
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
-        if self.rts:
-            for r in self.rts:
+        if self.tsl:
+            for r in self.tsl:
                 t.add(seqtrack.HbarTrack('', length))
-                t.add(seqtrack.DbtssTrack(r, self.rts.maxtag, self.template.seq))
+                t.add(seqtrack.DbtssTrack(r, self.tsl.maxtag, self.template.seq))
             t.add(seqtrack.HbarTrack('', length))
 
         for name, bsp in self.bsps:

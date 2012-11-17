@@ -60,34 +60,48 @@ for tissue in db.get_tissues():
         print loc, value
 """
 
+class SortedLocVal(object):
+    def __init__(self, locations, values):
+        self.locs = locations
+        self.vals = values
 
-"""
-import scipy.io
-class NumpyArrays(object):
-    def __init__(self):
-        self.d = {}
-        self.cache = os.path.join(directory,'../../_cache/fn.cache')
-        
-    def get(self, name):
-        self.d[name]
+    def search(self, lower, higher):
+        assert(lower <= higher)
 
-    def set(self, name, array):
-        self.d[name] = array
+        # faster than bisect
+        l_lower = self.locs.searchsorted(lower, side='left')
+        l_higher = self.locs.searchsorted(higher, side='right')
 
-    def save(self, ):
-        fname = {}
-        count = 0
-        for k self.d.keys():
-            fname[k] = "na_%d.cache" % count
-        pickle.dump(fname, open(self.cache,'wb'), -1)
+        #l_lower = self.locs.bisect.bisect_left(tlocs, lower)
+        #l_higher   = bisect.bisect_right(tlocs, higher)
+
+        for i in xrange(l_lower, l_higher):
+            yield self.locs[i], self.vals[i]
+
+class DoubleStrand(object):
+    def __init__(self, sense, antisense):
+        self.sense = sense
+        self.antisense = antisense
+
+    def get_strand(self, sense):
+        return self.sense if sense else self.antisense
+
+    def search(self, sense, lower, higher):
+        assert(lower <= higher)
+        strand = self.get_strand(sense)
         
-        for k,fname in fname.items():
-            fname, self.d[k]
-         scipy.io.savemat(
-        
-    def load(self):
-        pass
-"""
+        return strand.search(lower,higher)
+
+    def search_pos(self, pos):
+        return self.search(pos.sense, pos.lower, pos.higher)
+
+    def search_pos_index(self, pos, start, stop):
+        p = pos.index_5(start)
+        q = pos.index_5(stop)
+        if p > q:
+            p,q = q,p
+        return self.search(pos.sense, p, q)
+
 
 class Dbtss(object):
     def __init__(self):
@@ -103,18 +117,43 @@ class Dbtss(object):
                 self.tissues = None
 
         if not self.tissues:
-            self.tissues = OrderedDict()
-            for name,fname in l_dbtss:
-                tabfile = os.path.join(database_dir, fname)
-                tab = TssTab(name, open(tabfile,'r'))
-                self.tissues[name] = tab
+            self.load()
             pickle.dump(self.tissues, open(default_cache_file,'wb'), -1)
 
-    def gets_tissue(self, name):
-        return self.tissues[name]
-    
-    def __getitem__(self,name):
-        return self.tissues[name]
+    def load(self):
+        self.tissues = OrderedDict()
+        for name,fname in l_dbtss:
+            self.tissues[name] = {}
+
+            bed_file = os.path.join(database_dir, fname)
+            with open(bed_file,'r') as fileobj:
+                locs = defaultdict(lambda : defaultdict(list))
+                vals = defaultdict(lambda : defaultdict(list))
+
+                print 'loading bed...: %s'%bed_file
+                for l in fileobj:
+                    ll = l.split()
+                    chromosome = ll[0]
+                    location = int(ll[1])
+                    strand = 0 if ll[3].strip()=='+' else 1
+                    value = int(ll[4])
+
+                    locs[chromosome][strand].append(location)
+                    vals[chromosome][strand].append(value)
+
+                for ch in locs.keys():
+                    sense =     SortedLocVal(numpy.array(locs[ch][0]),
+                                             numpy.array(vals[ch][0]))
+                    antisense = SortedLocVal(numpy.array(locs[ch][1]),
+                                             numpy.array(vals[ch][1]))
+                    self.tissues[name][ch] = DoubleStrand(sense, antisense)
+
+    def get_strand(self, tissue, chrom):
+        return self.tissues[tissue][chrom]
+
+    def search(self, tissue, chrom, strand, lower, higher):
+        assert(lower <= higher)
+        return self.tissues[tissue][chrom].search(sense,lower,higher)
 
 _dbtss = None
 def get_dbtss():
@@ -124,68 +163,22 @@ def get_dbtss():
     return _dbtss
 
 
-class TssTab(object):
-    def __init__(self, name, fileobj):
-        self.name = name
-        
-        self.locs = defaultdict(list)
-        self.vals = defaultdict(list)
-
-        locs = defaultdict(list)
-        vals = defaultdict(list)
-
-        print 'loading tss...: %s'%name
-        for l in fileobj:
-            ll = l.split()
-            chromosome = ll[0]
-            location = int(ll[1])
-            strand = ll[3].strip()=='+'
-            value = int(ll[4])
-
-            locs[(chromosome,strand)].append(location)
-            vals[(chromosome,strand)].append(value)
-
-        for k,v in locs.items():
-            self.locs[k] = numpy.array(v)
-            self.vals[k] = numpy.array(vals[k])
-
-        print 'done.'
-
-    def search_locus(self, locus):
-        return self.search(locus.chromosome, locus.strand, locus.lower, locus.higher)
-
-    def search_locus_position(self, locus, start, stop):
-        p = locus.index_5(start)
-        q = locus.index_5(stop)
-        if p > q:
-            p,q = q,p
-        return self.search(locus.chromosome, locus.strand, p, q)
-
-    def search(self, chromosome, strand, lower, higher):
-        assert(lower <= higher)
-        tlocs = self.locs[(chromosome,strand)]
-        tvals = self.vals[(chromosome,strand)]
-        
-        l_lower = bisect.bisect_left(tlocs, lower)
-        l_higher   = bisect.bisect_right(tlocs, higher)
-
-        for i in xrange(l_lower, l_higher):
-            yield tlocs[i], tvals[i]
-
-class RegionTss(object):
-    def __init__(self, name, tissue, locus):
-        self.name = name
-        self.maxtag = 1
+class TissueLocus(object):
+    def __init__(self, tissue, locus):
+        self.name = tissue
         self.locus = locus
-        self.db = get_dbtss()[tissue]
-        for loc, val in self.db.search_locus(locus):
+        self.pos = locus.pos
+        self.db = get_dbtss().get_strand(tissue, locus.chrom)
+
+        self.maxtag = 1
+        for loc, val in self.db.search_pos(locus.pos):
             self.maxtag = max(self.maxtag, val)
 
     def count_range(self, start, stop):
         if not start or not stop:
-            iterator = self.db.search_locus(self.locus)
+            iterator = self.db.search_pos(self.locus.pos)
         else:
-            iterator = self.db.search_locus_position(self.locus, start, stop)
+            iterator = self.db.search_pos_index(self.locus.pos, start, stop)
             
         c = 0
         for loc,val in iterator:
@@ -194,30 +187,30 @@ class RegionTss(object):
         return c
 
     def items(self):
-        iterator = self.db.search_locus(self.locus)
+        iterator = self.db.search_pos(self.locus.pos)
         for k,v in iterator:
-            yield self.locus.rel_5(k),v
+            yield self.pos.rel_5(k),v
 
-class RegionTissueset(object):
+class TissuesetLocus(object):
     def __init__(self, tissue_names, locus):
         self.tissue_names = tissue_names
-        self.rtsss = ListDict()
+        self.tl = ListDict()
         self.maxtag = 1
 
         for tissue in tissue_names:
-            self.rtsss.append(RegionTss(tissue, tissue, locus))
+            self.tl.append(TissueLocus(tissue, locus))
 
-        for r in self.rtsss:
+        for r in self.tl:
             self.maxtag = max(self.maxtag, r.maxtag)
 
     def __iter__(self):
-        return iter(self.rtsss)
+        return iter(self.tl)
 
     def get_tissue(self, name):
-        return self.rtss[name]
+        return self.tl[name]
 
     def count_tags_header(self):
         return self.tissue_names
         
     def count_tags(self, start, stop):
-        return [str(r.count_range(start, stop)) for r in self.rtsss]
+        return [str(r.count_range(start, stop)) for r in self.tl]
