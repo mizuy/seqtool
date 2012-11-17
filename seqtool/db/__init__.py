@@ -3,6 +3,7 @@ import os
 from .locus import Locus
 from . import sql
 from . import entrez
+from . import dbtss
 
 class NoSuchGene(Exception):
     def __init__(self, m):
@@ -45,3 +46,5 @@ def get_locus_genbank(locus):
                          strand=1 if locus.pos.sense else 2,
                          rettype='gb', retmode='text')
     
+def get_dbtss_tissues():
+    return dbtss.tissues

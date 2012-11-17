@@ -17,7 +17,7 @@ from . import xmlwriter
 from .listdict import ListDict
 
 from .parser import SettingFile
-from .seqview import GenomicTemplate, GeneBankEntry, seqview_css, SubFileSystem, SeqvFileEntry
+from .seqview import GenomicTemplate, GenebankEntry, GenebankTssEntry, seqview_css, SubFileSystem
 
 seqview_css = '''
     .images{}
@@ -79,10 +79,10 @@ class TssvFile(object):
         for gene in genes.keys():
             gene_id, symbol = db.get_gene_from_text(gene)
             locus = db.get_gene_locus(gene_id).expand(1000,1000)
-            sv = SeqvFileEntry(gene)
+            sv = GenebankTssEntry(gene)
 
             sv.load_genbank(db.get_locus_genbank(locus))
-            sv.add_tss_tissues(self.tissueset, locus)
+            sv.set_tissueset_locus(self.tissueset, locus)
 
             for name,start,stop in genes[gene]:
                 if not start or not stop:
@@ -110,7 +110,7 @@ class TssvFile(object):
                         b.text(seqview_css)
             with b.body:
                 for gt in self.entries:
-                    subsubfs = subfs.get_subfs(gt.name_)
+                    subsubfs = subfs.get_subfs(gt.name)
                     gt.write_html(b, subsubfs)
 
         subfs.finish()

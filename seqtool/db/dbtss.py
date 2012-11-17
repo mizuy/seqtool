@@ -51,6 +51,7 @@ Prostate: adult-tissue/ambion_prostate.bed
 Testis: adult-tissue/ambion_testis.bed
 """
 l_dbtss = settings(t_dbtss, ':')
+tissues = [k for k,v in l_dbtss]
 
 """
 db = Dbtss()
