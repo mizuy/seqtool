@@ -41,4 +41,5 @@ seqvcmd = seqtool.seqvcmd:main
 bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
+seqtool_loadsql = seqtool.db.sql:load_all
 """)

@@ -11,14 +11,13 @@ from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
 from .dbtss import TssFile
-from .db import entrez
+from . import db
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
 
 from .parser import SettingFile
-from .seqview import GenomicTemplate, GeneBankEntry, seqview_css, SubFileSystem, SeqvFileEntry
-from .db.dbtss import Dbtss, RegionTss
+from .seqview import GenomicTemplate, GenebankEntry, GenebankTssEntry, seqview_css, SubFileSystem
 
 seqview_css = '''
     .images{}
@@ -78,12 +77,11 @@ class TssvFile(object):
         self.tissueset = tissues
         self.entries = []
         for gene in genes.keys():
-            gene_id, symbol = entrez.get_gene_from_text(gene)
-            locus = entrez.get_gene_locus(gene_id)
-            sv = SeqvFileEntry(gene)
+            gene_id, symbol = db.get_gene_from_text(gene)
 
-            sv.load_genbank(entrez.get_genomic_context_genbank(gene_id))
-            sv.add_tss_tissues(self.tissueset, locus)
+            sv = GenebankTssEntry(gene)
+            sv.load_gene(gene_id)
+            sv.set_tissueset(self.tissueset)
 
             for name,start,stop in genes[gene]:
                 if not start or not stop:
@@ -111,7 +109,7 @@ class TssvFile(object):
                         b.text(seqview_css)
             with b.body:
                 for gt in self.entries:
-                    subsubfs = subfs.get_subfs(gt.name_)
+                    subsubfs = subfs.get_subfs(gt.name)
                     gt.write_html(b, subsubfs)
 
         subfs.finish()

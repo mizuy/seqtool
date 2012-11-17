@@ -14,7 +14,7 @@ class Filepath(object):
         self.suffix = self.basename.rpartition('.')[0]
 
     def change_ext(self, ext):
-        return Filepath(os.path.join(self.dir, self.suffix + 'ext'))
+        return Filepath(os.path.join(self.dir, self.suffix + ext))
 
     def relative(self, name):
         return os.path.join(self.dir,name)

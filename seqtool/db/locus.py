@@ -1,10 +1,9 @@
-__all__ = ['Locus']
+__all__ = ['Locus','StrandPos']
 
-class Locus(object):
-    def __init__(self, chromosome, strand, lower, higher):
+class StrandPos(object):
+    def __init__(self, sense, lower, higher):
         """
-        chromosome: chr?
-        strand: True or False
+        sense: True or False
         always, lower < higher
         for sense,     lower,higher = start,end
         for antisense, lower,higher = end,start
@@ -19,13 +18,12 @@ class Locus(object):
                      stop                                start
         """
         assert(lower <= higher)
-        self.chromosome = chromosome
-        self.strand = strand
+        self.sense = sense
         self.lower = lower
         self.higher = higher
 
     def expand(self, upstream, downstream):
-        if self.strand:
+        if self.sense:
             # lower - higher
             lower = self.lower - upstream
             higher = self.higher + downstream
@@ -34,17 +32,18 @@ class Locus(object):
             lower = self.lower - downstream
             higher = self.higher + upstream
 
-        return Locus(self.chromosome, self.strand, lower, higher)
+        return StrandPos(self.sense, lower, higher)
 
     def antisense(self):
-        return Locus(self.chromosome, not self.strand, lower, higher)
+        print 'ANTISENSE ???'
+        return StrandPos(not self.sense, lower, higher)
 
     @property
     def start(self):
         """
         return location of 5' end
         """
-        if self.strand:
+        if self.sense:
             return self.lower
         else:
             return self.higher
@@ -54,7 +53,7 @@ class Locus(object):
         """
         return location of 3' end
         """
-        if self.strand:
+        if self.sense:
             return self.higher
         else:
             return self.lower
@@ -64,7 +63,7 @@ class Locus(object):
         """
         return location of 5' end + i
         """
-        if self.strand:
+        if self.sense:
             return self.lower+i
         else:
             return self.higher-i
@@ -73,13 +72,26 @@ class Locus(object):
         """
         return location of 5' end + i
         """
-        if self.strand:
+        if self.sense:
             return self.higher+i
         else:
             return self.lower-i
         
     def rel_5(self, i):
-        if self.strand:
+        if self.sense:
             return i - self.lower
         else:
             return self.higher - i
+
+class Locus(object):
+    def __init__(self, chromosome, sense, lower, higher):
+        self.chrom = chromosome
+        self.pos = StrandPos(sense, lower, higher)
+
+    def expand(self, upstream, downstream):
+        p = self.pos.expand(upstream, downstream)
+        return Locus(self.chrom, p.sense, p.lower, p.higher)
+
+    def antisense(self):
+        p = self.pos.antisense()
+        return Locus(self.chrom, p.sense, p.lower, p.higher)

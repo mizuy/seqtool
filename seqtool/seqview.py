@@ -14,13 +14,13 @@ from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file, SettingFile
 from .primers import load_primer_list_file
 from .prompt import prompt
-from .db import entrez
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
 from .subfs import SubFileSystem
 from .dirutils import Filepath
-from .db.dbtss import RegionTissueset
+from . import db
+from .db.dbtss import TissuesetLocus
 
 seqview_css = '''
     .images{}
@@ -162,16 +162,22 @@ class GenomicTemplate(object):
     def features(self):
         return self.genbank_.features
 
-class GeneBankEntry(object):
+class GenebankEntry(object):
     def __init__(self, name=None):
-        self.name_ = name
+        self.name = name
         self.template = None
         self.loaded_ = False
+        self.locus = None
 
-    def load_genbank(self, content):
+    def load_genbank(self, content, locus=None):
+        self.locus = None
         self.template = GenomicTemplate(content)
 
-    def render_genome(self, width):
+    def load_gene(self, gene_id, upstream=1000, downstream=1000):
+        self.locus = db.get_gene_locus(gene_id).expand(upstream,downstream)
+        self.template = GenomicTemplate(db.get_locus_genbank(self.locus))
+
+    def track_genome(self):
         assert(self.template)
         length = len(self.template.seq)
 
@@ -179,7 +185,7 @@ class GeneBankEntry(object):
         t.add(seqtrack.Track(0,10))
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
-        return t.svg(width)
+        return t
 
     def write_html(self, b, subfs):
         """
@@ -190,45 +196,39 @@ class GeneBankEntry(object):
         genome_n = 'genome.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.render_genome(5000))
+        subfs.write(genome_n, self.track_genome().svg(5000))
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
 
         # writing html
-        b.h1(self.template.description)
+        b.h1(self.name)
         with b.div(**{'class':'images'}):
-            b.h2('images')
-            with b.div:
-                b.h3('genome overview')
-                with b.a(href=genome_l):
-                    b.img(src=genome_l, width='1000px')
+            b.h2(self.template.description)
+            with b.a(href=genome_l):
+                b.img(src=genome_l, width='1000px')
 
-class SeqvFileEntry(GeneBankEntry):
+class GenebankTssEntry(GenebankEntry):
     def __init__(self, name=None):
-        self.primers = ListDict()
-        self.motifs = ListDict()
+        self.tss = None
+        self.tsl = None
 
-        # RegionTissueSet * tsss
-        self.rts = None
         self.tsss = []
         self.tss_name_counter = 1
 
-        self.pcrs = ListDict()
-        self.bs_pcrs = ListDict()
-        self.rt_pcrs = ListDict()
-
-        self.bsps = BisulfiteSequence()
-
-        super(SeqvFileEntry, self).__init__(name)
+        super(GenebankTssEntry, self).__init__(name)
+    
+    def set_tissueset(self, tissues):
+        if not self.locus:
+            print "No Locus Defined."
+            return False
+        self.tsl = TissuesetLocus(tissues, self.locus)
+        return True
 
     def add_default_tss(self, tss_name="Assumed TSS"):
         p = self.template.transcript_start_site
         start,end = p-200, p+200
         self.tsss.append((tss_name, start, end))
-
-    def add_tss_tissues(self, tissues, locus):
-        self.rts = RegionTissueset(tissues, locus)
 
     def add_tss(self, start, end, name=None):
         assert(not not start and not not end)
@@ -240,8 +240,65 @@ class SeqvFileEntry(GeneBankEntry):
     def tss_count_csv(self):
         content = ''
         for name, start, stop in self.tsss:
-            content += ','.join([name] + self.rts.count_tags(start,stop)) + '\n'
+            content += ','.join([name] + self.tsl.count_tags(start,stop)) + '\n'
         return content
+
+    def track_genome(self):
+        assert(self.template)
+        length = len(self.template.seq)
+
+        t = super(GenebankTssEntry, self).track_genome()
+
+        if self.tsl:
+            for r in self.tsl:
+                t.add(seqtrack.HbarTrack('', length))
+                t.add(seqtrack.DbtssTrack(r, self.tsl.maxtag, self.template.seq))
+            t.add(seqtrack.HbarTrack('', length))
+
+        return t
+
+    def write_tss_count_csv(self, subfs):
+        content = ''
+        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
+        content += '\n'
+        for name,start,end in self.tss_count:
+            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
+            content += '\n'
+        subfs.write('tss.csv', content)
+
+    def write_html(self, b, subfs):
+        genome_n = 'genome.svg'
+
+        # writing svgs
+        subfs.write(genome_n, self.track_genome().svg(5000))
+
+        # link path for svg files
+        genome_l = subfs.get_link_path(genome_n)
+
+        # writing html
+        b.h1(self.name)
+        with b.div(**{'class':'images'}):
+            with b.a(href=genome_l):
+                b.img(src=genome_l, width='1000px')
+
+
+class SeqvFileEntry(GenebankTssEntry):
+    def __init__(self, name=None):
+        self.primers = ListDict()
+        self.motifs = ListDict()
+
+        # RegionTissueSet * tsss
+        self.tsl = None
+        self.tsss = []
+        self.tss_name_counter = 1
+
+        self.pcrs = ListDict()
+        self.bs_pcrs = ListDict()
+        self.rt_pcrs = ListDict()
+
+        self.bsps = BisulfiteSequence()
+
+        super(SeqvFileEntry, self).__init__(name)
 
     def load_primers(self, filename):
         with prompt('loading primers: '+filename) as pr:
@@ -300,19 +357,11 @@ class SeqvFileEntry(GeneBankEntry):
 
         self.bsps.add(cellline, BisulfiteSequenceEntry(cellline, pcr, result))
 
-    def render_genome(self, width):
+    def track_genome(self):
         assert(self.template)
         length = len(self.template.seq)
 
-        t = seqtrack.TrackGroup()
-        t.add(seqtrack.Track(0,10))
-        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
-
-        if self.rts:
-            for r in self.rts:
-                t.add(seqtrack.HbarTrack('', length))
-                t.add(seqtrack.DbtssTrack(r, self.rts.maxtag, self.template.seq))
-            t.add(seqtrack.HbarTrack('', length))
+        t = super(SeqvFileEntry, self).track_genome()
 
         for name, bsp in self.bsps:
             bsp_map, start, end = bsp.combine()
@@ -331,9 +380,9 @@ class SeqvFileEntry(GeneBankEntry):
         t.add(seqtrack.HbarTrack('', length))
         t.add(seqtrack.PcrsTrack('rt pcr', self.rt_pcrs))
 
-        return t.svg(width)
+        return t
 
-    def render_transcript(self, width):
+    def track_transcript(self):
         assert(self.template)
 
         t = seqtrack.TrackGroup()
@@ -347,53 +396,9 @@ class SeqvFileEntry(GeneBankEntry):
             pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in self.rt_pcrs]
             t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
         
-        return t.svg(width)
+        return t
 
-    def render_bsp(self, width=None, scale=2, init=50):
-        assert(self.template)
-        return ''
-        '''
-        TODO:
 
-        if not self.record:
-            raise ValueError('load genbank first')
-        if not self.has_bisulfite_sequence_result():
-            raise ValueError('no bisulfite sequence result')
-
-        if not self.cpg_location:
-            self.cpg_location = self._calc_cpg_location()
-
-        count = len(self.cpg_location)
-        def cx(x):
-            return init+x*scale
-        w = SeqCanvasOverview(0, cx(count))
-
-        color = {'M':'#F00','U':'#00F','P':'#AA0'}
-        
-        y = 1
-        for cl in self.celllines:
-            w.put_line(init, cx(count), y)
-            w.put_char(Point(0, y-0.5), cl)
-            for bs in self.bisulfite_sequence[cl]:
-                for x,i in enumerate(bs.product.cpg_sites()):
-                    loc = cx(self.cpg_location[i])
-                    result = bs.result[x]
-                    if not result=='?':
-                        w.put_yline(loc,y-.5,y,color[result])
-            y += 1
-
-        w.save(filename, format='PNG',height=y)
-        return True
-        '''
-
-    def write_tss_count_csv(self, subfs):
-        content = ''
-        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
-        content += '\n'
-        for name,start,end in self.tss_count:
-            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
-            content += '\n'
-        subfs.write('tss.csv', content)
 
     def write_html(self, b, subfs):
         """
@@ -403,17 +408,14 @@ class SeqvFileEntry(GeneBankEntry):
         """
         genome_n = 'genome.svg'
         transcript_n = 'transcript.svg'
-        bsp_n = 'bsp.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.render_genome(5000))
-        subfs.write(transcript_n, self.render_transcript(1200))
-        subfs.write(bsp_n, self.render_bsp())
+        subfs.write(genome_n, self.track_genome().svg(5000))
+        subfs.write(transcript_n, self.track_transcript().svg(1200))
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
         transcript_l = subfs.get_link_path(transcript_n)
-        bsp_l = subfs.get_link_path(bsp_n)
 
         # writing html
         b.h1(self.template.description)
@@ -426,10 +428,6 @@ class SeqvFileEntry(GeneBankEntry):
                 b.h3('transcript overview')
                 with b.a(href=transcript_l):
                     b.img(src=transcript_l,width='1000px')
-                b.h3('bsp overview')
-                b.text('Not Implemented Yet')
-                #with b.a(href=bsp_l):
-                #b.img(src=bsp_l,width='1000px')
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
@@ -509,6 +507,13 @@ class SeqvFile(object):
                         if name=='genbank':
                             with open(relative_path(value), 'r') as f:
                                 e.load_genbank(f.read())
+                        elif name=='gene':
+                            try:
+                                gene_id, gene_symbol = db.get_gene_from_text(value)
+                            except db.NoSuchGene,e:
+                                em('gene entry: No such Gene %s'%value)
+                                continue
+                            e.load_gene(gene_id)
                         elif name=='primers':
                             e.load_primers(relative_path(value))
 
