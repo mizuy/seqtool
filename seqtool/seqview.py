@@ -14,12 +14,12 @@ from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file, SettingFile
 from .primers import load_primer_list_file
 from .prompt import prompt
-from .db import entrez
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
 from .subfs import SubFileSystem
 from .dirutils import Filepath
+from . import db
 from .db.dbtss import TissuesetLocus
 
 seqview_css = '''
@@ -167,9 +167,15 @@ class GenebankEntry(object):
         self.name = name
         self.template = None
         self.loaded_ = False
+        self.locus = None
 
-    def load_genbank(self, content):
+    def load_genbank(self, content, locus=None):
+        self.locus = None
         self.template = GenomicTemplate(content)
+
+    def load_gene(self, gene_id, upstream=1000, downstream=1000):
+        self.locus = db.get_gene_locus(gene_id).expand(upstream,downstream)
+        self.template = GenomicTemplate(db.get_locus_genbank(self.locus))
 
     def track_genome(self):
         assert(self.template)
@@ -212,8 +218,12 @@ class GenebankTssEntry(GenebankEntry):
 
         super(GenebankTssEntry, self).__init__(name)
     
-    def set_tissueset_locus(self, tissues, locus):
-        self.tsl = TissuesetLocus(tissues, locus)
+    def set_tissueset(self, tissues):
+        if not self.locus:
+            print "No Locus Defined."
+            return False
+        self.tsl = TissuesetLocus(tissues, self.locus)
+        return True
 
     def add_default_tss(self, tss_name="Assumed TSS"):
         p = self.template.transcript_start_site
@@ -247,6 +257,15 @@ class GenebankTssEntry(GenebankEntry):
 
         return t
 
+    def write_tss_count_csv(self, subfs):
+        content = ''
+        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
+        content += '\n'
+        for name,start,end in self.tss_count:
+            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
+            content += '\n'
+        subfs.write('tss.csv', content)
+
     def write_html(self, b, subfs):
         genome_n = 'genome.svg'
 
@@ -261,6 +280,7 @@ class GenebankTssEntry(GenebankEntry):
         with b.div(**{'class':'images'}):
             with b.a(href=genome_l):
                 b.img(src=genome_l, width='1000px')
+
 
 class SeqvFileEntry(GenebankTssEntry):
     def __init__(self, name=None):
@@ -379,14 +399,6 @@ class SeqvFileEntry(GenebankTssEntry):
         return t
 
 
-    def write_tss_count_csv(self, subfs):
-        content = ''
-        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
-        content += '\n'
-        for name,start,end in self.tss_count:
-            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
-            content += '\n'
-        subfs.write('tss.csv', content)
 
     def write_html(self, b, subfs):
         """
@@ -495,6 +507,13 @@ class SeqvFile(object):
                         if name=='genbank':
                             with open(relative_path(value), 'r') as f:
                                 e.load_genbank(f.read())
+                        elif name=='gene':
+                            try:
+                                gene_id, gene_symbol = db.get_gene_from_text(value)
+                            except db.NoSuchGene,e:
+                                em('gene entry: No such Gene %s'%value)
+                                continue
+                            e.load_gene(gene_id)
                         elif name=='primers':
                             e.load_primers(relative_path(value))
 

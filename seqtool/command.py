@@ -47,10 +47,8 @@ def geneview():
     e = sv.GenebankTssEntry(args.gene_symbol)
 
     gene_id, gene_symbol = db.get_gene_from_text(args.gene_symbol)
-    locus = db.get_gene_locus(gene_id).expand(1000,1000)
-    e.set_tissueset_locus(db.get_dbtss_tissues(),locus)
-
-    e.load_genbank(db.get_locus_genbank(locus))
+    e.load_gene(gene_id)
+    e.set_tissueset(db.get_dbtss_tissues())
 
     p = sv.SeqvFile()
     p.load_genbankentry(e)

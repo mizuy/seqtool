@@ -78,11 +78,10 @@ class TssvFile(object):
         self.entries = []
         for gene in genes.keys():
             gene_id, symbol = db.get_gene_from_text(gene)
-            locus = db.get_gene_locus(gene_id).expand(1000,1000)
-            sv = GenebankTssEntry(gene)
 
-            sv.load_genbank(db.get_locus_genbank(locus))
-            sv.set_tissueset_locus(self.tissueset, locus)
+            sv = GenebankTssEntry(gene)
+            sv.load_gene(gene_id)
+            sv.set_tissueset(self.tissueset)
 
             for name,start,stop in genes[gene]:
                 if not start or not stop:

@@ -7,7 +7,7 @@ from collections import defaultdict
 from math import ceil, log, log10
 
 from StringIO import StringIO
-from .nucleotide import bisulfite, base_color, cpg_sites, seq_cpg_obs_per_exp, seq_gc_percent
+from .nucleotide import bisulfite, base_color, cpg_sites, seq_cpg_analysis, seq_cpg_obs_per_exp
 from .pcr import PCR, Primer
 from . import xmlwriter
 
@@ -131,9 +131,9 @@ class Track(TrackBase):
             return {}
 
     def draw_graphline(self, b, scale, values, stroke, fill):
-        step = max(1, int(scale[0]))*3 # for smaller file size.
+        step = max(1, int(scale[0]))*1 # for smaller file size.
         h = self.height
-        points = [(i*step,h*(1.-values[i])) for i in xrange(0, len(values), step)]
+        points = [(i,h*(1.-values[i])) for i in xrange(0, len(values), step)]
         s = ','.join(["%.2f %.2f"%(x,y) for x,y in points])
         b.polyline(points=s, stroke=stroke, fill=fill)
 
@@ -227,11 +227,9 @@ class SequenceTrack(TrackGroup):
         msize = 500*(max(1,int(self.length/10)/500))
 
         self.add(MeasureTrack(self.length, start, msize))
-        self.add(CpgObsPerExpTrack(self.seq))
-        self.add(GcPercentTrack(self.seq))
-        #self.add(SequenceTrack(self.seq))
         for f in self.features:
             self.add(FeatureTrack(f))
+        self.add(CpgIslandTrack(self.seq))
         self.add(CpgBarTrack(self.seq))
 
     def draw(self, b, scale):
@@ -310,18 +308,6 @@ class AtgcColorTrack(NamedTrack):
             self.draw_vline(b, i, 0, self.height, color=color)
             
 
-class CpgBarTrack(NamedTrack):
-    def __init__(self, seq):
-        super(CpgBarTrack, self).__init__('CpG site',len(seq),10)
-        self.length = len(seq)
-        self.cpg = cpg_sites(seq)
-
-    def draw(self, b, scale):
-        super(CpgBarTrack, self).draw(b, scale)
-        self.draw_hline(b, 0, self.length, self.height/2, color='black')
-        for i in self.cpg:
-            self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
-
 class DbtssTrack(NamedTrack):
     def __init__(self, rt, maxtag, seq):
         self.rt = rt
@@ -351,20 +337,33 @@ class GraphTrack(NamedTrack):
         super(GraphTrack, self).draw(b, scale)
         self.draw_graphline(b, scale, self.values, stroke='black', fill='none')
 
+### Cpg analysis
+
+class CpgBarTrack(NamedTrack):
+    def __init__(self, seq):
+        super(CpgBarTrack, self).__init__('CpG site',len(seq),10)
+        self.length = len(seq)
+        self.cpg = cpg_sites(seq)
+
+    def draw(self, b, scale):
+        super(CpgBarTrack, self).draw(b, scale)
+        self.draw_hline(b, 0, self.length, self.height/2, color='black')
+        for i in self.cpg:
+            self.draw_vline(b, i, 0, self.height, color='black', scale=scale)
+
+
 class GcPercentTrack(GraphTrack):
-    def __init__(self, seq, window=200):
-        values = seq_gc_percent(seq, window)
-        self.threshold = 0.5
+    def __init__(self, seq, values):
+        self.threshold = 0.55
         super(GcPercentTrack, self).__init__('GC %', values)
 
     def draw(self, b, scale):
         super(GcPercentTrack, self).draw(b, scale)
         self.draw_graphbar(b, self.threshold)
 
-
 class CpgObsPerExpTrack(GraphTrack):
-    def __init__(self, seq, window=200):
-        values = [v/2. for v in seq_cpg_obs_per_exp(seq, window, 1)]
+    def __init__(self, seq, values):
+        values = [v/2. for v in values]
         self.threshold = 0.65/2.
         super(CpgObsPerExpTrack, self).__init__('Obs/Exp CpG', values)
 
@@ -372,6 +371,31 @@ class CpgObsPerExpTrack(GraphTrack):
         super(CpgObsPerExpTrack, self).draw(b, scale)
         self.draw_graphbar(b, self.threshold)
 
+class CpgIslandBarTrack(NamedTrack):
+    def __init__(self, seq, cpg_islands):
+        super(CpgIslandBarTrack, self).__init__("CpG island")
+        self.cpg_islands = cpg_islands
+
+    def draw(self, b, scale):
+        super(CpgIslandBarTrack, self).draw(b, scale)
+        for start,stop in self.cpg_islands:
+            self.draw_hbar(b, start, stop, self.height/2, 4, color='black')
+
+
+class CpgIslandTrack(TrackGroup):
+    def __init__(self, seq, window=200):
+        super(CpgIslandTrack, self).__init__()
+        self.seq = seq
+        self.length = len(self.seq)
+
+        gc_per, obs, cpgi = seq_cpg_analysis(seq, window)
+
+        #self.add(GcPercentTrack(self.seq, gc_per))
+        #self.add(CpgObsPerExpTrack(self.seq, obs))
+        self.add(CpgIslandBarTrack(self.seq, cpgi))
+
+    def draw(self, b, scale):
+        super(CpgIslandTrack, self).draw(b, scale)
 
 """
 pcrs
