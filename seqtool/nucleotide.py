@@ -8,17 +8,61 @@ from collections import defaultdict
 
 from . import xmlwriter
 
+def seq_gc_percent(seq, window):
+    """
+    calculate gc percent for entire sequence.
+    """
+    seqstr = str(seq).upper()
+    l = len(seq)
+    h = int(window/2)
+    ret = []
+    for i in xrange(0,l):
+        p = max(0,i-h)
+        q = min(i+h,l)
+        n = q-p
+
+        c = seqstr.count('C',p,q)
+        g = seqstr.count('G',p,q)
+        gcp = 1.*(c+g)/n
+
+        ret.append(gcp)
+    return ret
+
+def seq_cpg_obs_per_exp(seq, window, step):
+    """
+    calculate obs/exp cpg for entire sequence.
+    """
+    seqstr = str(seq).upper()
+    l = len(seq)
+    h = int(window/2)
+    ret = []
+    for i in xrange(0,l,step):
+        p = max(0,i-h)
+        q = min(i+h,l)
+        n = q-p
+
+        c = seqstr.count('C',p,q)
+        g = seqstr.count('G',p,q)
+        cg = seqstr.count('CG',p,q)
+        m = c*g
+        oe = 1.*n*cg/m if m!=0 else 0
+
+        ret.append(oe)
+    return ret
+
 def cpg_obs_per_exp(seq):
     """
     CpG islands in vertebrate genomes {Gardiner-Garden, 1987, p02206}
     'Obs/Exp CpG' = N * 'Number of CpG' / 'Number of C' * 'Number of G'
     where, N is the total number of nucleotide in the sequence being analyzed.
+
+    2 >= Obs/Exp >= 0
     """
     n = len(seq)
     c = 0
     g = 0
     cpg = 0
-    for i,b in enumerate(seq):
+    for i,b in xenumerate(seq):
         b = b.upper()
         if b=='C': c+=1
         if b=='G': g+=1
@@ -28,6 +72,7 @@ def cpg_obs_per_exp(seq):
     if c*g == 0:
         return 0
     return 1.*n*cpg / (c*g)
+
 
 #def cpg_sites(seq): return [i for i in range(0,len(seq)-1) if seq[i]=='C' and seq[i+1]=='G']
 def cpg_sites(seq):
