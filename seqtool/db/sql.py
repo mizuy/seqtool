@@ -11,9 +11,16 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql import select, or_, and_
-from . import Session, engine
 from ..prompt import prompt
 from collections import defaultdict
+
+db_file = os.path.join(os.path.dirname(__file__),'../../_db/seqtool.db')
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+# echo=True for debug
+engine = create_engine('sqlite:///'+db_file, echo=False)
+Session = sessionmaker(bind=engine)
 
 Base = declarative_base()
 
@@ -94,13 +101,6 @@ class GeneTable(Base):
                 session.add(GeneTable(gene_id, symbol))
         session.commit()
 
-def get_gene_symbol(gene_id):
-    session = Session()
-    return session.query(GeneTable).filter_by(gene_id=gene_id).one().symbol
-
-def get_gene_id(gene_symbol):
-    session = Session()
-    return session.query(GeneTable).filter_by(symbol=gene_symbol).one().gene_id
 
 class UcscTable(Base):
     __tablename__ = 'ucsc_table'
@@ -157,112 +157,6 @@ class UcscTable(Base):
                 session.add(u)
         session.commit()
 
-t_dbtss = [[x.strip() for x in c.split(':')] for c in """
-Brain1: adult-tissue/ambion_brain.bed
-Brain2: adult-tissue/ambion_brain2.bed
-C-Brain: adult-tissue/clontech_brain.bed
-Heart: adult-tissue/ambion_heart.bed
-C-Heart: adult-tissue/clontech_heart.bed
-Lung: adult-tissue/ambion_lung.bed
-Breast: adult-tissue/ambion_breast.bed
-Kidney: adult-tissue/ambion_kidney.bed
-C-Kidney: adult-tissue/clontech_kidney.bed
-Liver: adult-tissue/ambion_liver.bed
-Colon: adult-tissue/ambion_colon.bed
-Lymph: adult-tissue/ambion_lymph.bed
-Adipose: adult-tissue/ambion_adipose.bed
-Muscle: adult-tissue/ambion_muscle.bed
-Thyroid: adult-tissue/ambion_thyroid.bed
-Adrenal: adult-tissue/ambion_adrenal.bed
-Ovary: adult-tissue/ambion_ovary.bed
-Prostate: adult-tissue/ambion_prostate.bed
-Testis: adult-tissue/ambion_testis.bed
-""".strip().split('\n')]
-
-database_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),'../../_db/dbtss/'))
-
-class DbtssStrand(Base):
-    __tablename__ = 'dbtss_strand'
-    id = Column(Integer, primary_key=True)
-
-    tissue = Column(String)
-    chrom = Column(String)
-    sense = Column(Boolean)
-    #__table_args__ = (UniqueConstraint('tissue','chrom','sense'),{})
-
-    tags = relationship("DbtssTag")
-
-    def __init__(self, tissue, ch, sense):
-        self.tissue = tissue
-        self.chrom = ch
-        self.sense = sense
-
-    @classmethod
-    def get(cls, tissue, ch, sense):
-        session = Session()
-        return session.query(DbtssStrand).filter_by(tissue=tissue, chrom=ch, sense=sense).one()
-
-
-class DbtssTag(Base):
-    __tablename__ = 'dbtss_tag'
-
-    id = Column(Integer, primary_key=True)
-    tag_start = Column(Integer, index=True)
-    tag_num = Column(Integer)
-    strand_id = Column(Integer, ForeignKey('dbtss_strand.id'), index=True)
-
-    def __init__(self, strand, start, num):
-        self.strand_id = strand.id
-        self.tag_start = start
-        self.tag_num = num
-
-    @classmethod
-    def search(cls, tissue, ch, sense, start, stop):
-        sid = DbtssStrand.get(tissue,ch,sense).id
-        t = cls.__table__
-        q = t.select(and_(t.c.strand_id==sid, t.c.tag_start >= start, t.c.tag_start <= stop))
-        with engine.begin() as con:
-            for v in con.execute(q):
-                yield v.tag_start, v.tag_num
-
-    @classmethod
-    def load(self):
-        for tissue, filename in t_dbtss:
-            with prompt('loading %s..'%tissue) as p:
-                with open(os.path.join(database_dir,filename), 'r') as fileobj:
-                    DbtssTag.load_bed(tissue, fileobj)
-
-    @classmethod
-    def load_bed(self, tissue, fileobj):
-        storage = defaultdict(list)
-        for l in fileobj:
-            ll = l.split()
-            chrom = ll[0]
-            start = int(ll[1])
-            sense = ll[3].strip()=='+'
-            num = int(ll[4])
-
-            storage[(chrom,sense)].append((start,num))
-
-        session = Session()
-        for ch,se in storage.keys():
-            strand = DbtssStrand(tissue, ch, se)
-            session.add(strand)
-        session.commit()
-
-        st = DbtssStrand.__table__
-        
-        with engine.begin() as con:
-            for (ch,se),v in storage.items():
-                
-                q = st.select().where(and_(st.c.tissue==tissue, st.c.chrom==ch, st.c.sense==se))
-                strand, = con.execute(q)
-                con.execute(DbtssTag.__table__.insert(),[{
-                        'tag_start':a,
-                        'tag_num':b,
-                        'strand_id':strand.id} for a,b in v])
-
-        
 Base.metadata.create_all(engine)
 
 def clear_all():
@@ -285,9 +179,6 @@ def load_all():
     GeneTable.load()
     print "loading UcscTable..."
     UcscTable.load()
-    session.commit()
-    print "loading DbtssBed..."
-    DbtssTag.load()
     print '...done.'
     session.commit()
 

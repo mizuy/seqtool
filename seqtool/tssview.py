@@ -11,7 +11,7 @@ from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
 from .dbtss import TssFile
-from .db import entrez
+from . import db
 from . import seqtrack
 from . import xmlwriter
 from .listdict import ListDict
@@ -77,11 +77,11 @@ class TssvFile(object):
         self.tissueset = tissues
         self.entries = []
         for gene in genes.keys():
-            gene_id, symbol = entrez.get_gene_from_text(gene)
-            locus = entrez.get_gene_locus(gene_id)
+            gene_id, symbol = db.get_gene_from_text(gene)
+            locus = db.get_gene_locus(gene_id).expand(1000,1000)
             sv = SeqvFileEntry(gene)
 
-            sv.load_genbank(entrez.get_genomic_context_genbank(gene_id))
+            sv.load_genbank(db.get_locus_genbank(locus))
             sv.add_tss_tissues(self.tissueset, locus)
 
             for name,start,stop in genes[gene]:

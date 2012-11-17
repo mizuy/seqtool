@@ -7,7 +7,12 @@ from .dirutils import Filepath
 from . import seqview as sv
 from . import tssview as tv
 from . import primers
-from .db import entrez
+from . import db
+
+def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
+    gene_id, gene_symbol = db.get_gene_from_text(gene_text)
+    locus = db.get_gene_locus(gene_id).expand(upstream, downstream)
+    return db.get_locus_genbank(locus)
 
 def seqview():
     parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
@@ -38,10 +43,9 @@ def geneview():
         return
 
     outputp = Filepath(args.output)
-    gene_id, gene_symbol = entrez.get_gene_from_text(args.gene_symbol)
 
-    e = sv.GeneBankEntry(gene_symbol)
-    e.load_genbank(entrez.get_genomic_context_genbank(gene_id))
+    e = sv.GeneBankEntry(args.gene_symbol)
+    e.load_genbank(get_genomic_context_genbank(args.gene_symbol))
 
     p = sv.SeqvFile()
     p.load_genbankentry(e)
@@ -79,14 +83,10 @@ def get_genbank():
     else:
         output = sys.stdout
 
-    try:
-        genbank = entrez.get_genomic_context_genbank(args.gene)
-    except Exception,e:
-        print str(e)
-        return
+    genbank = get_genomic_context_genbank(args.gene)
 
     if not genbank:
-        print "GenBank retrieve error: ", gene_id
+        print "GenBank retrieve error: ", args.gene
         return
     print >>output, genbank
 
