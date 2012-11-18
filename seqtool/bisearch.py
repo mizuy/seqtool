@@ -764,7 +764,7 @@ def main():
 
     parser.add_option('-o', '--output', dest='output', help='output filename')
     parser.add_option('--min_product', type='int', dest='min_product', default=100)
-    parser.add_option('--max_product', type='int', dest='min_product', default=600)
+    parser.add_option('--max_product', type='int', dest='max_product', default=600)
     parser.add_option('--min_primer_length', type='int', dest='min_primer_length', default=10)
     parser.add_option('--max_primer_length', type='int', dest='max_primer_length', default=30)
     parser.add_option('-m', '--mode', dest='mode', default='normal', help='bisearch mode: normal or bisulfite [default: %default]')
@@ -776,19 +776,19 @@ def main():
         exit()
 
     option = PrimerSearchOptions()
-    option.min_product = parser.min_product
-    option.max_product = parser.max_product
-    option.primer_cond.primer_length.minimum = parser.min_primer_length
-    option.primer_cond.primer_length.maximum = parser.max_primer_length
-    if parser.mode == 'normal':
+    option.min_product = options.min_product
+    option.max_product = options.max_product
+    option.primer_cond.primer_length.minimum = options.min_primer_length
+    option.primer_cond.primer_length.maximum = options.max_primer_length
+    if options.mode == 'normal':
         option.mode = PrimerSearchOptions.MODE_NORMAL
-    elif parser.mode == 'bisulfite':
+    elif options.mode == 'bisulfite':
         option.mode = PrimerSearchOptions.MODE_BISULFITE_SEQUENCE
     else:
-        parser.error('unkown mode: %s'%parser.mode)
+        parser.error('unkown mode: %s'%options.mode)
 
-    if parser.output:
-        output = open(parser.output,'w')
+    if options.output:
+        output = open(options.output,'w')
     else:
         output = sys.stdout
 

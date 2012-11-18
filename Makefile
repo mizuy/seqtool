@@ -1,8 +1,8 @@
+bisearch: c/bisearch.cpp
+	g++ c/bisearch.cpp -o bisearch
+	./bisearch
 
-all: example/primers.html example/b2m.html example/actb.html example/btg3.html
-	open $+
-
-example/primers.html: example/primers.txt
+output/primers.html: example/primers.txt
 	primers $< -o $@
 
 output/bisearch.html: example/input.fasta
