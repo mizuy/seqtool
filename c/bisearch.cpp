@@ -5,6 +5,7 @@
 #include <vector>
 #include <cctype>
 #include <cassert>
+#include <sstream>
 
 #include "bisearch.h"
 #include "nucleotide.h"
@@ -51,21 +52,21 @@ public:
   float optimal;
   float minimum;
   float maximum;
-  inline bool bound(float value){return (minimum <= value) && (value <= maximum);}
+  inline bool within(float value){return (minimum <= value) && (value <= maximum);}
   inline float score(float value){return weight * abs(value-optimal);}
 };
 
 class PrimerCondition{
 public:
   PrimerCondition():
-    length(0.5, 23., 15, 30),
+    length(0.5, 23., 20, 35),
     gc(1.0, 50., 30, 70),
     gc_bsp(1.0, 30., 0, 60),
     tm(1.0, 60., 45, 70),
-    sa(0.1, 0., 0, 25),
-    sea(0.2, 0., 0, 15),
-    pa(0.1, 0., 0, 25),
-    pea(0.2, 0., 0, 15){
+    sa(0.1, 0., 0, 20),
+    sea(0.2, 0., 0, 10),
+    pa(0.1, 0., 0, 20),
+    pea(0.2, 0., 0, 10){
   }
   Condition length;
   Condition gc;
@@ -78,7 +79,7 @@ public:
 };
 PrimerCondition primer_cond;
 
-Condition product_cond(0, 0, 50, 500);
+Condition product_cond(0, 0, 100, 400);
 
 // setting values;
 const float na_conc = 0.033;
@@ -127,23 +128,29 @@ public:
       else
         seqint_[i] = C;
     }
-    tm_dh.resize(length);
-    tm_dg.resize(length);
-    tm_dh_u.resize(length);
-    tm_dg_u.resize(length);
+    tm_dh.resize(length-1);
+    tm_dg.resize(length-1);
+    tm_dh_u.resize(length-1);
+    tm_dg_u.resize(length-1);
+    // p     q
+    // A T G C A T G C
+    // |/|/|/|/|/|/|/
+    // x x x x x x x
+    // p   q
     for(int i=0; i<length-1; i++){
       int p = seqint_[i];
       int q = seqint_[i+1];
       tm_dh[i] = nnt_dh[p][q];
       tm_dg[i] = nnt_dg[p][q];
-      if(p==3) p=1; //G->A
-      if(q==3) q=1; //G->A
+      if(p==C) p=T;
+      if(q==C) q=T;
       tm_dh_u[i] = nnt_dh[p][q];
       tm_dg_u[i] = nnt_dg[p][q];
     }
+    // Tm of seq[p:q] is calc_tm(sum(tm_dh[p:q-1]), sum(tm_dg[p:q-1]))
   }
   inline bool is_cpg(int i){
-    return  (seqint_[i]==C and seqint_[i+1]==G);
+    return (i+1<seqint_.size()) ? (seqint_[i]==C and seqint_[i+1]==G) : false;
   }
   inline bool is_gc(int i){
     return seqint_[i]==C or seqint_[i]==G;
@@ -155,6 +162,25 @@ public:
   inline int s_c_c(int p, int q){
     return anneals_c[seqint_[p]][seqint_[q]];
   }
+  inline float tm_m(int i, int j){
+    float e=0; //enthalpy
+    float f=0; //free energy
+    for(int i=0; i<j; i++){
+      e += tm_dh[i];
+      f += tm_dg[i];
+    }
+    return calc_tm(e,f);
+  }
+  inline float tm_u(int i, int j){
+    float e=0; //enthalpy
+    float f=0; //free energy
+    for(int i=0; i<j; i++){
+      e += tm_dh_u[i];
+      f += tm_dg_u[i];
+    }
+    return calc_tm(e,f);
+  }
+
 
   vector<float> tm_dh;
   vector<float> tm_dg;
@@ -167,7 +193,16 @@ private:
 
 class Value{
 public:
-  Value():tm(-1), tm_u(-1), gc(-1), sa(-1), sa_k(-1), cpg(0), sea_pos(-1), sea_pos_k(-1), sea_neg(-1), sea_neg_k(-1), valid(1), pos(-1), neg(-1){}
+  Value():tm(-1), tm_u(-1), gc(-1), sa(-1), sa_k(-1), cpg(0), sea_pos(-1), 
+          sea_pos_k(-1), sea_neg(-1), sea_neg_k(-1), valid(true), s_pos(0), s_neg(0){}
+  string to_str(){
+    std::stringstream ss;
+    ss << "Value: valid=" << valid << " Tm=" << tm << " Tmdiff=" << abs(tm-tm_u)
+       << " gc=" << gc << " cpg=" <<cpg << " sa=" << sa <<" sa_k=" <<sa_k
+       << " sea=" << sea_pos <<" sea_k=" <<sea_pos_k
+       << " s_pos=" <<s_pos << " s_neg=" <<s_neg;
+    return ss.str();
+  }
   float tm;
   float tm_u;
   float gc;
@@ -178,9 +213,9 @@ public:
   int sea_pos_k;
   int sea_neg;
   int sea_neg_k;
-  int valid;
-  float pos;
-  float neg;
+  bool valid;
+  float s_pos;
+  float s_neg;
 };
 
 template<typename T>
@@ -243,7 +278,7 @@ def max_k(function, range_):
             ret_k = k
     return ret,ret_k
 */
-#define MAX_K(RET, RETK, FROM, TO, CALC) {for(int k=(FROM);k<(TO); k++){int value=(CALC); if(value>RET){RET=value; RETK=k;}} }
+#define MAX_K(RET, RETK, FROM, TO, CALC) {for(int k=(FROM);k<=(TO); k++){int value=(CALC); if(value>RET){RET=value; RETK=k;}} }
 
 
 void bisearch(const char* input){
@@ -260,82 +295,87 @@ void bisearch(const char* input){
   
   cout << "Tm, length, GC calculation" << endl;
 
+  // TODO. I need TM for reverse primer.
+  // TODO. dynamic programming for TM calculation.
   for(int i=0; i<length; i++){
-    bool cpg = seqint.is_cpg(i);
-    int gc = seqint.is_gc(i);
+    int cpg=0;
+    int gc=0;
+    if(seqint.is_cpg(i)) cpg++;
+    if(seqint.is_gc(i)) gc++;
     float dh = 0;
-    float dg = 0;
+    float dg = 0; 
     float dh_u = 0;
     float dg_u = 0;
-    /*
-      TODO:
-      for(int n=2; n<minimum;){
-        const int end = i+n-1;
-        cpg += seqint.is_cpg(end);
-        gc += seqint.is_gc(end);
-        dh += tm_dh[end-1];
-        dg += tm_dg[end-1];
-        dh_u += tm_dh_u[end-1];
-        dg_u += tm_dg_u[end-1];
-      }
-      for(int n=minimum; n<min(lenghth-i, primer_length), n++){
-        add fields and calc validity.
-      }
-     */
-    for(int n=2; n<min(length-i, primer_len); n++){
-      assert( i+n <= length );
-      const int end = i+n-1;
 
-      // calc state of the primer seq[i:end]
-      cpg += seqint.is_cpg(end);
-      gc += seqint.is_gc(end);
-      dh += seqint.tm_dh[end-1];
-      dg += seqint.tm_dg[end-1];
-      dh_u += seqint.tm_dh_u[end-1];
-      dg_u += seqint.tm_dg_u[end-1];
+    int n=2;
+    for(; n<=min(length-i, (int)primer_cond.length.minimum-1); n++){
+      assert( i+n <= length );
+      assert( ! primer_cond.length.within(n) );
+      const int j = i+n-1;
+
+      // calc state of the primer seq[i:j]
+      if(seqint.is_cpg(j)) cpg++;
+      if(seqint.is_gc(j)) gc++;
+      dh += seqint.tm_dh[j-1];
+      dg += seqint.tm_dg[j-1];
+      dh_u += seqint.tm_dh_u[j-1];
+      dg_u += seqint.tm_dg_u[j-1];
 
       Value& v = cs.get(i,n);
+      v.valid = false;
+    }
+    for(; n<=min(length-i, primer_len); n++){
+      assert( i+n <= length );
+      assert( primer_cond.length.within(n) );
+      const int j = i+n-1;
 
-      // length
-      if(! primer_cond.length.bound(n) ){
-        v.valid = false;
-        continue;
-      }
+      // calc state of the primer seq[i:j]
+      if(seqint.is_cpg(j)) cpg++;
+      if(seqint.is_gc(j)) gc++;
+      dh += seqint.tm_dh[j-1];
+      dg += seqint.tm_dg[j-1];
+      dh_u += seqint.tm_dh_u[j-1];
+      dg_u += seqint.tm_dg_u[j-1];
+
+      Value& v = cs.get(i,n);
+      //cout << i<<" "<<n<<" "<<seq.substr(i,n) << endl;
       
       // num of CpG in primer
-      if(cpg>=2){
-        v.valid = false;
-        continue;
-      }
+      v.gc = 100.0*gc/n;
       v.cpg = cpg;
-
-      // Tm(methylated) conditions
-      float tm = calc_tm(dh, dg);
-      float tm_u = calc_tm(dh_u, dg_u);
-      //cout << "tm: " << tm << " tmu:" << tm_u << endl;
-      if( ! (primer_cond.tm.bound(tm) && primer_cond.tm.bound(tm_u)) ){
+      if(cpg>1){
         v.valid = false;
-        //cout << "tm cond " << tm << " " << tm_u << endl;
         continue;
       }
-      if(abs(tm-tm_u) > max_met_tm_diff){
-        v.valid = false;
-        //cout << "tm diff cond " << abs(tm-tm_u)<< " > " << max_met_tm_diff << endl;
-        continue;
-      }
-      v.tm = tm;
-      v.tm_u = tm_u;
-
       // GC ratio;
       // TODO switch according to bsp or not.
-      if( ! primer_cond.gc_bsp.bound(1.0*gc/n) ){
+      if( ! primer_cond.gc_bsp.within(v.gc) ){
         //cout << "gc cond" << gc << "/" << n << endl;
         v.valid = false;
         continue;
       }
-      
-      //cout << "Yes! Valid!" << endl;
-      // v.valid = true;
+
+      // Tm(methylated) conditions
+      float tm = calc_tm(dh, dg);
+      float tm_u = calc_tm(dh_u, dg_u);
+      v.tm = tm;
+      v.tm_u = tm_u;
+      //cout << "tm: " << tm << " tmu:" << tm_u << endl;
+      if( ! (primer_cond.tm.within(tm) && primer_cond.tm.within(tm_u)) ){
+        v.valid = false;
+        //cout << "tm cond " << tm << " " << tm_u << endl;
+        continue;
+      }
+  
+      // if no cpg, no tm difference.
+      assert(cpg>0 || abs(tm-tm_u)<0.001);
+      if(cpg>0 && (abs(tm-tm_u) > max_met_tm_diff)){
+        v.valid = false;
+        //cout << "tm diff cond " << abs(tm-tm_u)<< " > " << max_met_tm_diff << endl;
+        continue;
+      }
+
+      assert(v.valid);
     }
   }
 
@@ -353,40 +393,41 @@ void bisearch(const char* input){
   // SA first step
   array_sa sa_0(length, primer_len+1, -1);
   for(int end=0; end<length; end++){
-    for(int n=1; n<min(end+1, primer_len); n++){
+    for(int n=1; n<=min(end+1, primer_len); n++){
       const int i = end-n+1;
       assert(i+n <= length);
 
-      int& sa = sa_0.get(i,n);
       if(n==1){
         assert(i==end);
-        sa = seqint.s_c(i,i);
+        sa_0.get(i,n) = seqint.s_c(i,i);
       }
       else if(n==2){
-        sa = 2 * seqint.s_c(i,end);
+        sa_0.get(i,n) = 2 * seqint.s_c(i,end);
       }
       else{
         assert(sa_0.get_se(i+1, end-1) >=0);
-        sa = sa_0.get_se(i+1, end-1) + 2 * seqint.s_c(i,end);
+        sa_0.get(i,n) = sa_0.get_se(i+1, end-1) + 2 * seqint.s_c(i,end);
       }
+      assert(sa_0.get(i,n) >=0);
     }
   }
   // SA second step
   cout << "SA 2nd step" << endl;
   for(int i=0; i<length; i++){
-    for(int n=1; n<min(length-i, primer_len); n++){
+    for(int n=primer_cond.length.minimum; n<=min(length-i, primer_len); n++){
       assert( i+n <= length );
       Value& v = cs.get(i,n);
-      if(!v.valid)
-        continue;
+      // for debug, comment out
+      //if(!v.valid) continue;
 
       int sa = -1;
       int sa_k = 0;
       // max_k
       MAX_K(sa, sa_k, -(n-1), n-1, (k<0) ? sa_0.get(i,n+k) : sa_0.get(i+k,n-k) );
+      assert(sa >= 0);
       v.sa = sa;
       v.sa_k = sa_k;
-      if(! primer_cond.sa.bound(sa) )
+      if(! primer_cond.sa.within(sa) )
         v.valid = false;
     }
   }
@@ -405,7 +446,7 @@ void bisearch(const char* input){
 
   // TODO: combine SA and SEA loop.
   for(int end=0; end<length; end++){
-    for(int n=1; n<min(end+1, primer_len); n++){
+    for(int n=1; n<=min(end+1, primer_len); n++){
       const int i = end-n+1;
       assert(0<= i && i<= end);
       assert(i+n <= length);
@@ -439,7 +480,7 @@ void bisearch(const char* input){
   // SEA second step
   cout << "SEA 2nd step" << endl;
   for(int i=0; i<length; i++){
-    for(int n=1; n<min(length-i, primer_len); n++){
+    for(int n=primer_cond.length.minimum; n<=min(length-i, primer_len); n++){
       assert( i+n <= length );
       Value& v = cs.get(i,n);
       if(!v.valid)
@@ -451,50 +492,44 @@ void bisearch(const char* input){
       int neg = -1;
       int neg_k = 0;
       MAX_K(neg, neg_k, -(n-1), 0, sea_0.get(i, n+k) );
+      assert(neg >= 0 && pos>=0);
       
       v.sea_pos = pos;
       v.sea_pos_k = pos_k;
       v.sea_neg = neg;
       v.sea_neg_k = neg_k;
       
-      if(!primer_cond.pea.bound(pos) || !primer_cond.pea.bound(neg))
+      if(!primer_cond.sea.within(pos) || !primer_cond.sea.within(neg)){
         v.valid = false;
-    }
-  }
+        continue;
+      }
 
-  // PEA 3rd step.
-  cout << "SEA 3rd step" << endl;
-  for(int i=0; i<length; i++){
-    for(int n=2; n<min(length-i, primer_len); n++){
-      assert( i+n <= length );
-      Value& v = cs.get(i,n);
-
-      //if(!v.valid) continue;
-      
       float c = primer_cond.length.score(n)
         + primer_cond.gc.score(v.gc)
         + primer_cond.sa.score(v.sa)
         + primer_cond.tm.score(v.tm);
-      float pos = c + primer_cond.sea.score(v.sea_pos);
-      float neg = c + primer_cond.sea.score(v.sea_neg);
+      v.s_pos = c + primer_cond.sea.score(v.sea_pos);
+      v.s_neg = c + primer_cond.sea.score(v.sea_neg);
 
-      if( pos > threshold ||  neg > threshold )
+      if( v.s_pos > threshold ||  v.s_neg > threshold )
         v.valid = false;
-
-      v.pos = pos;
-      v.neg = neg;
     }
   }
 
-  int c = 0;
-  for(int i=0; i<length; i++){
-    for(int n=2; n<min(length-i, primer_len); n++){
-      Value& v = cs.get(i,n);
-      if(v.valid)
-        c++;
+
+  {
+    int c = 0;
+    for(int i=0; i<length; i++){
+      for(int n=primer_cond.length.minimum; n<min(length-i, primer_len); n++){
+        Value& v = cs.get(i,n);
+        if(v.valid){
+          cout << seq.substr(i,n) << " " << v.to_str() << endl;
+      
+          c++;}
+      }
     }
+    cout << "Valid Primers: " << c << endl;
   }
-  cout << "Valid Primers: " << c << endl;
 
   // Pair Annealing
   // pair annealing values for each pair w=target[i:i+n], v=target[j:j+m]
@@ -550,15 +585,15 @@ void bisearch(const char* input){
 
   cout << "PA 2st step" << endl;
   for(int i=0; i<length; i++){
-    for(int n=2; n<min(length-i, primer_len); n++){
+    for(int n=2; n<=min(length-i, primer_len); n++){
 
       assert( i+n <= length );
       Value& fw = cs.get(i,n);
       if(!fw.valid) continue;
 
-      for(int j=i+product_cond.minimum-primer_len; j<min(i+(int)product_cond.maximum-primer_len,length); j++){
-        for(int m=2; m<min(length-j,primer_len); m++){
-          if( !product_cond.bound(j+m-i+1) )
+      for(int j=i+product_cond.minimum-primer_len; j<=min(i+(int)product_cond.maximum-primer_len,length); j++){
+        for(int m=2; m<=min(length-j,primer_len); m++){
+          if( !product_cond.within(j+m-i+1) )
             continue;
           Value& rv = cs.get(j,m);
 
@@ -571,7 +606,7 @@ void bisearch(const char* input){
             //cout << "max_tm_diff " << abs(fw.tm-rv.tm) << endl;
             continue;
           }
-          float score = fw.pos + rv.neg;
+          float score = fw.s_pos + rv.s_neg;
           if( score > threshold ){
             //cout << "score " << score << endl;
             continue;
@@ -582,7 +617,7 @@ void bisearch(const char* input){
           int pea = 0;
           int pea_k = -1;
           // MAX_K
-          for(int k=-(n-1); k<m-1; k++){
+          for(int k=-(n-1); k<=m-1; k++){
             int pa_;
             int pea_;
             if(n<=m){
@@ -631,13 +666,14 @@ void bisearch(const char* input){
 
           }
 
-          if(! primer_cond.pa.bound(pa) )
+          if(! primer_cond.pa.within(pa) )
             continue;
-          if(! primer_cond.pea.bound(pea) )
+          if(! primer_cond.pea.within(pea) )
             continue;
           score += primer_cond.pa.score(pa);
           score += primer_cond.pea.score(pea);
 
+          // cs.get(i,n), cs.get(j,m) for sa, sea
           result.push_back(PrimerPairResult(seq, score, i, n, j, m, pa, pa_k, pea, pea_k));
 
           //ppr = PrimerPairResult(target, primerp, score,i,n,j,m,pa,pa_k,pea,pea_k,mode_bsp)
@@ -648,9 +684,11 @@ void bisearch(const char* input){
     }
   }
 
-  c = 0;
+  int c = 0;
   for(vector<PrimerPairResult>::iterator i=result.begin(); i!=result.end(); i++){
     cout << "primer !!: score=" << i->score_ << " fw=" << i->fw_ << " rv="<< i->rv_ << endl;
+    cout << "   " << cs.get(i->i_,i->n_).to_str() << endl;
+    cout << "   " << cs.get(i->j_,i->m_).to_str() << endl;
     c++;
   }
   cout << "Total: " << c << " Results." << endl;
@@ -667,5 +705,5 @@ int main(){
   cout << "bisearch length=" << seq.length() << endl;
   cout << "Sequence: " << seq << endl;
   cout << "Bisulfite treated sequence: " << b << endl;
-  bisearch(test);
+  bisearch(b.c_str());
 };
