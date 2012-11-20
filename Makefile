@@ -1,5 +1,5 @@
 bisearch: c/bisearch.cpp
-	g++ c/bisearch.cpp -o bisearch
+	g++ -O1 c/bisearch.cpp -o bisearch
 	./bisearch
 
 output/primers.html: example/primers.txt

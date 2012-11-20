@@ -6,6 +6,9 @@
 #include <cctype>
 #include <cassert>
 #include <sstream>
+#include <iomanip>
+#include <algorithm>
+#include <fstream>
 
 #include "bisearch.h"
 #include "nucleotide.h"
@@ -14,10 +17,10 @@ using namespace std;
 
 // ATGC
 const float nnt_dh[4][4] = {
-  {9.1, 8.6, 7.8, 6.5}, //AA, AT, AG, AC
-  {6.0, 9.1, 5.8, 5.6},
-  {5.6, 6.5, 11.0, 11.1},
-  {5.8, 7.8, 11.9, 11.0},
+  {9.1, 8.6, 7.8, 6.5},   //AA, AT, AG, AC
+  {6.0, 9.1, 5.8, 5.6},   //TA, TT, TG, TC
+  {5.6, 6.5, 11.0, 11.1}, //GA, GT, GG, GC
+  {5.8, 7.8, 11.9, 11.0}, //CA, CT, CG, CC
 };
 const float nnt_dg[4][4] = {
   {1.55, 1.25, 1.45, 1.40},
@@ -60,8 +63,7 @@ class PrimerCondition{
 public:
   PrimerCondition():
     length(0.5, 23., 20, 35),
-    gc(1.0, 50., 30, 70),
-    gc_bsp(1.0, 30., 0, 60),
+    gc(1.0, 30., 0, 60), //gc(1.0, 50., 30, 70),
     tm(1.0, 60., 45, 70),
     sa(0.1, 0., 0, 20),
     sea(0.2, 0., 0, 10),
@@ -70,7 +72,7 @@ public:
   }
   Condition length;
   Condition gc;
-  Condition gc_bsp;
+  //Condition gc_bsp;
   Condition tm;
   Condition sa;
   Condition sea;
@@ -81,16 +83,6 @@ PrimerCondition primer_cond;
 
 Condition product_cond(0, 0, 100, 400);
 
-// setting values;
-const float na_conc = 0.033;
-const float mg_conc = 0.0065;
-const float primer_conc = 0.0000005;
-
-const float c_salt = na_conc + 4*pow(mg_conc,0.5f);
-
-const float cc_salt = 16.6 * log10(c_salt / (1+0.7*c_salt)) - 269.3;
-const float cc_primer = 10.2 - 0.001*1.987*298.2*log(primer_conc);
-
 const int min_product = 100;
 const int max_product = 600;
 const float threshold = 200.0;
@@ -98,8 +90,28 @@ const float threshold = 200.0;
 const float max_met_tm_diff = 2.5;
 const float max_tm_diff = 8.0;
 
-float calc_tm(float enthalpy, float free_energy){
-  return cc_salt + 298.2 * (10.0+enthalpy) / (enthalpy-free_energy + cc_primer);
+
+
+// setting values;
+const float na_conc = 0; // 0.033; 33mM
+const float k_conc = 0.050; // 50mM
+const float mg_conc = 0.0015; //0.0065; 6.5mM
+const float primer_conc = 0.000001; //1uM //0.0000005; 0.5uM
+
+const float c_r = 1.987f;
+const float c_t0 = 298.2f;
+const float c_salt = na_conc + k_conc + 4*pow(mg_conc,0.5f);
+const float cc_primer = c_r*c_t0*log(primer_conc); // RT0ln(c)
+const float cc_salt = 16.6 * log10(c_salt / (1+0.7*c_salt));
+const float c_dhe = 5.0; // delta He = 5 kcal/mol
+const float c_dge = 1.0; // delta Ge = 1 kcal/mol
+const float c_dgi = -2.2; // delta Gi = -2.2 kcal/mol
+
+float calc_tm(float sdh, float sdg){
+  float dhp = -1000.0 * (2*c_dhe + sdh);
+  float dgp = -1000.0 * (2*c_dge + c_dgi + sdg);
+  return c_t0 * dhp / (dhp-dgp+cc_primer) + cc_salt - 269.3;
+  //  return c_t0 * (10.0+enthalpy) / (enthalpy-free_energy + cc_primer) + cc_salt - 269.3;
 }
 float seq_tm(const vector<char>& seq){
   float p=0; //enthalpy
@@ -111,10 +123,25 @@ float seq_tm(const vector<char>& seq){
   return calc_tm(p,q);
 }
 
+
+inline int complement(int x){
+  return ((x==A) ?  T  : ((x==T) ?  A : ((x==G) ?  C  : ((x==C) ? G  :  -1 ))));
+}
+
 class Seqint{
 public:
   Seqint(const string& seq)
   {
+    // nnt_dh, nnt_dg validity. NNT of a sequence complemtely equals to that of reverse complement.
+    for(int i=0; i<4; i++){
+      for(int j=0; j<4; j++){
+        int ii = complement(i);
+        int jj = complement(j);
+        //cout << i << " " << j << " " << ii << " " << jj << endl;
+        assert(nnt_dh[i][j] == nnt_dh[jj][ii]);
+        assert(nnt_dg[i][j] == nnt_dg[jj][ii]);
+      }
+    }
     const int length = seq.length();
     seqint_.resize(length);
     for(int i=0; i<length; i++){
@@ -193,16 +220,22 @@ private:
 
 class Value{
 public:
-  Value():tm(-1), tm_u(-1), gc(-1), sa(-1), sa_k(-1), cpg(0), sea_pos(-1), 
+  Value():len(-1), tm(-1), tm_u(-1), gc(-1), sa(-1), sa_k(-1), cpg(0), sea_pos(-1), 
           sea_pos_k(-1), sea_neg(-1), sea_neg_k(-1), valid(true), s_pos(0), s_neg(0){}
   string to_str(){
     std::stringstream ss;
-    ss << "Value: valid=" << valid << " Tm=" << tm << " Tmdiff=" << abs(tm-tm_u)
+    ss.setf(ios::fixed, ios::floatfield);
+    ss << "Value: valid=" << valid 
+       << setprecision(2)
+       << " len=" << len
+       << " Tm=" << tm << " Tmdiff=" << abs(tm-tm_u)
        << " gc=" << gc << " cpg=" <<cpg << " sa=" << sa <<" sa_k=" <<sa_k
        << " sea=" << sea_pos <<" sea_k=" <<sea_pos_k
        << " s_pos=" <<s_pos << " s_neg=" <<s_neg;
+      //       << "SCORE: " << primer_cond.length.score(len) << " " << primer_cond.gc.score(gc) << " " << primer_cond.tm.score(tm) <<" " << primer_cond.sa.score(sa) <<" " << primer_cond.sea.score(sea_pos) << " " << primer_cond.sea.score(sea_neg);
     return ss.str();
   }
+  int len; // for debug
   float tm;
   float tm_u;
   float gc;
@@ -255,7 +288,10 @@ public:
     : score_(score), i_(i), n_(n), j_(j), m_(m), pa_(pa), pa_k_(pa_k), pea_(pea), pea_k_(pea_k) {
     fw_ = input.substr(i,n);
     rv_ = reverse_complement(input.substr(j,m));
+    replace(fw_.begin(), fw_.end(), 'C', 'Y'); // Y = C or T
+    replace(rv_.begin(), rv_.end(), 'G', 'R'); // R = G or A
   }
+  bool operator<(const PrimerPairResult& rhs)const { return score_ < rhs.score_; }
   float score_;
   int i_, n_, j_, m_, pa_, pa_k_, pea_, pea_k_;
   string fw_, rv_;
@@ -281,21 +317,21 @@ def max_k(function, range_):
 #define MAX_K(RET, RETK, FROM, TO, CALC) {for(int k=(FROM);k<=(TO); k++){int value=(CALC); if(value>RET){RET=value; RETK=k;}} }
 
 
-void bisearch(const char* input){
+void bisearch(const char* input, ostream& output){
   const string seq(input);
   const int length = seq.length();
   Seqint seqint(seq);
 
   const int primer_len = primer_cond.length.maximum;
 
-  cout << "bisearch length=" << length << " primer_len=" << primer_len << endl;
+  output << "# bisearch length=" << length << " primer_len=" << primer_len << endl;
 
   // TODO: I dont need a field for primer_len<minimum. DROP IT OUT.
   array<Value> cs(length, primer_len);
   
-  cout << "Tm, length, GC calculation" << endl;
+  output << "# Tm, length, GC calculation" << endl;
 
-  // TODO. I need TM for reverse primer.
+  // TM of fw primer and rv primer is identical.
   // TODO. dynamic programming for TM calculation.
   for(int i=0; i<length; i++){
     int cpg=0;
@@ -338,7 +374,6 @@ void bisearch(const char* input){
       dg_u += seqint.tm_dg_u[j-1];
 
       Value& v = cs.get(i,n);
-      //cout << i<<" "<<n<<" "<<seq.substr(i,n) << endl;
       
       // num of CpG in primer
       v.gc = 100.0*gc/n;
@@ -349,8 +384,7 @@ void bisearch(const char* input){
       }
       // GC ratio;
       // TODO switch according to bsp or not.
-      if( ! primer_cond.gc_bsp.within(v.gc) ){
-        //cout << "gc cond" << gc << "/" << n << endl;
+      if( ! primer_cond.gc.within(v.gc) ){
         v.valid = false;
         continue;
       }
@@ -360,10 +394,8 @@ void bisearch(const char* input){
       float tm_u = calc_tm(dh_u, dg_u);
       v.tm = tm;
       v.tm_u = tm_u;
-      //cout << "tm: " << tm << " tmu:" << tm_u << endl;
       if( ! (primer_cond.tm.within(tm) && primer_cond.tm.within(tm_u)) ){
         v.valid = false;
-        //cout << "tm cond " << tm << " " << tm_u << endl;
         continue;
       }
   
@@ -371,11 +403,11 @@ void bisearch(const char* input){
       assert(cpg>0 || abs(tm-tm_u)<0.001);
       if(cpg>0 && (abs(tm-tm_u) > max_met_tm_diff)){
         v.valid = false;
-        //cout << "tm diff cond " << abs(tm-tm_u)<< " > " << max_met_tm_diff << endl;
         continue;
       }
 
       assert(v.valid);
+      v.len = n;
     }
   }
 
@@ -389,7 +421,7 @@ void bisearch(const char* input){
   //                   n=2 | 2*score_c(i,i+1)
   //                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
 
-  cout << "SA first step" << endl;
+  output << "# SA first step" << endl;
   // SA first step
   array_sa sa_0(length, primer_len+1, -1);
   for(int end=0; end<length; end++){
@@ -412,7 +444,7 @@ void bisearch(const char* input){
     }
   }
   // SA second step
-  cout << "SA 2nd step" << endl;
+  output << "# SA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_cond.length.minimum; n<=min(length-i, primer_len); n++){
       assert( i+n <= length );
@@ -440,7 +472,7 @@ void bisearch(const char* input){
   //                    n=n | 
 
   // SEA first step
-  cout << "SEA 1st step" << endl;
+  output << "# SEA 1st step" << endl;
   array_sa sea_0(length, primer_len+1, -1);
   array_sa sea_0_full(length, primer_len+1, 0);
 
@@ -478,7 +510,7 @@ void bisearch(const char* input){
   }
 
   // SEA second step
-  cout << "SEA 2nd step" << endl;
+  output << "# SEA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_cond.length.minimum; n<=min(length-i, primer_len); n++){
       assert( i+n <= length );
@@ -517,25 +549,25 @@ void bisearch(const char* input){
   }
 
 
-  {
+  /*{
     int c = 0;
     for(int i=0; i<length; i++){
       for(int n=primer_cond.length.minimum; n<min(length-i, primer_len); n++){
         Value& v = cs.get(i,n);
         if(v.valid){
-          cout << seq.substr(i,n) << " " << v.to_str() << endl;
+          output << seq.substr(i,n) << " " << v.to_str() << endl;
       
           c++;}
       }
     }
-    cout << "Valid Primers: " << c << endl;
-  }
+    output << "Valid Primers: " << c << endl;
+    }*/
 
   // Pair Annealing
   // pair annealing values for each pair w=target[i:i+n], v=target[j:j+m]
   // pa(w,v) = max{k from -(n-1) to m-1} 
   //                 pa_0[1,1,n+k] if k<0, n+k<m
-  cout << "PA 1st step" << endl;
+  output << "# PA 1st step" << endl;
 
   array3<int> pa_0(length, length, primer_len+1, -1);
   array3<int> pea_0_l(length, length, primer_len+1, -1);
@@ -564,16 +596,13 @@ void bisearch(const char* input){
         else{
           int lt = pea_0_l.get(i,j,k-1);
           int rt = pea_0_r.get(i,j,k-1);
-          //cout << length << " " << primer_len+1 << " " << i << " " << j << " " << k << " lt:" << lt << " rt:" << rt << endl;
-          //assert( lt>=0 && rt>=0 );
+          assert( lt>=0 && rt>=0 );
           // OUTRANGE
           int s = seqint.s_c_c(i+k-1, j+k-1);
           bool full = (s!=0) && pea_0_l_full.get(i,j,k-1);
           int new_lt = full ? (lt + s) : lt;
           int new_rt = (s!=0) ? (rt + s) : 0;
           pea_0_l_full.get(i,j,k) = int(full);
-          //if(new_lt > 0 || new_rt > 0)
-          //  cout << "s: " << s << " newlt: " << new_lt << " newrt: " << new_rt << endl;
           pea_0_l.get(i,j,k) = new_lt;
           pea_0_r.get(i,j,k) = new_rt;
         }
@@ -583,34 +612,27 @@ void bisearch(const char* input){
 
   vector<PrimerPairResult> result;
 
-  cout << "PA 2st step" << endl;
+  output << "# PA 2st step" << endl;
   for(int i=0; i<length; i++){
-    for(int n=2; n<=min(length-i, primer_len); n++){
-
+    for(int n=primer_cond.length.minimum; n<=min(length-i, primer_len); n++){
       assert( i+n <= length );
       Value& fw = cs.get(i,n);
       if(!fw.valid) continue;
 
-      for(int j=i+product_cond.minimum-primer_len; j<=min(i+(int)product_cond.maximum-primer_len,length); j++){
-        for(int m=2; m<=min(length-j,primer_len); m++){
-          if( !product_cond.within(j+m-i+1) )
+      for(int j=i+(int)product_cond.minimum; j<min(i+(int)product_cond.maximum,length-1); j++){
+        for(int m=primer_cond.length.minimum; m<=min(length-j,primer_len); m++){
+          const int product_len = j+m-i+1;
+          if( !product_cond.within(product_len) )
             continue;
+
+          // rv primer is reverse_complement(seq[j:j+m])
           Value& rv = cs.get(j,m);
 
-          if(!rv.valid)
-            continue;
+          if(!rv.valid) continue;
+          if(abs(fw.tm-rv.tm) > max_tm_diff) continue;
 
-          //cout << " i " << i << " n " << n << " j " << j << " m " << m << endl;
-
-          if(abs(fw.tm-rv.tm) > max_tm_diff){
-            //cout << "max_tm_diff " << abs(fw.tm-rv.tm) << endl;
-            continue;
-          }
           float score = fw.s_pos + rv.s_neg;
-          if( score > threshold ){
-            //cout << "score " << score << endl;
-            continue;
-          }
+          if( score > threshold ) continue;
                     
           int pa = 0;
           int pa_k = -1;
@@ -675,35 +697,36 @@ void bisearch(const char* input){
 
           // cs.get(i,n), cs.get(j,m) for sa, sea
           result.push_back(PrimerPairResult(seq, score, i, n, j, m, pa, pa_k, pea, pea_k));
-
-          //ppr = PrimerPairResult(target, primerp, score,i,n,j,m,pa,pa_k,pea,pea_k,mode_bsp)
-          //result[threadno].add(ppr)
           }
         }
 
     }
   }
+  std::sort(result.begin(), result.end());
 
   int c = 0;
   for(vector<PrimerPairResult>::iterator i=result.begin(); i!=result.end(); i++){
-    cout << "primer !!: score=" << i->score_ << " fw=" << i->fw_ << " rv="<< i->rv_ << endl;
-    cout << "   " << cs.get(i->i_,i->n_).to_str() << endl;
-    cout << "   " << cs.get(i->j_,i->m_).to_str() << endl;
+    output << "primer pair: rank=" << c+1 << " score=" << i->score_ << " pea=" << i->pea_ << endl;
+    output << "   " << i->fw_ << ": \t" << cs.get(i->i_,i->n_).to_str() << endl;
+    output << "   " << i->rv_ << ": \t" << cs.get(i->j_,i->m_).to_str() << endl;
     c++;
+    if(c>1000)
+      break;
   }
-  cout << "Total: " << c << " Results." << endl;
+  output << "Total: " << c << " Results." << endl;
 }
 
 
 const char * test = "TCCTCTTCTGGGAGTAGGCAGAAGACTCCCGGGAGGAGAGGCGAACAGCGGACGCCAATTCTTTTGAAAGCACTGTGTTCCTTAGCACCGCGGGTCGCTACGGGCCTCTTGCTGTCGCGGGATTTCGGTCCACCTTCCGATTGGGCCGCCGCATCCCGGATCAGATTTCGCGGGCGACCCACGGAACCCGCGGAGCCGGGACGTGAAAGGTTAGAAGGTTTCCCGTTCCCATCAAGCCCTAGGGCTCCTCGTGGCTGCTGGGAGTTGTAGTCTGAACGCTTCTATCTTGGCGAGAAGCGCCTACGCTCCCCCTACCGAGTCCCGCGGTAATTCTTAAAGCACCTGCACCGCCCCCCCGCCGCCTGCAGAGGGCGCAGCAGGTCTTGCACCTCTTCTGCATCTCA";
 //const char * test = "TCCTCTTCTGGGAGTAGGCAGAAGACTCCCGGGAGGAGAGGCGAACAGCGGACGCCAATTCTTTTGAAAGCACTGTGTTCCTTAGCACCGCGGGTCGCTACGGGCCTCTTGCTGTCGCGGGATTTCGGTCCACCTTCCGATTGGGCCGCCGCATCCCGGATCAGATTTCGCGGGCGACCCACGGAACCCGCGGAGCCGGGACGTGAAAGGTTAGAAGGTTTCCCGTTCCCATCAAGCCCTAGGGCTCCTCGTGGCTGCTGGGAGTTGTAGTCTGAACGCTTCTATCTTGGCGAGAAGCGCCTACGCTCCCCCTACCGAGTCCCGCGGTAATTCTTAAAGCACCTGCACCGCCCCCCCGCCGCCTGCAGAGGGCGCAGCAGGTCTTGCACCTCTTCTGCATCTCATTCTCCAGGCTTCAGACCTGTCTCCCTCATTCAAAAAATATTTATTATCGAGCTCTTACTTGCTACCCAGCACTGATATAGGCACTCAGGAATACAACAATGAATAAGATAGTAGAAAAATTCTATATCCTCATAAGGCTTACGTTTCCATGTACTGAAAGCAATGAACAAATAAATCTTATCAGAGTGATAAGGGTTGTGAAGGAGATTAAATAAGATGGTGTGATATAAAGTATCTGGGAGAAAACGTTAGGGTGTGATATTACGGAAAGCCTTCCTAAAAAATGACATTTTAACTGATGAGAAGAAAGGATCCAGCTGAGAGCAAACGCAAAAGCTTTCTTCCTTCCACCCTTCATATTTGACACAATGCAGGATTCCTCCAAAATGATTTCCACCAATTCTGCCCTCACAGCTCTGGCTTGCAGAATTTTCCACCCCAAAATGTTAGTATCTACGGCACCAGGTCGGCGAGAATCCTGACTCTGCACCCTCCTCCCCAACTCCATTTCCTTTGCTTCCTCCGGCAGGCGGATTACTTGCCCTTACTTGTCATGGCGACTGTCCAGCTTTGTGCCAGGAGCCTCGCAGGGGTTGATGGGATTGGGGTTTTCCCCTCCCATGTGCTCAAGACTGGCGCTAAAAGTTTTGAGCTTCTCAAAAGTCTAGAGCCACCGTCCAGGGAGCAGGTAGCTGCTGGGCTCCG";
 
-int main(){
+int main(int argc, char* argv[]){
   string seq(test);
   string b;
   bisulfite<true>(b, seq);
-  cout << "bisearch length=" << seq.length() << endl;
-  cout << "Sequence: " << seq << endl;
-  cout << "Bisulfite treated sequence: " << b << endl;
-  bisearch(b.c_str());
+  cout << "# bisearch length=" << seq.length() << endl;
+  cout << "# Sequence: " << seq << endl;
+  cout << "# Bisulfite treated sequence: " << b << endl;
+  
+  bisearch(b.c_str(), cout);
 };
