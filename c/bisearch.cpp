@@ -111,7 +111,6 @@ float calc_tm(float sdh, float sdg){
   float dhp = -1000.0 * (2*c_dhe + sdh);
   float dgp = -1000.0 * (2*c_dge + c_dgi + sdg);
   return c_t0 * dhp / (dhp-dgp+cc_primer) + cc_salt - 269.3;
-  //  return c_t0 * (10.0+enthalpy) / (enthalpy-free_energy + cc_primer) + cc_salt - 269.3;
 }
 float seq_tm(const vector<char>& seq){
   float p=0; //enthalpy

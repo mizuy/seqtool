@@ -10,7 +10,6 @@ from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file
 from .primers import load_primer_list_file
 from .prompt import prompt
-from .dbtss import TssFile
 from . import db
 from . import seqtrack
 from . import xmlwriter

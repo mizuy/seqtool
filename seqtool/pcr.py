@@ -10,9 +10,11 @@ import re
 from .memoize import memoize
 from . import xmlwriter
 
+from . import melt_temp
 from .nucleotide import *
 
 __all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv']
+
 
 
 def annealing_score_n(x,y):
@@ -136,80 +138,6 @@ class Annealing(object):
         w.pop()
         w.pop()
 
-NNT_DH = {
-    'AA': 9.1,
-    'TT': 9.1,
-    'AT': 8.6,
-    'TA': 6.0,
-    'CA': 5.8,
-    'TG': 5.8,
-    'GT': 6.5,
-    'AC': 6.5,
-    'CT': 7.8,
-    'AG': 7.8,
-    'GA': 5.6,
-    'TC': 5.6,
-    'CG': 11.9,
-    'GC': 11.1,
-    'GG': 11.0,
-    'CC': 11.0,
-}
-NNT_DG = {
-    'AA': 1.55,
-    'TT': 1.55,
-    'AT': 1.25,
-    'TA': 0.85,
-    'CA': 1.15,
-    'TG': 1.15,
-    'GT': 1.40,
-    'AC': 1.40,
-    'CT': 1.45,
-    'AG': 1.45,
-    'GA': 1.15,
-    'TC': 1.15,
-    'CG': 3.05,
-    'GC': 2.70,
-    'GG': 2.3,
-    'CC': 2.3,
-}
-
-DEFAULT_C_NA = 33.*10**-3
-DEFAULT_C_MG = (2+4.5)*10**-3
-DEFAULT_C_PRIMER = 0.5*10**-6
-
-def melting_temperature_unambiguous(seq, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER):
-    '''
-    c_na, c_mg: final concentration in molar of Na and Mg in PCR reaction mix
-                these are used for calculation of salt concentration
-    c_primer:   final concentration in molar of each primer in PCR reaction mix
-    unmethyl:   if 'unmethyl' is true, all CpGs of template are assumed to be unmethyled
-                then unmethyl version of primer are used for calculation
-    '''
-
-    # c_salt: salt concentration in molar
-    c_salt = c_na + 4*(c_mg**0.5)
-
-    l = len(seq)
-    t0 = 298.2
-    r = 1.987
-    d_h_e = 5.
-    d_h_p = -1000. * ( 2*d_h_e + sum([NNT_DH[seq[i:i+2]] for i in range(l-1)]) )
-    d_g_e = 1.
-    d_g_i = -2.2
-    d_g_p = -1000. * ( 2*d_g_e + d_g_i + sum([NNT_DG[seq[i:i+2]] for i in range(l-1)]) )
-    t_p = t0*d_h_p / (d_h_p-d_g_p + r*t0*log(c_primer) ) + 16.6*log10(c_salt / (1.+0.7*c_salt)) - 269.3
-    return t_p
-
-def melting_temperature_unmethyl(seq, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER, unmethyl=True):
-    seq = str(seq).upper()
-    if unmethyl:
-        seq = seq.replace('R','A').replace('Y','T')
-    else:
-        seq = seq.replace('R','G').replace('Y','C')
-
-    return melting_temperature_unambiguous(seq, c_na, c_mg, c_primer)
-
-
 class Primer(object):
     def __init__(self, name, seq):
         self.name = name
@@ -229,8 +157,8 @@ class Primer(object):
     def gc_ratio(self):
         return GC(self.seq)
 
-    def melting_temperature(self, c_na=DEFAULT_C_NA, c_mg=DEFAULT_C_MG, c_primer=DEFAULT_C_PRIMER, unmethyl=True):
-        return melting_temperature_unmethyl(self.seq, c_na, c_mg, c_primer, unmethyl)
+    def melting_temperature(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=True):
+        return melt_temp.melting_temperature_unmethyl(self.seq, pcr_mix, unmethyl)
 
     @property
     @memoize
@@ -294,18 +222,19 @@ class Primer(object):
 
     @classmethod
     def get_table_head(cls):
-        return ['name', 'sequence', 'length[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
+        return ['name', 'sequence', 'length[bp]', 'SSDS[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
 
     def get_table_row(self):
         return [str(v) for v in [self.name,
                                  "5'-%s-3'"%self.seq,
                                  len(self),
-                                 '%.2f'%self.melting_temperature(),
+                                 self.sdss_length(),
+                                 '%.2f'%self.melting_temperature(unmethyl=True),
                                  '%.2f'%self.melting_temperature(unmethyl=False),
                                  tm_gc(self.seq),
                                  '%.2f'%self.gc_ratio,
                                  self.sa.score,
-                                 self.sea.score]]
+                                 self.sea.score ]]
     @property
     @memoize
     def score(self):
@@ -317,72 +246,20 @@ class Primer(object):
               + pc.sa.score(self.sa.score) \
               + pc.sea.score(self.sea.score)
 
-'''
-class PrimerAnneal(object):
-    def __init__(self, template, primer, location, strand, match):
-        self.template = template
-        self.primer = primer
-        self.location = location
-        self.strand = strand
-        self.match = match
-        
-class PrimerAnneals(object):
-    def __init__(self, template, primer, partial=-1):
-        def _gen_re_seq(seq):
-            table = {
-                'A': 'A',
-                'T': 'T',
-                'G': 'G',
-                'C': 'C',
-                'R': '[GA]',
-                'Y': '[TC]',
-                'M': '[AC]',
-                'K': '[GT]',
-                'S': '[GC]',
-                'W': '[AT]',
-                'H': '[ACT]',
-                'B': '[GTC]',
-                'V': '[GCA]',
-                'D': '[GAT]',
-                'N': '[GATC]',
-                }
-            return ''.join([table[s] for s in str(seq).upper()])
-
-        seqs = str(template).upper()
-
-        cprimer = primer.reverse_complement()
-        if str(primer).upper()==str(cprimer).upper():
-            p = []
-            reg = re.compile('(%s)'%(_gen_re_seq(primer)))
-
-            start = 0
-            while True:
-                m = reg.search(seqs, start)
-                if not m:
-                    break
-                start = m.start()+1
-                if m.group(1):
-                    pp.append(m.start())
-            self.fwrv_match = p
-            return
+    def sdss_length(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=False):
+        s = str(self.seq).upper()
+        if unmethyl:
+            s = s.replace('R','A').replace('Y','T')
         else:
-             reg = re.compile('(%s)|(%s)'%(_gen_re_seq(primer),_gen_re_seq(cprimer)))
+            s = s.replace('R','G').replace('Y','C')
 
-        seqs = str(template).upper()
-        pp = []
-        pc = []
-        start = 0
-        while True:
-            m = reg.search(seqs, start)
-            if not m:
+        anneal_temp = self.melting_temperature()
+        l = len(s)
+        for i in xrange(2,l):
+            f = melt_temp.complex_fraction(s[l-i:-1], anneal_temp, pcr_mix)
+            if f>0.01:
                 break
-            start = m.start()+1
-            if m.group(1):
-                pp.append(m.start())
-            if m.group(2):
-                pc.append(m.start())
-        return pp,pc
-'''    
+        return i
 
 
 class PCRProduct(object):
