@@ -1,7 +1,8 @@
+CPP = clang++
+CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
 
 all: seqview tssview geneview get_genbank primers bisearch
-	./bin/bisearch
-
+	
 seqview:
 	seqview input/seqview.seqv -o _output/seqview.html
 
@@ -21,8 +22,8 @@ primers:
 bisearch: bin/bisearch
 	./bin/bisearch input/test.fasta > _output/bisearch.seqv
 
-bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h
-	g++ -I/usr/local/Cellar/boost/1.51.0/include -O1 c/bisearch.cpp -o bin/bisearch
+bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
+	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
 
 
 clean:

@@ -1,8 +1,10 @@
+#ifndef NUCLEOTIDE_H
+#define NUCLEOTIDE_H
 
 #include <string>
 
 #define COMPLEMENT(x) (((x)=='A') ? 'T' : (((x)=='T') ? 'A': (((x)=='G') ? 'C' : (((x)=='C') ? 'G' : 'N'))))
-std::string reverse_complement(const std::string& input){
+inline std::string reverse_complement(const std::string& input){
   const int l = input.length();
   std::string ret;
   ret.resize(l);
@@ -15,7 +17,7 @@ std::string reverse_complement(const std::string& input){
 
 
 template<bool methyl>
-void bisulfite(std::string& ret, const std::string& input){
+inline void bisulfite(std::string& ret, const std::string& input){
   const int l = input.length();
   ret.resize(l);
   for(int i=0; i<l-1; i++){
@@ -26,3 +28,5 @@ void bisulfite(std::string& ret, const std::string& input){
   }
   ret[l-1] = (input[l-1]=='C') ? 'T' : input[l-1];
 }
+
+#endif
