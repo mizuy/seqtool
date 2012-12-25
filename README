@@ -67,3 +67,9 @@ no user-config.bjam required.
 % clang++ -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
 
 You must link boost_program_options
+
+** matplot
+git clone https://github.com/matplotlib/matplotlib.git
+cd matplotlib
+python setup.py build
+sudo python setup.py install

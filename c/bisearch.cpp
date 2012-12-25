@@ -11,21 +11,14 @@
 #include <sstream>
 #include <set>
 
+#include "container.h"
 #include "bisearch.h"
 #include "nucleotide.h"
 
 const bool debug = false;
 
 using namespace std;
-
-const int A = 0;
-const int T = 1;
-const int G = 2;
-const int C = 3;
-
-inline int complement(int x){
-  return ((x==A) ?  T  : ((x==T) ?  A : ((x==G) ?  C  : ((x==C) ? G  :  -1 ))));
-}
+using namespace nucleotide;
 
 const int anneals[4][4] = {
   {0, 2, 0, 0}, // AT
@@ -140,15 +133,7 @@ public:
     const int length = seq.length();
     seqint_.resize(length);
     for(int i=0; i<length; i++){
-      char c = toupper(seq[i]);
-      if(c=='A')
-        seqint_[i] = A;
-      else if(c=='T')
-        seqint_[i] = T;
-      else if(c=='G')
-        seqint_[i] = G;
-      else
-        seqint_[i] = C;
+      seqint_[i] = base_int(seq[i]);
     }
     tm_dh_m.resize(length-1);
     tm_dg_m.resize(length-1);
@@ -184,26 +169,7 @@ public:
   inline int s_c_c(int p, int q){
     return anneals_c[(int)seqint_[p]][(int)seqint_[q]];
   }
-  /*
-  inline float tm_m(int i, int j, MeltTemp& mt){
-    float e=0; //enthalpy
-    float f=0; //free energy
-    for(int i=0; i<j; i++){
-      e += tm_dh_m[i];
-      f += tm_dg_m[i];
-    }
-    return mt.calc_tm(e,f);
-  }
-  inline float tm_u(int i, int j, MeltTemp& mt){
-    float e=0; //enthalpy
-    float f=0; //free energy
-    for(int i=0; i<j; i++){
-      e += tm_dh_u[i];
-      f += tm_dg_u[i];
-    }
-    return mt.calc_tm(e,f);
-  }
-*/
+
   vector<float> tm_dh_m;
   vector<float> tm_dg_m;
   vector<float> tm_dh_u;
@@ -246,52 +212,26 @@ public:
   float s_neg;
 };
 
-template<typename T>
-class array2{
-public:
-  array2(int n, int m, const T& value=T()):n_(n), m_(m), vec_(n*m, value){};
-  inline T& get(int i,int j){return vec_[i*m_+j];}
-private:
-  int n_;
-  int m_;
-  vector<T> vec_;
-};
-
 class array_sa: public array2<int>{
 public:
-  array_sa(int n, int m, const int value):array2<int>(n,m,value){}
+  array_sa(int n, int m, int value):array2<int>(n,m,value){}
   inline int& get_se(int start, int end){return get(start, end-start+1);}
 };
 
-template<typename T>
-class array3{
-public:
-  array3(int n, int m, int l, const T& value=T()):n_(n), m_(m), l_(l), lm_(l*m), vec_(n*m*l, value){};
-  inline T& get(int i, int j, int k){return vec_[lm_*i + l_*j + k];}
-private:
-  int n_;
-  int m_;
-  int l_;
-  int lm_;
-  vector<T> vec_;
-};
-
-
 class PrimerPairResult{
 public:
-  PrimerPairResult(const string& input, float score, int i, int n, int j, int m, int pa, int pa_k, int pea, int pea_k)
-    : score_(score), i_(i), n_(n), j_(j), m_(m), pa_(pa), pa_k_(pa_k), pea_(pea), pea_k_(pea_k) {
-    fw_ = input.substr(i,n);
-    rv_ = reverse_complement(input.substr(j,m));
-    replace(fw_.begin(), fw_.end(), 'C', 'Y'); // Y = C or T
-    replace(rv_.begin(), rv_.end(), 'G', 'R'); // R = G or A
-  }
-  bool operator<(const PrimerPairResult& rhs)const { return score_ < rhs.score_; }
+  PrimerPairResult(string fw, string rv, float score, int i, int n, int j, int m, int pa, int pa_k, int pea, int pea_k)
+    : score_(score), fw_(fw), rv_(rv), i_(i), n_(n), j_(j), m_(m), pa_(pa), pa_k_(pa_k), pea_(pea), pea_k_(pea_k) {}
+  bool operator<(const PrimerPairResult& rhs)const { return score() > rhs.score(); }
+  bool operator>(const PrimerPairResult& rhs)const { return score() < rhs.score(); }
+  float score() const{return score_;}
+
   float score_;
-  int i_, n_, j_, m_, pa_, pa_k_, pea_, pea_k_;
   string fw_, rv_;
+  int i_, n_, j_, m_, pa_, pa_k_, pea_, pea_k_;
 };
 
+/*
 class Results : public std::set<PrimerPairResult>{
 public:
   Results(int size) : size_(size), lowest_(1000000){}
@@ -320,11 +260,89 @@ private:
   int size_;
   float lowest_;
 };
+*/
 
+class ResultChunk{
+  typedef set<PrimerPairResult> container;
+public:
+  ResultChunk() : size_(0), lowest_(1000000){}
+  ResultChunk(int size) : size_(size), lowest_(1000000){}
+
+  void resize(int size){ size_ = size;}
+
+  container::iterator begin(){return set_.begin();}
+  container::iterator end(){return set_.end();}
+  container::iterator last(){return --end();}
+  float lowest(){return lowest_;}
+
+  bool add(const PrimerPairResult & ppr){
+    if(size_ <= 0){
+      return false;
+    }
+    else if(set_.size() < size_){
+      set_.insert(ppr);
+      lowest_ = last()->score();
+      return true;
+    }
+    else{
+      auto l = last();
+      if(ppr > *l){
+        set_.erase(l);
+        set_.insert(ppr);
+        lowest_ = last()->score();
+        return true;
+      }
+    }
+    return false;
+  }
+private:
+  container set_;
+  int size_;
+  float lowest_;
+};
+
+class Results{
+public:
+  typedef vector<ResultChunk> container;
+  container::iterator begin(){return list_.begin();}
+  container::iterator end(){return list_.end();}
+
+  Results(int length, int chunk, int coverage){
+    length_ = length;
+    chunk_ = chunk;
+    coverage_ = coverage;
+
+    clength_ = length/chunk + ((length%chunk)?1:0);
+    list_.resize(clength_);
+    for(auto& i : list_){
+      i.resize(coverage_);
+    }
+  }
+
+  float lowest(int pos){
+    int ii = pos/chunk_;
+    assert(ii < clength_);
+    return list_.at(ii).lowest();
+  };
+  void add(int pos, const PrimerPairResult & ppr){
+    int ii = pos/chunk_;
+    assert(ii < clength_);
+    list_.at(ii).add(ppr);
+  }
+private:
+  container list_;
+  int length_;
+  int clength_;
+  int chunk_;
+  int coverage_;
+};
+
+
+// Store highest score and k value.
 class AnnealStore{
 public:
   AnnealStore():value(-1), index(0){}
-  void store(float v, int i){
+  inline void store(float v, int i){
     if(v > value){
       value = v;
       index = i;
@@ -333,23 +351,6 @@ public:
   float value;
   int index;
 };
-/*
-usage
-int pos=0, pos_k=0;
-MAX_K(pos, pos_k, 0, length, seqint.something(k))
-
-def max_k(function, range_):
-    ret = None
-    ret_k = None
-    for k in range_:
-        v = function(k)
-        if (not ret) or ret<v:
-            ret = v
-            ret_k = k
-    return ret,ret_k
-*/
-#define MAX_K(RET, RETK, FROM, TO, CALC) {for(int k=(FROM);k<=(TO); k++){int value=(CALC); if(value>RET){RET=value; RETK=k;}} }
-
 
 void bisearch(const char* input, ostream& output,
                   int product_len_min, int product_len_max,
@@ -499,14 +500,15 @@ void bisearch(const char* input, ostream& output,
       // for debug, comment out
       //if(!v.valid) continue;
 
-      int sa = -1;
-      int sa_k = 0;
-      // max_k
-      MAX_K(sa, sa_k, -(n-1), n-1, (k<0) ? sa_0.get(i,n+k) : sa_0.get(i+k,n-k) );
-      assert(sa >= 0);
-      v.sa = sa;
-      v.sa_k = sa_k;
-      if(! primer_cond.sa.within(sa) )
+      AnnealStore sa;
+      for(int k=-(n-1);k<=n-1; k++){
+        int v = (k<0) ? sa_0.get(i,n+k) : sa_0.get(i+k,n-k);
+        sa.store(v, k);
+      }
+      assert(sa.value >= 0);
+      v.sa = sa.value;
+      v.sa_k = sa.index;
+      if(! primer_cond.sa.within(sa.value) )
         v.valid = false;
     }
   }
@@ -565,20 +567,22 @@ void bisearch(const char* input, ostream& output,
       if(!v.valid)
         continue;
 
-      int pos = -1;
-      int pos_k = 0;
-      MAX_K(pos, pos_k, 0, n-1, sea_0.get(i+k,n-k) );
-      int neg = -1;
-      int neg_k = 0;
-      MAX_K(neg, neg_k, -(n-1), 0, sea_0.get(i, n+k) );
-      assert(neg >= 0 && pos>=0);
+      AnnealStore pos;
+      for(int k=0;k<=n-1; k++){
+        pos.store(sea_0.get(i+k,n-k), k);
+      }
+      AnnealStore neg;
+      for(int k=-(n-1);k<=0; k++){
+        neg.store(sea_0.get(i, n+k), k);
+      }
+      assert(neg.value >= 0 && pos.value>=0);
       
-      v.sea_pos = pos;
-      v.sea_pos_k = pos_k;
-      v.sea_neg = neg;
-      v.sea_neg_k = neg_k;
+      v.sea_pos = pos.value;
+      v.sea_pos_k = pos.index;
+      v.sea_neg = neg.value;
+      v.sea_neg_k = neg.index;
       
-      if(!primer_cond.sea.within(pos) || !primer_cond.sea.within(neg)){
+      if(!primer_cond.sea.within(pos.value) || !primer_cond.sea.within(neg.value)){
         v.valid = false;
         continue;
       }
@@ -804,7 +808,8 @@ void bisearch(const char* input, ostream& output,
    -> pa(i+k, j, nn)
   */
 
-  Results results(max_results);
+  // TODO: max_results
+  Results results(length, length/100, 5);
 
   //output << "# PA 2st step" << endl;
   for(int i=0; i<length; i++){
@@ -827,7 +832,10 @@ void bisearch(const char* input, ostream& output,
 
           float score = fw.s_pos + rv.s_neg;
           if( score > score_threshold ) continue;
-          if( score > results.lowest()) continue;
+
+          const int position = (i+j+m)/2;
+          if(results.lowest(position) < score ) continue;
+          //if( score > results.lowest()) continue;
           // rank in check
                     
           AnnealStore pa;
@@ -879,7 +887,11 @@ void bisearch(const char* input, ostream& output,
           score += primer_cond.pea.score(pea.value);
 
           // cs.get(i,n), cs.get(j,m) for sa, sea
-          results.add(PrimerPairResult(seq, score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+          string fw_str = seq.substr(i,n);
+          string rv_str = reverse_complement(seq.substr(j,m));
+          replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
+          replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
+          results.add(position, PrimerPairResult(fw_str, rv_str, score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
         }
       }
     }
@@ -892,12 +904,14 @@ void bisearch(const char* input, ostream& output,
   output << "> bs_pcr" << endl;
 
   int c = 0;
-  for(auto i : results){
-    c++;
-    output << "// rank=" << c << " score=" << i.score_ << " pea=" << i.pea_ << " pea_k=" << i.pea_k_ << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.fw_+"-3'") << ": " << cs.get(i.i_,i.n_).to_str() << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.rv_+"-3'") << ": " << cs.get(i.j_,i.m_).to_str() << endl;
-    output << "Bi-" << right << setfill('0') << setw(3) << c << ": " << i.fw_ << ", " << i.rv_ << endl;
+  for(auto& p : results){
+    for(auto& i : p){
+      c++;
+      output << "// rank=" << c << " score=" << i.score_ << " pea=" << i.pea_ << " pea_k=" << i.pea_k_ << endl;
+      output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.fw_+"-3'") << ": " << cs.get(i.i_,i.n_).to_str() << endl;
+      output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.rv_+"-3'") << ": " << cs.get(i.j_,i.m_).to_str() << endl;
+      output << "Bi-" << right << setfill('0') << setw(3) << c << ": " << i.fw_ << ", " << i.rv_ << endl;
+    }
   }
   output << "// Total: " << c << " Results." << endl;
 }

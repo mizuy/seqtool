@@ -21,6 +21,7 @@ primers:
 
 bisearch: bin/bisearch
 	./bin/bisearch input/test.fasta > _output/bisearch.seqv
+	seqview _output/bisearch.seqv -o _output/bisearch.html
 
 bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
 	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch

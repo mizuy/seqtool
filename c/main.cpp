@@ -70,7 +70,7 @@ int main(int argc, char* argv[]){
 	catch(std::exception& e) 
 	{ 
     	std::cerr << "Unhandled Exception reached the top of main: " 
-              << e.what() << ", application will now exit" << std::endl; 
+              << e.what() << std::endl; 
     	return ERROR; 
 	}
 
@@ -87,9 +87,17 @@ int main(int argc, char* argv[]){
 		seq += line;
 	}
 
-	bisearch(seq.c_str(), cout, 
-		product_len_min, product_len_max, primer_len_min, primer_len_max,
-		cond, max_tm_diff, max_met_tm_diff, score_threshold, max_results);
+	try{
+		bisearch(seq.c_str(), cout, 
+			product_len_min, product_len_max, primer_len_min, primer_len_max,
+			cond, max_tm_diff, max_met_tm_diff, score_threshold, max_results);
+	}
+	catch(std::exception& e) 
+	{ 
+    	std::cerr << "Unhandled Exception reached the top of main: " 
+              << e.what() << std::endl; 
+    	return ERROR; 
+	}
 
 	return SUCCESS;
 };

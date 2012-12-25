@@ -246,14 +246,16 @@ class Primer(object):
               + pc.sa.score(self.sa.score) \
               + pc.sea.score(self.sea.score)
 
-    def sdss_length(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=False):
+    def sdss_length(self, anneal_temp=None, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=False):
         s = str(self.seq).upper()
         if unmethyl:
             s = s.replace('R','A').replace('Y','T')
         else:
             s = s.replace('R','G').replace('Y','C')
 
-        anneal_temp = self.melting_temperature()
+        if not anneal_temp:
+            anneal_temp = self.melting_temperature()
+            
         l = len(s)
         for i in xrange(2,l):
             f = melt_temp.complex_fraction(s[l-i:-1], anneal_temp, pcr_mix)
