@@ -10,7 +10,8 @@
 #include <iostream>
 #include <sstream>
 #include <set>
-
+\
+#include "melt_temp.h"
 #include "container.h"
 #include "bisearch.h"
 #include "nucleotide.h"
@@ -65,71 +66,12 @@ public:
   Condition pea;
 };
 
-  // ATGC
-const float nnt_dh[4][4] = {
-  {9.1, 8.6, 7.8, 6.5},   //AA, AT, AG, AC
-  {6.0, 9.1, 5.8, 5.6},   //TA, TT, TG, TC
-  {5.6, 6.5, 11.0, 11.1}, //GA, GT, GG, GC
-  {5.8, 7.8, 11.9, 11.0}, //CA, CT, CG, CC
-};
-const float nnt_dg[4][4] = {
-  {1.55, 1.25, 1.45, 1.40},
-  {0.85, 1.55, 1.15, 1.15},
-  {1.15, 1.40, 2.30, 2.70},
-  {1.15, 1.45, 3.05, 2.30},
-};
-
-class MeltTemp{
-public:
-  MeltTemp(const PCRCondition& cond) : cond(cond) {
-    c_salt = cond.na_conc + cond.k_conc + 4*pow(cond.mg_conc,0.5f);
-    cc_primer = c_r*c_t0*log(cond.primer_conc); // RT0ln(c)
-    cc_salt = 16.6 * log10(c_salt / (1+0.7*c_salt));
-
-    // nnt_dh, nnt_dg validity. NNT of a sequence complemtely equals to that of reverse complement.
-    if(debug){
-      for(int i=0; i<4; i++){
-        for(int j=0; j<4; j++){
-          int ii = complement(i);
-          int jj = complement(j);
-          //cout << i << " " << j << " " << ii << " " << jj << endl;
-          assert(nnt_dh[i][j] == nnt_dh[jj][ii]);
-          assert(nnt_dg[i][j] == nnt_dg[jj][ii]);
-        }
-      }
-    }
-  }
-  float calc_tm(float sdh, float sdg){
-    float dhp = -1000.0 * (2*c_dhe + sdh);
-    float dgp = -1000.0 * (2*c_dge + c_dgi + sdg);
-    return c_t0 * dhp / (dhp-dgp+cc_primer) + cc_salt - 269.3;
-  }
-  float seq_tm(const vector<char>& seq){
-    float p=0; //enthalpy
-    float q=0; //free energy
-    for(int i=0; i<seq.size()-1; i++){
-      p += nnt_dh[(int)seq[i]][(int)seq[i+1]];
-      q += nnt_dg[(int)seq[i]][(int)seq[i+1]];
-    }
-    return calc_tm(p,q);
-  }
-private:
-  float c_salt;
-  float cc_primer;
-  float cc_salt;
-  const float c_r = 1.987f;
-  const float c_t0 = 298.2f;
-  const float c_dhe = 5.0; // delta He = 5 kcal/mol
-  const float c_dge = 1.0; // delta Ge = 1 kcal/mol
-  const float c_dgi = -2.2; // delta Gi = -2.2 kcal/mol
-  PCRCondition cond;
-};
-
 
 class Seqint{
 public:
   Seqint(const string& seq)
   {
+    seqstr_ = seq;
     const int length = seq.length();
     seqint_.resize(length);
     for(int i=0; i<length; i++){
@@ -147,12 +89,12 @@ public:
     for(int i=0; i<length-1; i++){
       int p = seqint_[i];
       int q = seqint_[i+1];
-      tm_dh_m[i] = nnt_dh[p][q];
-      tm_dg_m[i] = nnt_dg[p][q];
+      tm_dh_m[i] = melt_temp::nnt_dh[p][q];
+      tm_dg_m[i] = melt_temp::nnt_dg[p][q];
       if(p==C) p=T;
       if(q==C) q=T;
-      tm_dh_u[i] = nnt_dh[p][q];
-      tm_dg_u[i] = nnt_dg[p][q];
+      tm_dh_u[i] = melt_temp::nnt_dh[p][q];
+      tm_dg_u[i] = melt_temp::nnt_dg[p][q];
     }
     // Tm of seq[p:q] is calc_tm(sum(tm_dh_m[p:q-1]), sum(tm_dg_m[p:q-1]))
   }
@@ -175,6 +117,7 @@ public:
   vector<float> tm_dh_u;
   vector<float> tm_dg_u;
 private:
+  string seqstr_;
   vector<char> seqint_;
 };
 
@@ -220,47 +163,15 @@ public:
 
 class PrimerPairResult{
 public:
-  PrimerPairResult(string fw, string rv, float score, int i, int n, int j, int m, int pa, int pa_k, int pea, int pea_k)
-    : score_(score), fw_(fw), rv_(rv), i_(i), n_(n), j_(j), m_(m), pa_(pa), pa_k_(pa_k), pea_(pea), pea_k_(pea_k) {}
+  PrimerPairResult(float score, int i, int n, int j, int m, int pa, int pa_k, int pea, int pea_k)
+    : score_(score), i_(i), n_(n), j_(j), m_(m), pa_(pa), pa_k_(pa_k), pea_(pea), pea_k_(pea_k) {}
   bool operator<(const PrimerPairResult& rhs)const { return score() > rhs.score(); }
   bool operator>(const PrimerPairResult& rhs)const { return score() < rhs.score(); }
   float score() const{return score_;}
 
   float score_;
-  string fw_, rv_;
   int i_, n_, j_, m_, pa_, pa_k_, pea_, pea_k_;
 };
-
-/*
-class Results : public std::set<PrimerPairResult>{
-public:
-  Results(int size) : size_(size), lowest_(1000000){}
-
-  bool add(const PrimerPairResult & ppr){
-
-    if(set<PrimerPairResult>::size() < size_){
-      set<PrimerPairResult>::insert(ppr);
-      lowest_ = last()->score_;
-      return true;
-    }
-    else if(ppr.score_ < lowest_){
-      set<PrimerPairResult>::insert(ppr);
-      set<PrimerPairResult>::erase(last());
-      lowest_ = last()->score_;
-      return true;
-    }
-    return false;
-  }
-  std::set<PrimerPairResult>::iterator last(){
-    auto e = set<PrimerPairResult>::end();
-    return --e;
-  }
-  float lowest(){return lowest_;}
-private:
-  int size_;
-  float lowest_;
-};
-*/
 
 class ResultChunk{
   typedef set<PrimerPairResult> container;
@@ -363,7 +274,7 @@ void bisearch(const char* input, ostream& output,
 {
   PrimerCondition primer_cond(primer_len_min, primer_len_max, true);
   Condition product_cond(0, 0, product_len_min, product_len_max);
-  MeltTemp mt(cond);
+  melt_temp::MeltTemp mt(cond);
 
   const string genomic(input);
   string seq;
@@ -887,11 +798,7 @@ void bisearch(const char* input, ostream& output,
           score += primer_cond.pea.score(pea.value);
 
           // cs.get(i,n), cs.get(j,m) for sa, sea
-          string fw_str = seq.substr(i,n);
-          string rv_str = reverse_complement(seq.substr(j,m));
-          replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
-          replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
-          results.add(position, PrimerPairResult(fw_str, rv_str, score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+          results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
         }
       }
     }
@@ -903,17 +810,33 @@ void bisearch(const char* input, ostream& output,
   output << endl;
   output << "> bs_pcr" << endl;
 
-  int c = 0;
-  for(auto& p : results){
-    for(auto& i : p){
-      c++;
-      output << "// rank=" << c << " score=" << i.score_ << " pea=" << i.pea_ << " pea_k=" << i.pea_k_ << endl;
-      output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.fw_+"-3'") << ": " << cs.get(i.i_,i.n_).to_str() << endl;
-      output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+i.rv_+"-3'") << ": " << cs.get(i.j_,i.m_).to_str() << endl;
-      output << "Bi-" << right << setfill('0') << setw(3) << c << ": " << i.fw_ << ", " << i.rv_ << endl;
+  vector<PrimerPairResult> all;
+  for(auto& rc: results){
+    for(auto& ppr : rc){
+      all.push_back(ppr);
     }
   }
-  output << "// Total: " << c << " Results." << endl;
+
+  int count = 0;
+  
+  sort(all.rbegin(), all.rend());
+
+  for(auto& ppr: all){
+    count++;
+    string fw_str = seq.substr(ppr.i_,ppr.n_);
+    string rv_str = reverse_complement(seq.substr(ppr.j_,ppr.m_));
+    replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
+    replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
+
+    output << "// rank=" << count << " score=" << ppr.score_;
+    output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
+    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
+    output << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
+    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
+    output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
+    output << "Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
+  }
+  output << "// Total: " << count << " Results." << endl;
 }
 
 

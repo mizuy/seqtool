@@ -235,16 +235,25 @@ class Primer(object):
                                  '%.2f'%self.gc_ratio,
                                  self.sa.score,
                                  self.sea.score ]]
-    @property
-    @memoize
-    def score(self):
-        pc = PrimerCondition()
+    def _score(self, bisulfite=False):
+        pc = PrimerCondition(bisulfite)
 
         return pc.primer_length.score(len(self)) \
               + pc.gc.score(self.gc_ratio) \
               + pc.tm.score(self.melting_temperature()) \
               + pc.sa.score(self.sa.score) \
               + pc.sea.score(self.sea.score)
+
+    @property
+    @memoize
+    def score(self):
+        return self._score(False)
+
+    @property
+    @memoize
+    def score_bisulfite(self):
+        return self._score(True)
+
 
     def sdss_length(self, anneal_temp=None, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=False):
         s = str(self.seq).upper()
@@ -332,10 +341,12 @@ class Condition(object):
         return self.minimum <= value <= self.maximum
 
 class PrimerCondition(object):
-    def __init__(self):
+    def __init__(self, bisulfite=False):
         self.primer_length = Condition(0.5, 23., 10, 30)
-        self.gc            = Condition(1.0, 50., 30, 70)
-        self.gc_bsp        = Condition(1.0, 30., 0, 60)
+        if not bisulfite:
+            self.gc        = Condition(1.0, 50., 30, 70)
+        else:
+            self.gc        = Condition(1.0, 30., 0, 60)
         self.tm            = Condition(1.0, 60., 45, 70)
         self.sa            = Condition(0.1, 0., 0, 25)
         self.sea           = Condition(0.2, 0., 0, 15)
@@ -359,15 +370,23 @@ class PrimerPair(object):
     pa = pair_annealing
     pea = pair_end_annealing
 
+    def _score(self, bisulfite):
+        pc = PrimerCondition(bisulfite)
+        return self.fw._score(bisulfite) + self.rv._score(bisulfite) + pc.pa.score(self.pa.score) + pc.pea.score(self.pea.score)
+
     @property
     @memoize
     def score(self):
-        pc = PrimerCondition()
+        return self._score(False)
 
-        return self.fw.score + self.rv.score + pc.pa.score(self.pa.score) + pc.pea.score(self.pea.score)
+    @property
+    @memoize
+    def score_bisulfite(self):
+        return self._score(True)
 
     def debugprint(self):
-        print 'score=', self.score()
+        print 'score=', self.score
+        print 'bisulfite score=', self.score_bisulfite
         for r in [self.fw, self.rv]:
             r.debugprint()
         pa = self.pair_annealing()
@@ -384,13 +403,13 @@ class PrimerPair(object):
         with b.div(cls='primerpair'):
             with b.table(cls='primerpairtable', border=1):
                 with b.tr:
-                    for p in (Primer.get_table_head() + ['pa.', 'pea.', 'pair score']):
+                    for p in (Primer.get_table_head() + ['pa.', 'pea.', 'score', 'bisulfite score']):
                         b.th(p)
 
                 with b.tr:
                     for v in self.fw.get_table_row():
                         b.td(str(v))
-                    for v in [self.pa.score, self.pea.score, '%.2f'%self.score]:
+                    for v in [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]:
                         b.td(str(v),rowspan='2')
                 with b.tr:
                     for v in self.rv.get_table_row():
