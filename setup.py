@@ -1,7 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
-version = '0.2.0'
+version = '0.2.1'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'
@@ -41,4 +41,5 @@ seqvcmd = seqtool.seqvcmd:main
 bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
+seqtool_loadsql = seqtool.db.sql:load_all
 """)

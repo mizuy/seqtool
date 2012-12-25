@@ -1,4 +1,6 @@
-seqview _private/ndrg2.seqv -o _output/seqview.html
-geneview NDRG2 -o _output/geneview.html
-get_genbank NDRG2 > _output/NDRG2.gb
-tssview _private/count_tss.tssv -o _output/tss.html
+seqview input/seqview.seqv -o _output/seqview.html
+tssview input/tssview.tssv -o _output/tssview.html
+geneview TP53 -o _output/geneview.html
+get_genbank TP53 > _output/TP53.gb
+primers input/primers.txt -o _output/primers.html 
+primers input/primers.txt -c -o _output/primers.csv 

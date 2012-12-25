@@ -7,7 +7,16 @@ from .dirutils import Filepath
 from . import seqview as sv
 from . import tssview as tv
 from . import primers
-from .db import entrez
+from . import db
+from .primers import load_primer_list_file, primers_write_csv
+from .prompt import prompt
+from . import xmlwriter
+from .pcr import primers_write_html
+
+def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
+    gene_id, gene_symbol = db.get_gene_from_text(gene_text)
+    locus = db.get_gene_locus(gene_id).expand(upstream, downstream)
+    return db.get_locus_genbank(locus)
 
 def seqview():
     parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
@@ -38,10 +47,12 @@ def geneview():
         return
 
     outputp = Filepath(args.output)
-    gene_id, gene_symbol = entrez.get_gene_from_text(args.gene_symbol)
 
-    e = sv.GeneBankEntry(gene_symbol)
-    e.load_genbank(entrez.get_genomic_context_genbank(gene_id))
+    e = sv.GenebankTssEntry(args.gene_symbol)
+
+    gene_id, gene_symbol = db.get_gene_from_text(args.gene_symbol)
+    e.load_gene(gene_id)
+    e.set_tissueset(db.get_dbtss_tissues())
 
     p = sv.SeqvFile()
     p.load_genbankentry(e)
@@ -79,58 +90,43 @@ def get_genbank():
     else:
         output = sys.stdout
 
-    try:
-        genbank = entrez.get_genomic_context_genbank(args.gene)
-    except Exception,e:
-        print str(e)
-        return
+    genbank = get_genomic_context_genbank(args.gene)
 
     if not genbank:
-        print "GenBank retrieve error: ", gene_id
+        print "GenBank retrieve error: ", args.gene
         return
     print >>output, genbank
 
 def primers():
-    from optparse import OptionParser
+    parser = ArgumentParser(prog='primers', description='Print primer properties')
+    parser.add_argument('primers', nargs='+', help='primer text file')
+    parser.add_argument('-c', '--csv', action='store_true', dest='csv', help='write a csv file(default is html file)')
+    parser.add_argument("-o", "--output", dest="output", help="output filename")
 
-    parser = OptionParser('usage: %prog inputfile -o outputfile')
-    parser.add_option('-o', '--output', dest='output', help='output filename')
-    parser.add_option('-c', '--csv', action='store_true', dest='csv', default='False', help='write a csv file(default is html file)')
+    args = parser.parse_args()
 
-    if len(sys.argv) == 0:
-        parser.error('no input file')
-
-    (options, args) = parser.parse_args()
+    inputfiles = args.primers
     
-    if not args:
-        parser.print_help()
-        return
-
-    inputfiles = args
+    ps = []
+    for filename in inputfiles:
+        with open(filename,'r') as f:
+            for i in load_primer_list_file(f):
+                ps.append(i)
     
-    primers = []
-    with prompt('loading primers: ') as pr:
-        for filename in inputfiles:
-            with open(filename,'r') as f:
-                for i in load_primer_list_file(f):
-                    primers.append(i)
-                    pr.progress()
-    
-    if options.output:
-        output = open(options.output, 'w')
+    if args.output:
+        output = open(args.output,'w')
     else:
         output = sys.stdout
 
-    if options.csv:
-        output.write(primers_write_csv(primers))
+    if args.csv:
+        output.write(primers_write_csv(ps))
     else:
-        print 'writing html...'
-        html = XmlWriter(output)
-        b = builder(html)
+        html = xmlwriter.XmlWriter(output)
+        b = xmlwriter.builder(html)
         with b.html:
             with b.head:
                 pass
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
-                primers.primers_write_html(html, primers)
+                primers_write_html(html, ps)
 
