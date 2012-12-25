@@ -111,7 +111,54 @@ class BisulfiteSequence(object):
             self.keys.append(name)
         self.entries[name].append(entry)
 
-class GenomicTemplate(object):
+class BaseTemplate(object):
+    def __init__(self):
+        pass
+    
+    @property
+    def name(self):
+        return ""
+
+    @property
+    def description(self):
+        return ""
+
+    @property
+    def seq(self):
+        raise NotImplementedError();
+
+    @property
+    @memoize
+    def bs_met(self):
+        return bisulfite(self.seq, True)
+
+    @property
+    @memoize
+    def bs_unmet(self):
+        return bisulfite(self.seq, False)
+
+    @property
+    def transcripts(self):
+        return []
+
+    @property
+    @memoize
+    def transcript_start_site(self):
+        return 0
+        
+    @property
+    def features(self):
+        return []
+
+class SequenceTemplate(BaseTemplate):
+    def __init__(self, sequence):
+        self.seq_ = sequence
+
+    @property
+    def seq(self):
+        return self.seq_;
+
+class GenomicTemplate(BaseTemplate):
     def __init__(self, genbank_content):
         with prompt('loading genbank...', '...done.'):
             self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
@@ -131,16 +178,6 @@ class GenomicTemplate(object):
     @property
     def seq(self):
         return self.genbank_.seq
-
-    @property
-    @memoize
-    def bs_met(self):
-        return bisulfite(self.genbank_.seq, True)
-
-    @property
-    @memoize
-    def bs_unmet(self):
-        return bisulfite(self.genbank_.seq, False)
 
     @property
     def transcripts(self):
@@ -169,6 +206,10 @@ class GenebankEntry(object):
         self.loaded_ = False
         self.locus = None
 
+    def load_sequence(self, sequence):
+        self.locus = None
+        self.template = SequenceTemplate(sequence)
+
     def load_genbank(self, content, locus=None):
         self.locus = None
         self.template = GenomicTemplate(content)
@@ -186,6 +227,9 @@ class GenebankEntry(object):
         t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
 
         return t
+
+    def has_transcripts(self):
+        return not not self.template.transcripts
 
     def write_html(self, b, subfs):
         """
@@ -294,6 +338,7 @@ class SeqvFileEntry(GenebankTssEntry):
 
         self.pcrs = ListDict()
         self.bs_pcrs = ListDict()
+
         self.rt_pcrs = ListDict()
 
         self.bsps = BisulfiteSequence()
@@ -315,20 +360,24 @@ class SeqvFileEntry(GenebankTssEntry):
         seq.name = name
         self.motifs.append(seq)
 
-    def get_primer(self, name, pcr_name):
+    def get_primer(self, name, default_name):
         try:
             return self.primers[name]
         except KeyError:
             if all(n.upper() in 'ATGC' for n in name):
-                p = Primer(pcr_name, Seq.Seq(name,IUPAC.unambiguous_dna))
+                p = Primer(default_name, Seq.Seq(name,IUPAC.unambiguous_dna))
+                self.add_primer(p)
+                return p
+            elif all(n.upper() in ('ATGC'+IUPAC.ambiguous_dna.letters) for n in name):
+                p = Primer(default_name, Seq.Seq(name,IUPAC.ambiguous_dna))
                 self.add_primer(p)
                 return p
             else:
-                raise KeyError('no such forward primer: %s'%name)
-
-    def get_primers(self, fw_primer, rv_primer, name):
-        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%name)
-        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%name)
+                raise KeyError("no such primer: %s"%name)
+                
+    def get_primers(self, fw_primer, rv_primer, pcr_name):
+        fw = self.get_primer(fw_primer, 'PCR-FW(%s)'%pcr_name)
+        rv = self.get_primer(rv_primer, 'PCR-RV(%s)'%pcr_name)
         return fw, rv
 
     def get_pcr(self, name, fw_primer, rv_primer):
@@ -411,11 +460,13 @@ class SeqvFileEntry(GenebankTssEntry):
 
         # writing svgs
         subfs.write(genome_n, self.track_genome().svg(5000))
-        subfs.write(transcript_n, self.track_transcript().svg(1200))
+        if self.has_transcripts():
+            subfs.write(transcript_n, self.track_transcript().svg(1200))
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
-        transcript_l = subfs.get_link_path(transcript_n)
+        if self.has_transcripts():
+            transcript_l = subfs.get_link_path(transcript_n)
 
         # writing html
         b.h1(self.template.description)
@@ -425,9 +476,10 @@ class SeqvFileEntry(GenebankTssEntry):
                 b.h3('genome overview')
                 with b.a(href=genome_l):
                     b.img(src=genome_l, width='1000px')
-                b.h3('transcript overview')
-                with b.a(href=transcript_l):
-                    b.img(src=transcript_l,width='1000px')
+                if self.has_transcripts():
+                    b.h3('transcript overview')
+                    with b.a(href=transcript_l):
+                        b.img(src=transcript_l,width='1000px')
 
         with b.div(**{'class':'primers'}):
             b.h2('Primers')
@@ -465,21 +517,22 @@ class SeqvFileEntry(GenebankTssEntry):
                         b.h5('template = Genome')
                         write_products(pcr.products)
 
-            for pcr in self.rt_pcrs:
-                with b.div(**{'class':'pcr'}):
-                    b.h3(pcr.name + " (RT PCR)")
-                    pcr.primers.write_html(b.get_writer())
+            if self.has_transcripts():
+                for pcr in self.rt_pcrs:
+                    with b.div(**{'class':'pcr'}):
+                        b.h3(pcr.name + " (RT PCR)")
+                        pcr.primers.write_html(b.get_writer())
 
-                    b.h4('products')
-                    with b.div(**{'class':'products'}):
-                        for feature, seq in self.template.transcripts:
-                            length = len(seq)
-                            name = feature.qualifiers['product'][0]
-                            b.h5('template = transcripts: %s'%name)
-                            write_products(PCR(pcr.name, seq, pcr.fw, pcr.rv).products)
+                        b.h4('products')
+                        with b.div(**{'class':'products'}):
+                            for feature, seq in self.template.transcripts:
+                                length = len(seq)
+                                name = feature.qualifiers['product'][0]
+                                b.h5('template = transcripts: %s'%name)
+                                write_products(PCR(pcr.name, seq, pcr.fw, pcr.rv).products)
 
-                        b.h5('template = Genome')
-                        write_products(pcr.products)
+                            b.h5('template = Genome')
+                            write_products(pcr.products)
 
 
 class SeqvFile(object):
@@ -507,6 +560,8 @@ class SeqvFile(object):
                         if name=='genbank':
                             with open(relative_path(value), 'r') as f:
                                 e.load_genbank(f.read())
+                        elif name=='sequence':
+                            e.load_sequence(Seq.Seq(value.upper(), IUPAC.unambiguous_dna))
                         elif name=='gene':
                             try:
                                 gene_id, gene_symbol = db.get_gene_from_text(value)

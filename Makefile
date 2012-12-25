@@ -1,14 +1,31 @@
+CPP = clang++
+CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
 
-all: example/primers.html example/b2m.html example/actb.html example/btg3.html
-	open $+
+all: seqview tssview geneview get_genbank primers bisearch
+	
+seqview:
+	seqview input/seqview.seqv -o _output/seqview.html
 
-example/primers.html: example/primers.txt
-	primers $< -o $@
+tssview:
+	tssview input/tssview.tssv -o _output/tssview.html
 
-output/bisearch.html: example/input.fasta
-	bisearch -m normal $< -o output/bisearch.seqv
-	seqview output/bisearch.seqv -o $@
-	open $@
+geneview:
+	geneview TP53 -o _output/geneview.html
+
+get_genbank:
+	get_genbank TP53 > _output/TP53.gb
+
+primers:
+	primers input/primers.txt -o _output/primers.html 
+	primers input/primers.txt -c -o _output/primers.csv 
+
+bisearch: bin/bisearch
+	./bin/bisearch input/test.fasta > _output/bisearch.seqv
+	seqview _output/bisearch.seqv -o _output/bisearch.html
+
+bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
+	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
+
 
 clean:
 	rm -f **/*~
@@ -19,10 +36,5 @@ clean:
 test:
 	nosetests
 
-.SUFFIXES: .seqv .html
-
-.seqv.html:
-	seqview $< -o $@
-
-.PHONY: test
+.PHONY: test all
 
