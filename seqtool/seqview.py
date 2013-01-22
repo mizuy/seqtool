@@ -16,11 +16,14 @@ from .primers import load_primer_list_file
 from .prompt import prompt
 from . import seqtrack
 from . import xmlwriter
-from .listdict import ListDict
+
 from .subfs import SubFileSystem
 from .dirutils import Filepath
 from . import db
 from .db.dbtss import TissuesetLocus
+
+from .bisulfite_sequencing import BisulfiteSequencingResult
+from .namedlist import NamedList, DefaultNamedList
 
 seqview_css = '''
     .images{}
@@ -35,7 +38,6 @@ seqview_css = '''
     }
 '''
 
-
 def all_primers(pcrs):
     ret = set()
     for p in pcrs:
@@ -43,73 +45,6 @@ def all_primers(pcrs):
             ret.add(p.fw)
             ret.add(p.rv)
     return ret
-
-class BisulfiteSequenceEntry(object):
-    def __init__(self, name, pcr, result):
-        self.name = name
-        self.pcr = pcr
-        self.result = result
-
-        p = pcr.bs_met_products
-        if not len(p)==1:
-            raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr_name,len(products)))
-        self.product = p[0]
-        if not all(i in 'MUP?' for i in result):
-            raise ValueError('bsp result must contain only M,U,P or ?')
-
-        self.cpg = self.product.detectable_cpg()
-        if len(result)!=self.cpg:
-            raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr_name,self.cpg,len(result)))
-
-        self.cpg_sites = self.product.cpg_sites()
-
-        self.bsp_map = [(n,result[i]) for i,n in enumerate(self.cpg_sites)]
-
-class BisulfiteSequenceEntries(object):
-    def __init__(self):
-        self.entries = []
-    def append(self, entry):
-        self.entries.append(entry)
-
-    def combine(self):
-        start_i = min(e.product.start_i for e in self.entries)
-        end_i = max(e.product.end_i for e in self.entries)
-
-        results = defaultdict(str)
-        for e in self.entries:
-            for i,n in enumerate(e.cpg_sites):
-                if e.result[i]!='?':
-                    results[n] += e.result[i]
-
-        bsp_map = []
-        for index, result in results.items():
-            if all(r in 'M' for r in result):
-                c = 'M'
-            elif all(r in 'U' for r in result):
-                c = 'U'
-            else:
-                c = 'P'
-            bsp_map.append( (index, c) )
-            
-        return bsp_map, start_i, end_i
-
-class BisulfiteSequence(object):
-    def __init__(self):
-        self.keys = []
-        self.entries = defaultdict(BisulfiteSequenceEntries)
-    def __iter__(self):
-        for k in self.keys:
-            yield k, self.entries[k]
-
-    def __getitem__(self, name):
-        if name not in self.keys:
-            raise KeyError
-        return self.entries[name]
-
-    def add(self, name, entry):
-        if name not in self.keys:
-            self.keys.append(name)
-        self.entries[name].append(entry)
 
 class BaseTemplate(object):
     def __init__(self):
@@ -189,11 +124,7 @@ class GenomicTemplate(BaseTemplate):
     @memoize
     def transcript_start_site(self):
         v = [int(t.location.start) for t in self.features if t.type=='mRNA']
-        if v:
-            i = min(v)
-        else:
-            i = 0
-        return i
+        return min(v) if v else 0
         
     @property
     def features(self):
@@ -328,20 +259,13 @@ class GenebankTssEntry(GenebankEntry):
 
 class SeqvFileEntry(GenebankTssEntry):
     def __init__(self, name=None):
-        self.primers = ListDict()
-        self.motifs = ListDict()
-
-        # RegionTissueSet * tsss
-        self.tsl = None
-        self.tsss = []
-        self.tss_name_counter = 1
-
-        self.pcrs = ListDict()
-        self.bs_pcrs = ListDict()
-
-        self.rt_pcrs = ListDict()
-
-        self.bsps = BisulfiteSequence()
+        self.primers = NamedList()
+        self.motifs = NamedList()
+        self.pcrs = NamedList()
+        self.bs_pcrs = NamedList()
+        self.rt_pcrs = NamedList()
+        self.bsas = DefaultNamedList(BisulfiteSequencingResult)
+        self.bsa_list = None
 
         super(SeqvFileEntry, self).__init__(name)
 
@@ -352,6 +276,8 @@ class SeqvFileEntry(GenebankTssEntry):
                     self.primers.append(i)
                     pr.progress()
 
+    def set_bsa_list(self, bsa_list):
+        self.bsa_list = bsa_list
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -394,7 +320,7 @@ class SeqvFileEntry(GenebankTssEntry):
     def add_rt_pcr(self, name, fw_primer, rv_primer):
         self.rt_pcrs.append(self.get_pcr(name,fw_primer,rv_primer))
 
-    def add_bsp(self, cellline, pcr_name, result):
+    def add_bsa(self, cellline, pcr_name, result):
         assert(self.template)
         assert isinstance(cellline,str)
         assert isinstance(pcr_name,str)
@@ -404,7 +330,7 @@ class SeqvFileEntry(GenebankTssEntry):
         except KeyError:
             raise ValueError('no such pcr: %s'%pcr_name)
 
-        self.bsps.add(cellline, BisulfiteSequenceEntry(cellline, pcr, result))
+        self.bsas[cellline].add_bsa_result(pcr, result)
 
     def track_genome(self):
         assert(self.template)
@@ -412,9 +338,14 @@ class SeqvFileEntry(GenebankTssEntry):
 
         t = super(SeqvFileEntry, self).track_genome()
 
-        for name, bsp in self.bsps:
-            bsp_map, start, end = bsp.combine()
-            t.add(seqtrack.BisulfiteSequenceTrack(name, bsp_map, start, end))
+        if self.bsa_list:
+            for name in self.bsa_list:
+                bsa_map, start, end = self.bsas[name].get_map()
+                t.add(seqtrack.BisulfiteSequenceTrack(name, bsa_map, start, end))
+        else:
+            for name, bsa in self.bsas.items():
+                bsa_map, start, end = bsa.get_map()
+                t.add(seqtrack.BisulfiteSequenceTrack(name, bsa_map, start, end))
 
         for m in self.motifs:
             t.add(seqtrack.HbarTrack('', length))
@@ -446,8 +377,6 @@ class SeqvFileEntry(GenebankTssEntry):
             t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
         
         return t
-
-
 
     def write_html(self, b, subfs):
         """
@@ -546,6 +475,8 @@ class SeqvFile(object):
         inputp = Filepath(filename)
         relative_path = lambda x: inputp.relative(x)
 
+        tss_tissues = []
+
         with open(filename,'r') as fileobj:
             for category, name, value, em in self.parse(fileobj):
                 if not name and not value:
@@ -571,10 +502,12 @@ class SeqvFile(object):
                             e.load_gene(gene_id)
                         elif name=='primers':
                             e.load_primers(relative_path(value))
-
+                        elif name=='tss':
+                            e.set_tissueset([x.strip() for x in value.split(',')])
+                        elif name=='bsa':
+                            e.set_bsa_list([x.strip() for x in value.split(',')])
                     elif category == 'primer':
                         e.add_primer(Primer(name, Seq.Seq(value.upper(),IUPAC.ambiguous_dna)))
-
                     elif category == 'motif':
                         e.add_motif(name,Seq.Seq(value,IUPAC.ambiguous_dna))
                     elif category in ['pcr','rt_pcr','bs_pcr']:
@@ -594,10 +527,10 @@ class SeqvFile(object):
                             e.add_bs_pcr(name, fw, rv)
                         else:
                             raise ValueError
-                    elif category == 'bsp':
+                    elif category == 'bsa':
                         n = [n.strip() for n in name.split(',')]
                         if not len(n)>=2:
-                            em('each bsp must have at least 2 key; cell line name and pcr name')
+                            em('each bsa must have at least 2 key; cell line name and pcr name')
                             continue
                         pcrname = n[0].strip()
                         cellline = n[1].strip().upper()
@@ -606,7 +539,7 @@ class SeqvFile(object):
                             em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
                             continue
 
-                        e.add_bsp(cellline, pcrname, value.strip().upper())
+                        e.add_bsa(cellline, pcrname, value.strip().upper())
                     else:
                         em('unkown category: %s'%category)
 
@@ -640,7 +573,7 @@ class SeqvFile(object):
                         b.text(seqview_css)
             with b.body:
                 for e in self.entries:
-                    subfs = SubFileSystem(outputp.dir, outputp.suffix)
+                    subfs = SubFileSystem(outputp.dir, outputp.prefix)
 
                     e.write_html(b, subfs)
 

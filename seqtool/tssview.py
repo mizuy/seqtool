@@ -97,7 +97,7 @@ class TssvFile(object):
                 f.write(gt.tss_count_csv())
 
     def write_html(self, outputp):
-        subfs = SubFileSystem(outputp.dir, outputp.suffix)
+        subfs = SubFileSystem(outputp.dir, outputp.prefix)
 
         with open(outputp.path,'w') as output:
             html = xmlwriter.XmlWriter(output)

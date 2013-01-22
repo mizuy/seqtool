@@ -121,7 +121,7 @@ class Track(TrackBase):
         self.scale = (1., 1.)
 
     def draw(self, b, scale):
-        print "drawing %s: %s"%(self.__class__.__name__,self.name)
+        #print "drawing %s: %s"%(self.__class__.__name__,self.name)
         self.text(b, self.name, x=-5*scale[0], y=6, anchor='end', scale=scale)
         
     def _sty(self, color):
@@ -413,7 +413,11 @@ class BasePcrsTrack(NamedTrack):
         self.products = []
         fs = FreeSpace()
         for n, p in products:
-            y = fs.set(p.start, p.end)
+            m = (p.start+p.end)/2.
+            strlen = len(n)*6
+            s = min(p.start, m-strlen)
+            e = max(p.end, m+strlen)
+            y = fs.set(s,e)
             self.products.append( (n, p, y*20) )
         super(BasePcrsTrack, self).__init__(name, 0, 20*fs.num_lines())
 

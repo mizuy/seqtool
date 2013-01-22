@@ -15,9 +15,9 @@ class DefaultSubFileSystem(object):
         return filename
 
 class SubFileSystem(object):
-    def __init__(self, output_dir, suffix):
+    def __init__(self, output_dir, prefix):
         self.output_dir = output_dir
-        self.suffix = suffix
+        self.prefix = prefix
         self.storage = []
 
     def write(self, filename, content_text):
@@ -27,7 +27,7 @@ class SubFileSystem(object):
         return self._dirname() + filename
 
     def _dirname(self):
-        return self.suffix + '_files/'
+        return self.prefix + '_files/'
 
     def finish(self):
         d = os.path.join(self.output_dir,self._dirname())
@@ -42,16 +42,16 @@ class SubFileSystem(object):
         return SubsubFileSystem(self, name)
         
 class SubsubFileSystem(object):
-    def __init__(self, parent, suffix):
+    def __init__(self, parent, prefix):
         self.parent = parent
-        self.suffix = suffix
+        self.prefix = prefix
         self.storage = self.parent.storage
 
     def write(self, filename, content_text):
         self.storage.append((self.get_link_path(filename), content_text))
 
     def get_link_path(self, filename):
-        return self.parent.get_link_path(self.suffix + '_' + filename)
+        return self.parent.get_link_path(self.prefix + '_' + filename)
 
     def get_subfs(self, name):
         return SubsubFileSystem(self, name)
