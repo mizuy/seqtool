@@ -59,9 +59,11 @@ class TrackGroup(TrackBase):
         if len(self.tracks) == 0:
             return 0
         return max(i.width for i in self)
+    
     @property
     def height(self):
         return sum(i.height + self.ymargin for i in self)
+
     @property
     def name_length(self):
         if len(self.tracks) == 0:
@@ -73,7 +75,7 @@ class TrackGroup(TrackBase):
         
     def draw(self, b, scale):
         y = 0
-        for i in self:
+        for i in self.tracks:
             with b.g(transform='translate(0,%d)'%y):
                 i.draw(b, scale)
             y += (i.height + self.ymargin)
@@ -144,9 +146,8 @@ class Track(TrackBase):
         b.line(x1=0, y1=t, x2=l, y2=t, stroke='red')(**{'stroke-width':0.5,'stroke-dasharray':'30,10'})
         
     def draw_vline(self, b, x, start, end, color, stroke=1, scale=(1.,1.)):
-        with b.g(transform='translate(%s,0) scale(%s,%s)'%(x,scale[0],scale[1])):
+        with b.g(transform='translate(%.2f,0) scale(%.2f,%.2f)'%(x,scale[0],scale[1])):
             b.line(x1=0, y1=start, x2=0, y2=end, stroke=color)(**{'stroke-width':stroke})
-
 
     def draw_vgraph(self, b, x, start, end, value, color):
         f = (end-start)*(1.-value)
@@ -160,10 +161,13 @@ class Track(TrackBase):
         b.rect(x=start, y=y-thick/2, width=w, height=thick, **self._sty(color))
 
     def text(self, b, text, x, y, color='black', anchor='start', scale=(1.,1.)):
-        with b.g(transform='translate(%s,%s)'%(x,y)):
-            with b.g(transform='scale(%s,%s)'%scale):
-                with b['text'](x=0, y=0)(**{'font-size':'10', 'text-anchor':anchor, 'style':'fill:%s;'%color}):
-                    b.text(text)
+        xx = x * scale[0]
+        yy = y * scale[1]
+        with b['text'](x=x, y=y)(**{'font-size':'10', 'text-anchor':anchor, 'style':'fill:%s;'%color}):
+            b.text(text)
+        #with b.g(transform='translate(%.2f,%.2f) scale(%.2f,%.2f)'%(x,y,scale[0],scale[1])):
+        #    with b['text'](x=0, y=0)(**{'font-size':'10', 'text-anchor':anchor, 'style':'fill:%s;'%color}):
+        #        b.text(text)
 
 class NamedTrack(Track):
     def __init__(self, name, width=0, height=10):
@@ -536,29 +540,3 @@ class BisulfiteSequenceTrack(NamedTrack):
             if result != '?':
                 self.draw_vline(b, index, 0, 10, color=color[result])
     
-class SeqView(object):
-    def __init__(self, genbank):
-        self.genbank = genbank
-        self.seq = genbank.seq
-        self.length = len(self.seq)
-        #self.bm_template = bisulfite(self.seq)
-        #self.bu_template = bisulfite(self.seq)
-        self.pcrs = []
-        #self.bs_pcrs = []
-
-    def add_pcr(self, name, fw, rv):
-        self.pcrs.append(PCR(name, self.seq, fw, rv))
-        
-    def svg(self, width):
-        t = TrackGroup()
-        t.add(SequenceTrack(self.genbank.seq, self.genbank.features))
-        t.add(PcrsTrack('genome PCR', self.length, self.pcrs))
-        return t.svg(width)
-
-if __name__=='__main__':
-    import sys
-    print sys.argv[1]
-    genbank = SeqIO.read(open(sys.argv[1],'r'),'genbank')
-    sv = SeqView(genbank)
-    with open('test.svg','w') as f:
-        f.write(sv.svg(1200))
