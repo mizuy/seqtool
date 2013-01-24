@@ -31,11 +31,16 @@ def get_feature_name(feature):
     return name
 
 class SeqviewTrack(SvgMatrix):
-    def __init__(self):
+    def __init__(self, scale=10.):
+        self.scale = scale
+        self.gen = SvgItemGenerator(scale, 1)
         super(SeqviewTrack,self).__init__()
 
+    def get_point(self, x, y):
+        return self.scale * x, y
+
     def add_named(self, name, track):
-        self.add_row([SvgText(name, 0,0), track], ['right',None])
+        self.add_row([self.gen.text(name, 0,0), track], ['right',None])
 
     def add(self, track):
         self.add_row([SvgBase(), track])
@@ -45,7 +50,7 @@ class SeqviewTrack(SvgMatrix):
 
     def add_hline(self, length, height=5):
         t = SvgItemsFixedHeight(height)
-        t.add(SvgHline(0, length, height/2))
+        t.add(self.gen.hline(0, length, height/2))
         self.add(t)
 
     def add_measure_track(self, length, start=0, step=500, substep=100, subsubstep=10):
@@ -59,23 +64,23 @@ class SeqviewTrack(SvgMatrix):
         ss = step * int(ceil(1.0*start/step))
         for i in range(ss, start + length, step):
             x = i - start
-            numbers.add(SvgText(str(i), x=x, y=10, color='black', anchor='middle'))
+            numbers.add(self.gen.text(str(i), x=x, y=10, color='black', anchor='middle'))
 
         bars = SvgItemsFixedHeight(20)
-        bars.add(SvgHline(0, length, 20, color='black'))
+        bars.add(self.gen.hline(0, length, 20, color='black'))
         for i in range(ss, start + length, step):
             x = i - start
-            bars.add(SvgVline(x, 10, 20, color='black'))
+            bars.add(self.gen.vline(x, 10, 20, color='black'))
         # substep
         ss = substep * int(ceil(1.0*start/substep))
         for i in range(ss, start + length, substep):
             x = i - start
-            bars.add(SvgVline(x, 13, 20, color='black'))
+            bars.add(self.gen.vline(x, 13, 20, color='black'))
 
         ss = subsubstep * int(ceil(1.0*start/subsubstep))
         for i in range(ss, start + length, subsubstep):
             x = i - start
-            bars.add(SvgVline(x, 18, 20, color='black'))
+            bars.add(self.gen.vline(x, 18, 20, color='black'))
 
         self.add(numbers)
         self.add(bars)
@@ -106,10 +111,10 @@ class SeqviewTrack(SvgMatrix):
 
         count = 0
         for e in exons:
-            et.add(SvgVline(count, 0, 10, color='black'))
+            et.add(self.gen.vline(count, 0, 10, color='black'))
             count += e
-        et.add(SvgVline(count, 0, 10, color='black'))
-        et.add(SvgHline(0, count, 5, color='black'))
+        et.add(self.gen.vline(count, 0, 10, color='black'))
+        et.add(self.gen.hline(0, count, 5, color='black'))
 
         self.add_named(name, et)
 
@@ -121,11 +126,11 @@ class SeqviewTrack(SvgMatrix):
         loc = feature.location
 
         if feature.sub_features:
-            t.add(SvgHline( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2, color='black'))
+            t.add(self.gen.hline( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2, color='black'))
             for sf in feature.sub_features:
-                t.add(SvgHbar( sf.location.nofuzzy_start, sf.location.nofuzzy_end, t.height/2, 3., color='blue'))
+                t.add(self.gen.hbar( sf.location.nofuzzy_start, sf.location.nofuzzy_end, t.height/2, 3., color='blue'))
         else:
-            t.add(SvgHbar( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2, 3., color='green'))
+            t.add(self.gen.hbar( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2, 3., color='green'))
 
 
         self.add_named(name, t)
@@ -134,7 +139,7 @@ class SeqviewTrack(SvgMatrix):
         t = SvgItemsFixedHeight(10)
         for i,c in enumerate(seq):
             color = base_color(c)
-            t.add(SvgVline(i, 0, t.height, color=color))
+            t.add(self.gen.vline(i, 0, t.height, color=color))
 
         self.add_named('ATGC', t)
 
@@ -148,14 +153,14 @@ class SeqviewTrack(SvgMatrix):
         w = width
         h = t.height
         vh = 1.*min(500,maxtag)
-        t.add(SvgHline( 0, w, h, color='gray'))
+        t.add(self.gen.hline( 0, w, h, color='gray'))
         for x,v in rt.items():
             v = h*v/vh
             if v <= h:
-                t.add(SvgVline(x, h-v, h, color='red'))
+                t.add(self.gen.vline(x, h-v, h, color='red'))
             else:
                 st = 1.*v/h
-                t.add(SvgVline(x, 0, h, color='blue', stroke=st))
+                t.add(self.gen.vline(x, 0, h, color='blue', stroke=st))
 
         self.add_named(rt.name, t)
             
@@ -167,9 +172,9 @@ class SeqviewTrack(SvgMatrix):
         length = len(seq)
         cpg = cpg_sites(seq)
 
-        t.add(SvgHline(0, length, height/2, color='black'))
+        t.add(self.gen.hline(0, length, height/2, color='black'))
         for i in cpg:
-            t.add(SvgVline(i, 0, height, color='black'))
+            t.add(self.gen.vline(i, 0, height, color='black'))
 
         self.add_named('CpG', t)
 
@@ -199,20 +204,43 @@ class SeqviewTrack(SvgMatrix):
 
         for start,stop in cpg_islands:
             p,q = max(0,start), min(length,stop)
-            t.add(SvgHbar(p, q, height/2, 4, color='black'))
+            t.add(self.gen.hbar(p, q, height/2, 4, color='black'))
             
             if start < 0:
-                t.add(SvgHbar(0, (q-p)/20., height/2, 4, color='red'))
+                t.add(self.gen.hbar(0, (q-p)/20., height/2, 4, color='red'))
             if length < stop:
-                t.add(SvgHbar(length-(q-p)/20., length, height/2, 4, color='red'))
+                t.add(self.gen.hbar(length-(q-p)/20., length, height/2, 4, color='red'))
         self.add_named('CpG Island', t)
+
+    def get_pcrs_track(self, products):
+        t = SvgItemsVFree()
+        self.products = []
+        for name, p in products:
+            m = (p.start+p.end)/2.
+            strlen = len(name)*6
+            s = min(p.start, m-strlen)
+            e = max(p.end, m+strlen)
+
+            named = SvgItemsVStack()
+
+            bar = SvgItemsFixedHeight(8)
+            bar.add(self.gen.hbar(p.start, p.start_i, 4, 4, color='red'))
+            bar.add(self.gen.hbar(p.start_i, p.end_i, 4,4, color='gray'))
+            bar.add(self.gen.hbar(p.end_i, p.end, 4, 4, color='blue'))
+            named.add(bar)
+
+            m = (p.start+p.end)/2.
+            named.add(self.gen.text(name, x=m, y=0, color='black', anchor='middle'))
+
+            t.add(named)
+        return t
 
     def add_pcrs_track(self, name, pcrs):
         def d():
             for pcr in pcrs:
                 for p in pcr.products:
                     yield pcr.name, p
-        self.add_named(name, PcrsTrack(d()))
+        self.add_named(name, self.get_pcrs_track(d()))
 
     def add_bs_pcrs_track(self, name, pcrs):
         def d():
@@ -231,74 +259,38 @@ class SeqviewTrack(SvgMatrix):
                         r += "G"
                         p = genome
                     yield pcr.name+' [%s]'%r, p
-        self.add_named(name, PcrsTrack(d()))
+        self.add_named(name, self.get_pcrs_track(d()))
 
     def add_primers_track(self, primers, template):
-        self.add_named("Primers", PrimersTrack(primers, template))
-
-    def add_bsa_track(self, name, bsp_map, start, end):
-        self.add_named(name, BsaTrack(bsp_map, start, end))
-
-### PCRs
-
-class PcrsTrack(SvgItemsVFree):
-    def __init__(self, products):
-        super(PcrsTrack, self).__init__()
-
-        self.products = []
-        for name, p in products:
-            m = (p.start+p.end)/2.
-            strlen = len(name)*6
-            s = min(p.start, m-strlen)
-            e = max(p.end, m+strlen)
-
-            named = SvgItemsVStack()
-
-            bar = SvgItemsFixedHeight(8)
-            bar.add(SvgHbar(p.start, p.start_i, 4, 4, color='red'))
-            bar.add(SvgHbar(p.start_i, p.end_i, 4,4, color='gray'))
-            bar.add(SvgHbar(p.end_i, p.end, 4, 4, color='blue'))
-            named.add(bar)
-
-            m = (p.start+p.end)/2.
-            named.add(SvgText(name, x=m, y=0, color='black', anchor='middle'))
-
-            self.add(named)
-
-### Primers
-
-class PrimersTrack(SvgItemsVFree):
-    def __init__(self, primers, template):
-        super(PrimersTrack, self).__init__()
-        self.primers = []
+        t = SvgItemsVFree()
+        primers = []
         for p in primers:
             f,r = p.search(template)
             for ff in f:
                 start,end = ff, ff+len(p)-1
-                self.primers.append( (p.name, start, end, True) )
+                primers.append( (p.name, start, end, True) )
             for rr in r:
                 start,end = rr, rr+len(p)-1
-                self.primers.append( (p.name, start, end, False) )
+                primers.append( (p.name, start, end, False) )
 
-        for name, start, end, forward in self.primers:
+        for name, start, end, forward in primers:
             named = SvgItemsVStack()
-            named.add(SvgHbar(start, end, 1.5, 3, color = '#f00' if forward else '#00f'))
-            named.add(SvgText(name, x=(start+end)/2., y=0, color='black', anchor='middle'))
-            self.add(named)
+            named.add(self.gen.hbar(start, end, 1.5, 3, color = '#f00' if forward else '#00f'))
+            named.add(self.gen.text(name, x=(start+end)/2., y=0, color='black', anchor='middle'))
+            t.add(named)
+        self.add_named("Primers", t)
 
-### Bisulfite Sequencing Analysis
-
-class BsaTrack(SvgItemsFixedHeight):
-    def __init__(self, bsp_map, start, end):
-        super(BsaTrack, self).__init__(20)
-        self.bsp_map = bsp_map
-        self.start = start
-        self.end = end
+    def add_bsa_track(self, name, bsp_map, start, end):
+        t = SvgItemsFixedHeight(20)
+        bsp_map = bsp_map
+        start = start
+        end = end
 
         color = {'M':'#F00','U':'#00F','P':'#AA0'}
         
-        self.add(SvgHline(self.start, self.end, 10, color='black'))
-        for index, result in self.bsp_map:
+        t.add(self.gen.hline(start, end, 10, color='black'))
+        for index, result in bsp_map:
             if result != '?':
-                self.add(SvgVline(index, 2, 18, color=color[result]))
-    
+                t.add(self.gen.vline(index, 2, 18, color=color[result]))
+        self.add_named(name, t)
+

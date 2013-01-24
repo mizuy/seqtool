@@ -3,13 +3,9 @@ from . import xmlwriter
 import itertools
 from StringIO import StringIO
 
+DEBUG = False
 
-def g_translate(b,x,y):
-    return b.g(transform='translate(%.2f,%.2f)'%(x,y))
-def g_scale(b,x,y):
-    return b.g(transform='scale(%.2f,%.2f)'%(x,y))
-def g_translate_scale(b,x,y,sx,sy):
-    return b.g(transform='translate(%.2f,%.2f) scale(%.2f,%.2f)'%(x,y,sx,sy))
+### Rectangle
 
 class Rectangle(object):
     def __init__(self, x0, x1, y0, y1):
@@ -65,6 +61,8 @@ class Rectangle(object):
     def intersects_y(self, rhs):
         return not ( self.y0 > rhs.y1 or self.y1 < rhs.y0 )
 
+### Base
+
 class SvgBase(object):
     def __init__(self):
         self._rect = Rectangle(0,0,0,0)
@@ -110,6 +108,15 @@ class SvgBase(object):
 ''' \
             + buff.getvalue()
 
+### wrappers
+
+def g_translate(b,x,y):
+    return b.g(transform='translate(%.2f,%.2f)'%(x,y))
+def g_scale(b,x,y):
+    return b.g(transform='scale(%.2f,%.2f)'%(x,y))
+def g_translate_scale(b,x,y,sx,sy):
+    return b.g(transform='translate(%.2f,%.2f) scale(%.2f,%.2f)'%(x,y,sx,sy))
+
 class SvgTranslate(SvgBase):
     def __init__(self, x, y, child):
         self._rect = child.rect.translate(x,y)
@@ -145,6 +152,8 @@ class SvgTranslateScale(SvgBase):
         with g_translate_scale(b, self.x,self.y,self.sx,self.sy):
             self.child.draw(b)
 
+### Containers
+
 class SvgItems(SvgBase):
     def __init__(self):
         super(SvgItems,self).__init__()
@@ -176,93 +185,15 @@ class SvgItemsFixedHeight(SvgItems):
         else:
             return Rectangle(0,0,0,self.height)
 
-class SvgGraphline(SvgItemsFixedHeight):
-    def __init__(self, height, values, bars=[], width=None, **kwargs):
-        super(SvgGraphline,self).__init__(height)
-
-        #step = max(1, int(self.scalex))*1 # for smaller file size.
-        step = 1
-        self.points = [(i,height*(1.-values[i])) for i in xrange(0, len(values), step)]
-        self.bars = bars
-        self.kwargs = self._style(kwargs)
-        self.width = width or len(values)
-
-        self._rect = Rectangle(0, len(values), 0, height)
-
-    def draw(self, b):
-        p = ','.join(["%.2f %.2f"%(x,y) for (x,y) in self.points])
-        b.polyline(points=p, **self.kwargs)
-        for bar in self.bars:
-            t = self.height * (1.-bar)
-            b.line(x1=0, x2=self.width, y1=t, y2=t, stroke='red', **{'stroke-width':0.5,'stroke-dasharray':'30,10'})
-
-class SvgLine(SvgBase):
-    def __init__(self, x0, x1, y0, y1, **kwargs):
-        self.x0 = x0
-        self.x1 = x1
-        self.y0 = y0
-        self.y1 = y1
-        self.kwargs = self._style(kwargs)
-        self._rect = Rectangle(x0, x1, y0, y1)
-
-    def draw(self, b):
-        b.line(x1=self.x0, x2=self.x1, y1=self.y0, y2=self.y1, **self.kwargs)
-
-class SvgVline(SvgLine):
-    def __init__(self, x, y0, y1, **kwargs):
-        super(SvgVline, self).__init__(x,x,y0,y1,**kwargs)
-
-class SvgHline(SvgLine):
-    def __init__(self, x0, x1, y, **kwargs):
-        super(SvgHline, self).__init__(x0,x1,y,y,**kwargs)
-
-class SvgRect(SvgBase):
-    def __init__(self, x, y, width, height, **kwargs):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.kwargs = self._style(kwargs)
-        self._rect = Rectangle(x, x+width, y, y+height)
-
-    def draw(self,b):
-        b.rect(x=self.x, y=self.y, width=self.width, height=self.height, **self.kwargs)
-
-class SvgHbar(SvgRect):
-    def __init__(self, start, end, y, thick, **kwargs):
-        super(SvgHbar,self).__init__(start, y-thick/2, end-start, thick, **kwargs)
-
-class SvgText(SvgBase):
-    def __init__(self, text, x, y, fontsize=12, color='black', anchor='start'):
-        self.text = text
-        self.x = x
-        self.y = y
-        self.style = {'font-size':fontsize, 'font-family':'Monaco', 'text-anchor':anchor, 'style':'fill:%s;'%color}
-        self.w = (fontsize/2+1) * len(text)
-        self.h = fontsize*1.1
-        if anchor=='start':
-            self._rect = Rectangle(x, x+self.w, y, y+self.h)
-        elif anchor=='middle':
-            m = (self.w)/2
-            self._rect = Rectangle(x-m, x+m, y, y+self.h)
-
-
-    def draw(self,b):
-        with b['text'](x=self.x, y=self.y+self.h, **self.style):
-            b.text(self.text)
-        #b.rect(x=self.rect.x0, y=self.rect.y0, width=self.rect.width, height=self.rect.height, stroke='red', style='fill:none;')
-
-
-
 class SvgItemsVStack(SvgItems):
     """
     each items are located at different lines.
     +----------------+
     | item1          |
     |                |
-    +----------------+---+
-    | item2              |
-    +-------------+------+
+    +--+-------------+---+
+       | item2           |
+    +--+----------+------+
     | item3       |
     +-------------+
     """
@@ -414,3 +345,131 @@ class SvgMatrix(SvgBase):
                 ix += 1
             y += row_h[iy]
             iy += 1
+
+### Item
+
+class SvgLine(SvgBase):
+    def __init__(self, x0, x1, y0, y1, **kwargs):
+        self.x0 = x0
+        self.x1 = x1
+        self.y0 = y0
+        self.y1 = y1
+        self.kwargs = self._style(kwargs)
+        self._rect = Rectangle(x0, x1, y0, y1)
+
+    def draw(self, b):
+        b.line(x1=self.x0, x2=self.x1, y1=self.y0, y2=self.y1, **self.kwargs)
+
+class SvgVline(SvgLine):
+    def __init__(self, x, y0, y1, **kwargs):
+        super(SvgVline, self).__init__(x,x,y0,y1,**kwargs)
+
+class SvgHline(SvgLine):
+    def __init__(self, x0, x1, y, **kwargs):
+        super(SvgHline, self).__init__(x0,x1,y,y,**kwargs)
+
+class SvgRect(SvgBase):
+    def __init__(self, x, y, width, height, **kwargs):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.kwargs = self._style(kwargs)
+        self._rect = Rectangle(x, x+width, y, y+height)
+
+    def draw(self,b):
+        b.rect(x=self.x, y=self.y, width=self.width, height=self.height, **self.kwargs)
+
+class SvgHbar(SvgRect):
+    def __init__(self, start, end, y, thick, **kwargs):
+        super(SvgHbar,self).__init__(start, y-thick/2, end-start, thick, **kwargs)
+
+class SvgText(SvgBase):
+    def __init__(self, text, x, y, fontsize=12, color='black', anchor='start'):
+        self.text = text
+        self.x = x
+        self.y = y
+        self.style = {'font-size':fontsize, 'font-family':'Monaco', 'text-anchor':anchor, 'style':'fill:%s;'%color}
+        self.w = (fontsize/2+1) * len(text)
+        self.h = fontsize*1.1
+        if anchor=='start':
+            self._rect = Rectangle(x, x+self.w, y, y+self.h)
+        elif anchor=='middle':
+            m = (self.w)/2
+            self._rect = Rectangle(x-m, x+m, y, y+self.h)
+
+
+    def draw(self,b):
+        with b['text'](x=self.x, y=self.y+self.h, **self.style):
+            b.text(self.text)
+        if DEBUG:
+            b.rect(x=self.rect.x0, y=self.rect.y0, width=self.rect.width, height=self.rect.height, stroke='red', style='fill:none;')
+
+class SvgGraphline(SvgItemsFixedHeight):
+    def __init__(self, height, values, bars=[], scalex=1., width=None, **kwargs):
+        super(SvgGraphline,self).__init__(height)
+
+        step = max(1, int(1./scalex)) # for smaller file size.
+        self.points = [(i*scalex,height*(1.-values[i])) for i in xrange(0, len(values), step)]
+        self.bars = bars
+        self.kwargs = self._style(kwargs)
+        self.width = width or len(values)
+
+        self._rect = Rectangle(0, len(values), 0, height)
+
+    def draw(self, b):
+        p = ','.join(["%.2f %.2f"%(x,y) for (x,y) in self.points])
+        b.polyline(points=p, **self.kwargs)
+        for bar in self.bars:
+            t = self.height * (1.-bar)
+            b.line(x1=0, x2=self.width, y1=t, y2=t, stroke='red', **{'stroke-width':0.5,'stroke-dasharray':'30,10'})
+
+class SvgItemGenerator(object):
+    def __init__(self, scalex, scaley):
+        self.sx = scalex
+        self.sy = scaley
+
+    def line(self, x0, x1, y0, y1, **kwargs):
+        x0 /= self.sx
+        x1 /= self.sx
+        y0 /= self.sy
+        y1 /= self.sy
+        return SvgLine(x0, x1, y0, y1, **kwargs)
+
+    def vline(self, x, y0, y1, **kwargs):
+        x /= self.sx
+        y0 /= self.sy
+        y1 /= self.sy
+        return SvgVline(x, y0, y1, **kwargs)
+
+    def hline(self, x0, x1, y, **kwargs):
+        x0 /= self.sx
+        x1 /= self.sx
+        y /= self.sy
+        return SvgHline(x0, x1, y, **kwargs)
+
+    def rect(self, x, y, width, height, **kwargs):
+        x /= self.sx
+        width /= self.sx
+        y /= self.sy
+        height /= self.sy
+        return SvgRect(x, y, width, height, **kwargs)
+
+    def hbar(self, start, end, y, thick, **kwargs):
+        start /= self.sx
+        end /= self.sx
+        y /= self.sy
+        thick /= self.sy
+        return SvgHbar(start, end, y, thick, **kwargs)
+
+    def text(self, text, x, y, fontsize=12, color='black', anchor='start'):
+        x /= self.sx
+        y /= self.sy
+        return SvgText(text, x, y, fontsize, color, anchor)
+
+    def graphline(self, height, values, bars=[], width=None, **kwargs):
+        height /= self.sy
+        return SvgGraphline(height, values, bars, scalex=self.sx, width=width, **kwargs)
+
+
+
