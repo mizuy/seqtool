@@ -5,6 +5,11 @@ from StringIO import StringIO
 
 DEBUG = False
 
+SVG_HEADER = '''<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+         "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+'''
+
 ### Rectangle
 
 class Rectangle(object):
@@ -87,7 +92,7 @@ class SvgBase(object):
                 ret[key] = value
         return ret
 
-    def svg(self, width=None, height=None):
+    def svg_node(self, width=None, height=None):
         w = self.rect.width
         h = self.rect.height
         width = width or w
@@ -97,16 +102,13 @@ class SvgBase(object):
         b = xmlwriter.builder(xmlwriter.XmlWriter(buff))
         with b.svg(xmlns="http://www.w3.org/2000/svg", 
                    width=width, height=height,
-                   viewBox="0 0 %d %d"%(w, h),
+#                   viewBox="0 0 %d %d"%(w, h),
                    preserveAspectRatio='none'):
             self.draw(b)
+        return buff.getvalue()
 
-        return \
-'''<?xml version="1.0" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
-         "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-''' \
-            + buff.getvalue()
+    def svg(self, width=None, height=None):
+        return SVG_HEADER + self.svg_node(width,height)
 
 ### wrappers
 
@@ -207,7 +209,8 @@ class SvgItemsVStack(SvgItems):
     def rect(self):
         x0 = min(item.rect.x0 for item in self.items)
         x1 = max(item.rect.x1 for item in self.items)
-        h = sum(item.rect.height for item in self.items)
+        h = sum(item.rect.y1 for item in self.items)
+        #h = sum(item.rect.height for item in self.items)
         return Rectangle(x0,x1,0,h)
 
     def draw(self, b):
@@ -385,13 +388,13 @@ class SvgHbar(SvgRect):
         super(SvgHbar,self).__init__(start, y-thick/2, end-start, thick, **kwargs)
 
 class SvgText(SvgBase):
-    def __init__(self, text, x, y, fontsize=12, color='black', anchor='start'):
+    def __init__(self, text, x, y, fontsize=12, font='Meonaco', color='black', anchor='start'):
         self.text = text
         self.x = x
         self.y = y
-        self.style = {'font-size':fontsize, 'font-family':'Monaco', 'text-anchor':anchor, 'style':'fill:%s;'%color}
-        self.w = (fontsize/2+1) * len(text)
-        self.h = fontsize*1.1
+        self.style = {'font-size':fontsize, 'font-family':font, 'text-anchor':anchor, 'style':'fill:%s;'%color}
+        self.w = fontsize * 0.6 * len(text)
+        self.h = fontsize * 1.1
         if anchor=='start':
             self._rect = Rectangle(x, x+self.w, y, y+self.h)
         elif anchor=='middle':
@@ -462,10 +465,10 @@ class SvgItemGenerator(object):
         thick /= self.sy
         return SvgHbar(start, end, y, thick, **kwargs)
 
-    def text(self, text, x, y, fontsize=12, color='black', anchor='start'):
+    def text(self, text, x, y, fontsize=12, font='Monaco', color='black', anchor='start'):
         x /= self.sx
         y /= self.sy
-        return SvgText(text, x, y, fontsize, color, anchor)
+        return SvgText(text, x, y, fontsize, font, color, anchor)
 
     def graphline(self, height, values, bars=[], width=None, **kwargs):
         height /= self.sy

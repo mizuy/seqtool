@@ -95,8 +95,8 @@ class SequenceTemplate(BaseTemplate):
 
 class GenomicTemplate(BaseTemplate):
     def __init__(self, genbank_content):
-        with prompt('loading genbank...', '...done.'):
-            self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
+        #with prompt('loading genbank...', '...done.'):
+        self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
 
     @property
     def genbank(self):
@@ -152,7 +152,12 @@ class GenebankEntry(object):
     def track_genome(self):
         assert(self.template)
 
-        t = seqsvg.SeqviewTrack()
+        scale = 1
+        length = len(self.template.seq)
+        if length > 1000:
+            scale = length/1000
+
+        t = seqsvg.SeqviewTrack(scale)
         t.add_padding(10)
         start = -1* self.template.transcript_start_site
         t.add_sequence_track(self.template.seq, self.template.features, start)
@@ -365,7 +370,7 @@ class SeqvFileEntry(GenebankTssEntry):
     def track_transcript(self):
         assert(self.template)
 
-        t = seqsvg.SeqviewTrack()
+        t = seqsvg.SeqviewTrack(1)
 
         for feature, seq in self.template.transcripts:
             length = len(seq)
@@ -404,6 +409,7 @@ class SeqvFileEntry(GenebankTssEntry):
             with b.div:
                 b.h3('genome overview')
                 with b.a(href=genome_l):
+                    #b.write_raw(self.track_genome().svg_node())
                     b.img(src=genome_l, width='1000px')
                 if self.has_transcripts():
                     b.h3('transcript overview')

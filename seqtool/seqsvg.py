@@ -31,13 +31,10 @@ def get_feature_name(feature):
     return name
 
 class SeqviewTrack(SvgMatrix):
-    def __init__(self, scale=10.):
+    def __init__(self, scale):
         self.scale = scale
         self.gen = SvgItemGenerator(scale, 1)
         super(SeqviewTrack,self).__init__()
-
-    def get_point(self, x, y):
-        return self.scale * x, y
 
     def add_named(self, name, track):
         self.add_row([self.gen.text(name, 0,0), track], ['right',None])
@@ -53,44 +50,55 @@ class SeqviewTrack(SvgMatrix):
         t.add(self.gen.hline(0, length, height/2))
         self.add(t)
 
-    def add_measure_track(self, length, start=0, step=500, substep=100, subsubstep=10):
-        length = length
-        start = start
-        step = step
-        substep = substep
-        subsubstep = subsubstep
+    def add_measure_track(self, length, start):
+        # 10, 100, 1000
 
-        numbers = SvgItemsFixedHeight(20)
+        if 10 / self.scale > 30:
+            self.add_measure_index_track(length, start, 100)
+            self.add_measure_bar_track(length, start, 100, 10, 1)
+        elif 100 / self.scale > 30:
+            self.add_measure_index_track(length, start, 100)
+            self.add_measure_bar_track(length, start, 100, 10)
+        elif 500 / self.scale > 30:
+            self.add_measure_index_track(length, start, 500)
+            self.add_measure_bar_track(length, start, 500, 100)
+
+    def add_measure_index_track(self, length, start=0, step=100):
         ss = step * int(ceil(1.0*start/step))
+
+        t = SvgItemsFixedHeight(20)
         for i in range(ss, start + length, step):
             x = i - start
-            numbers.add(self.gen.text(str(i), x=x, y=10, color='black', anchor='middle'))
+            t.add(self.gen.text(str(i), x=x, y=10, color='black', anchor='middle'))
+        self.add(t)
 
-        bars = SvgItemsFixedHeight(20)
-        bars.add(self.gen.hline(0, length, 20, color='black'))
+    def add_measure_bar_track(self, length, start=0, step=100, substep=None, subsubstep=None):
+        ss = step * int(ceil(1.0*start/step))
+
+        t = SvgItemsFixedHeight(20)
+        t.add(self.gen.hline(0, length, 20, color='black'))
         for i in range(ss, start + length, step):
             x = i - start
-            bars.add(self.gen.vline(x, 10, 20, color='black'))
-        # substep
-        ss = substep * int(ceil(1.0*start/substep))
-        for i in range(ss, start + length, substep):
-            x = i - start
-            bars.add(self.gen.vline(x, 13, 20, color='black'))
+            t.add(self.gen.vline(x, 10, 20, color='black'))
 
-        ss = subsubstep * int(ceil(1.0*start/subsubstep))
-        for i in range(ss, start + length, subsubstep):
-            x = i - start
-            bars.add(self.gen.vline(x, 18, 20, color='black'))
+        if substep:
+            ss = substep * int(ceil(1.0*start/substep))
+            for i in range(ss, start + length, substep):
+                x = i - start
+                t.add(self.gen.vline(x, 13, 20, color='black'))
 
-        self.add(numbers)
-        self.add(bars)
+        if subsubstep:
+            ss = subsubstep * int(ceil(1.0*start/subsubstep))
+            for i in range(ss, start + length, subsubstep):
+                x = i - start
+                t.add(self.gen.vline(x, 18, 20, color='black'))
+
+        self.add(t)
 
     def add_sequence_track(self, seq, features, start=0):
         length = len(seq)
 
-        msize = 500*(max(1,int(length/10)/500))
-
-        self.add_measure_track(length, start, msize)
+        self.add_measure_track(length, start)
         self.add_padding(10)
         for f in features:
             self.add_feature_track(f)
@@ -99,9 +107,7 @@ class SeqviewTrack(SvgMatrix):
     def add_transcript_track(self, name, seq, feature):
         length = len(seq)
 
-        msize = 500*(max(1,int(length/10)/500))
-
-        self.add_measure_track(length, 0, msize)
+        self.add_measure_track(length, 0)
 
         et = SvgItemsFixedHeight(10)
 
@@ -144,13 +150,10 @@ class SeqviewTrack(SvgMatrix):
         self.add_named('ATGC', t)
 
 
-    def add_dbtss_track(self, rt, maxtag, width):
+    def add_dbtss_track(self, rt, maxtag, seq):
         t = SvgItemsFixedHeight(50)
 
-        maxtag = maxtag
-        name = rt.name
-
-        w = width
+        w = len(seq)
         h = t.height
         vh = 1.*min(500,maxtag)
         t.add(self.gen.hline( 0, w, h, color='gray'))
