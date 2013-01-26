@@ -1,7 +1,7 @@
 CPP = clang++
 CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
 
-all: seqview tssview geneview get_genbank primers bisearch
+all: seqview tssview geneview get_genbank primers bin/bisearch
 	
 seqview:
 	seqview input/seqview.seqv -o _output/seqview.html
@@ -35,6 +35,9 @@ clean:
 
 test:
 	nosetests
+
+pdf:
+	enscript seqtool/*.py seqtool/**/*.py --font=Courier6 --highlight=python --line-numbers --landscape --columns=2 --color -o source.ps
 
 .PHONY: test all
 

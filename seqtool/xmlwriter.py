@@ -111,6 +111,9 @@ class builder(object):
     def text(self, text):
         self.w.text(text)
 
+    def write_raw(self, text):
+        self.w.write(text)
+
     def get_writer(self):
         return self.w
 

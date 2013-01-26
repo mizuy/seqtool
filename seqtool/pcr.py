@@ -15,8 +15,6 @@ from .nucleotide import *
 
 __all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv']
 
-
-
 def annealing_score_n(x,y):
     if (x=='A' and y=='T') or (x=='T' and y=='A'):
         return 2

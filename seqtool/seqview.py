@@ -14,7 +14,7 @@ from .pcr import Primer, PCR, primers_write_html
 from .parser import parse_file, SettingFile
 from .primers import load_primer_list_file
 from .prompt import prompt
-from . import seqtrack
+from . import seqsvg
 from . import xmlwriter
 
 from .subfs import SubFileSystem
@@ -95,8 +95,8 @@ class SequenceTemplate(BaseTemplate):
 
 class GenomicTemplate(BaseTemplate):
     def __init__(self, genbank_content):
-        with prompt('loading genbank...', '...done.'):
-            self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
+        #with prompt('loading genbank...', '...done.'):
+        self.genbank_ = SeqIO.read(StringIO(genbank_content), "genbank")
 
     @property
     def genbank(self):
@@ -151,11 +151,16 @@ class GenebankEntry(object):
 
     def track_genome(self):
         assert(self.template)
-        length = len(self.template.seq)
 
-        t = seqtrack.TrackGroup()
-        t.add(seqtrack.Track(0,10))
-        t.add(seqtrack.SequenceTrack(self.template.seq, self.template.features, -1* self.template.transcript_start_site))
+        scale = 1
+        length = len(self.template.seq)
+        if length > 1000:
+            scale = length/1000
+
+        t = seqsvg.SeqviewTrack(scale)
+        t.add_padding(10)
+        start = -1* self.template.transcript_start_site
+        t.add_sequence_track(self.template.seq, self.template.features, start)
 
         return t
 
@@ -171,7 +176,7 @@ class GenebankEntry(object):
         genome_n = 'genome.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.track_genome().svg(5000))
+        subfs.write(genome_n, self.track_genome().svg())
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
@@ -226,9 +231,9 @@ class GenebankTssEntry(GenebankEntry):
 
         if self.tsl:
             for r in self.tsl:
-                t.add(seqtrack.HbarTrack('', length))
-                t.add(seqtrack.DbtssTrack(r, self.tsl.maxtag, self.template.seq))
-            t.add(seqtrack.HbarTrack('', length))
+                t.add_hline(length)
+                t.add_dbtss_track(r, self.tsl.maxtag, self.template.seq)
+            t.add_hline(length)
 
         return t
 
@@ -245,7 +250,7 @@ class GenebankTssEntry(GenebankEntry):
         genome_n = 'genome.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.track_genome().svg(5000))
+        subfs.write(genome_n, self.track_genome().svg())
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
@@ -270,11 +275,11 @@ class SeqvFileEntry(GenebankTssEntry):
         super(SeqvFileEntry, self).__init__(name)
 
     def load_primers(self, filename):
-        with prompt('loading primers: '+filename) as pr:
-            with open(filename,'r') as f:
-                for i in load_primer_list_file(f):
-                    self.primers.append(i)
-                    pr.progress()
+        #with prompt('loading primers: '+filename) as pr:
+        with open(filename,'r') as f:
+            for i in load_primer_list_file(f):
+                self.primers.append(i)
+                #pr.progress()
 
     def set_bsa_list(self, bsa_list):
         self.bsa_list = bsa_list
@@ -341,40 +346,40 @@ class SeqvFileEntry(GenebankTssEntry):
         if self.bsa_list:
             for name in self.bsa_list:
                 bsa_map, start, end = self.bsas[name].get_map()
-                t.add(seqtrack.BisulfiteSequenceTrack(name, bsa_map, start, end))
+                t.add_bsa_track(name, bsa_map, start, end)
         else:
             for name, bsa in self.bsas.items():
                 bsa_map, start, end = bsa.get_map()
-                t.add(seqtrack.BisulfiteSequenceTrack(name, bsa_map, start, end))
+                t.add_bsa_track(name, bsa_map, start, end)
 
-        for m in self.motifs:
-            t.add(seqtrack.HbarTrack('', length))
-            t.add(seqtrack.PrimerTrack(m.name, Primer(m.name,m), self.template.seq))
+        #for m in self.motifs:
+            #t.add_hline(length)
+            #t.add_primer_track(m.name, Primer(m.name,m), self.template.seq))
 
-        t.add(seqtrack.HbarTrack('', length))
-        t.add(seqtrack.PcrsTrack('genome', self.pcrs))
+        t.add_hline(length, 10)
+        t.add_pcrs_track('Genome PCR', self.pcrs)
 
-        t.add(seqtrack.HbarTrack('', length))
-        t.add(seqtrack.BsPcrsTrack('bisulfite pcr', self.bs_pcrs))
+        t.add_hline(length, 10)
+        t.add_bs_pcrs_track('Bisulfite PCR', self.bs_pcrs)
 
-        t.add(seqtrack.HbarTrack('', length))
-        t.add(seqtrack.PcrsTrack('rt pcr', self.rt_pcrs))
+        t.add_hline(length, 10)
+        t.add_pcrs_track('RT-PCR', self.rt_pcrs)
 
         return t
 
     def track_transcript(self):
         assert(self.template)
 
-        t = seqtrack.TrackGroup()
+        t = seqsvg.SeqviewTrack(1)
 
         for feature, seq in self.template.transcripts:
             length = len(seq)
             name = feature.qualifiers['product'][0]
 
-            t.add(seqtrack.TranscriptTrack(name, seq, feature))
+            t.add_transcript_track(name, seq, feature)
 
             pcrs = [PCR(pcr.name, seq, pcr.fw, pcr.rv) for pcr in self.rt_pcrs]
-            t.add(seqtrack.PcrsTrack('RT-PCR', pcrs))
+            t.add_pcrs_track('RT-PCR', pcrs)
         
         return t
 
@@ -388,9 +393,9 @@ class SeqvFileEntry(GenebankTssEntry):
         transcript_n = 'transcript.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.track_genome().svg(5000))
+        subfs.write(genome_n, self.track_genome().svg())
         if self.has_transcripts():
-            subfs.write(transcript_n, self.track_transcript().svg(1200))
+            subfs.write(transcript_n, self.track_transcript().svg())
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
@@ -404,6 +409,7 @@ class SeqvFileEntry(GenebankTssEntry):
             with b.div:
                 b.h3('genome overview')
                 with b.a(href=genome_l):
+                    #b.write_raw(self.track_genome().svg_node())
                     b.img(src=genome_l, width='1000px')
                 if self.has_transcripts():
                     b.h3('transcript overview')
