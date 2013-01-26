@@ -110,9 +110,9 @@ class Dbtss(object):
 
         if os.path.exists(default_cache_file):
             try:
-                print "loading cache %s"%default_cache_file
+                #print "loading cache %s"%default_cache_file
                 self.tissues = pickle.load(open(default_cache_file,'rb'))
-                print "done."
+                #print "done."
             except pickle.PickleError:
                 print "pickle error: %s"%default_cache_file
                 self.tissues = None

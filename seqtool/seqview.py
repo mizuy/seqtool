@@ -275,11 +275,11 @@ class SeqvFileEntry(GenebankTssEntry):
         super(SeqvFileEntry, self).__init__(name)
 
     def load_primers(self, filename):
-        with prompt('loading primers: '+filename) as pr:
-            with open(filename,'r') as f:
-                for i in load_primer_list_file(f):
-                    self.primers.append(i)
-                    pr.progress()
+        #with prompt('loading primers: '+filename) as pr:
+        with open(filename,'r') as f:
+            for i in load_primer_list_file(f):
+                self.primers.append(i)
+                #pr.progress()
 
     def set_bsa_list(self, bsa_list):
         self.bsa_list = bsa_list

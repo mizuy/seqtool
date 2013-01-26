@@ -1,5 +1,4 @@
 
-
 def parse_file(fileobj):
     lineno = 0
     for l in fileobj:

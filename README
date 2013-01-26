@@ -73,3 +73,34 @@ git clone https://github.com/matplotlib/matplotlib.git
 cd matplotlib
 python setup.py build
 sudo python setup.py install
+
+
+** TODO
+
+- general
+    - better logging
+    - buy sublime text 2
+    
+- seqview
+    - more structured and configureable .seqv
+    - zoom button in seqv
+    - web server implementation
+    - misc primer attribute calculations
+    - svg link to pcr entry
+    - unshow bsp pcrs.
+    - pcr refactoring
+    - pcr virtualpcr integration
+
+- tss
+    - tssv input file.
+
+- new
+    - plasmid fragment analysis and view
+    -    sequence result aligner
+    - local database. MySQL, emsemble.
+
+- bisearch
+    - MSP
+    - python interface
+- seqvcmd
+
