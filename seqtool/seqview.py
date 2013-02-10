@@ -416,9 +416,9 @@ class SeqvFileEntry(GenebankTssEntry):
                     with b.a(href=transcript_l):
                         b.img(src=transcript_l,width='1000px')
 
-        with b.div(**{'class':'primers'}):
-            b.h2('Primers')
-            primers_write_html(b.get_writer(), self.primers)
+        #with b.div(**{'class':'primers'}):
+        #    b.h2('Primers')
+        #    primers_write_html(b.get_writer(), self.primers)
 
         def write_products(products):
             if len(products) > 0:
