@@ -103,6 +103,7 @@ class SeqviewTrack(SvgMatrix):
         for f in features:
             self.add_feature_track(f)
         self.add_cpgisland_track(seq)
+        #self.add_eachbase_color_track(seq)
 
     def add_transcript_track(self, name, seq, feature):
         length = len(seq)
@@ -148,6 +149,15 @@ class SeqviewTrack(SvgMatrix):
             t.add(self.gen.vline(i, 0, t.height, color=color))
 
         self.add_named('ATGC', t)
+
+    def add_eachbase_color_track(self, seq):
+        for base in 'ATGC':
+            color = base_color(base)
+            t = SvgItemsFixedHeight(10)
+            for i,c in enumerate(seq):
+                if c==base:
+                    t.add(self.gen.vline(i, 0, t.height, color=color))
+            self.add_named(base, t)
 
 
     def add_dbtss_track(self, rt, maxtag, seq):

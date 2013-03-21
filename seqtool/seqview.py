@@ -25,7 +25,7 @@ from .db.dbtss import TissuesetLocus
 from .bisulfite_sequencing import BisulfiteSequencingResult
 from .namedlist import NamedList, DefaultNamedList
 
-LENGTH_THRESHOLD = 3000
+LENGTH_THRESHOLD = 10000
 seqview_css = '''
     .images{}
     .image{border: solid 1px;}
@@ -92,7 +92,7 @@ class SequenceTemplate(BaseTemplate):
 
     @property
     def seq(self):
-        return self.seq_;
+        return self.seq_
 
 class GenomicTemplate(BaseTemplate):
     def __init__(self, genbank_content):
@@ -153,12 +153,13 @@ class GenebankEntry(object):
     def track_genome(self):
         assert(self.template)
 
-        scale = 1
+        scale = 1.
         length = len(self.template.seq)
         if length > LENGTH_THRESHOLD:
-            scale = length/LENGTH_THRESHOLD
+            scale = 1.*length/LENGTH_THRESHOLD
 
         t = seqsvg.SeqviewTrack(scale)
+
         t.add_padding(10)
         start = -1* self.template.transcript_start_site
         t.add_sequence_track(self.template.seq, self.template.features, start)
@@ -394,7 +395,7 @@ class SeqvFileEntry(GenebankTssEntry):
         transcript_n = 'transcript.svg'
 
         # writing svgs
-        subfs.write(genome_n, self.track_genome().svg(2000))
+        subfs.write(genome_n, self.track_genome().svg())
         if self.has_transcripts():
             subfs.write(transcript_n, self.track_transcript().svg())
 

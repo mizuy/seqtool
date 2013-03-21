@@ -213,11 +213,12 @@ def bisulfite(seq, methyl):
     if not hasattr(seq, key):
         muta = seq.tomutable()
         old = 'X'
-        for i,c in enumerate(muta[:-2]):
+        for i,c in enumerate(muta[:-1]):
             if c=='C':
                 if not(muta[i+1]=='G' and methyl):
                     muta[i] = 'T'
-
+        if muta[-1]=='C':
+            muta[-1]='T'
         ret = muta.toseq()
 
         setattr(seq, key, ret)
