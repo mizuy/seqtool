@@ -26,7 +26,7 @@ setup(name='seqtool',
       url='http://github.com/mizuy/seqtool',
       license='MIT',
       packages=find_packages(),
-      install_requires=['biopython','numpy'],
+      install_requires=['biopython','numpy', 'sqlalchemy'],
       test_suite='nose.collector',
       test_requires=['Nose'],
       entry_points=\
@@ -42,4 +42,5 @@ bisearch = seqtool.bisearch:main
 convert_bs = seqtool.convert_bs:main
 virtualpcr = seqtool.virtualpcr:main
 seqtool_loadsql = seqtool.db.sql:load_all
+bisulfite = script.bisulfite:main
 """)
