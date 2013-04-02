@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC

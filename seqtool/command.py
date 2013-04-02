@@ -4,16 +4,15 @@ import sys, os
 import traceback
 from argparse import ArgumentParser, FileType
 
-from .dirutils import Filepath
-from . import seqview as sv
-from . import tssview as tv
-from . import primers
+from .util.dirutils import Filepath
+from .view import seqview as seqv
 from . import db
-from .primers import load_primer_list_file, primers_write_csv
-from .prompt import prompt
-from . import xmlwriter
-from .pcr import primers_write_html
+from .util.prompt import prompt
+from .util import xmlwriter
+from .nucleotide.pcr import primers_write_html, load_primer_list_file, primers_write_csv
 from contextlib import contextmanager
+
+
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -77,7 +76,7 @@ def seqview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
-            p = sv.SeqvFile()
+            p = seqv.SeqvFile()
             p.load_seqvfileentry(inputp.path)
             p.write_html(outputp)
 
@@ -95,7 +94,7 @@ def tssview():
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
             with open(inputp.path,'r') as f:
-                tssv = tv.TssvFile(f)
+                tssv = seqv.TssvFile(f)
 
             tssv.write_csv(outputp.change_ext('.csv').path)
             tssv.write_html(outputp)
@@ -109,17 +108,19 @@ def geneview():
 
     for gene_symbol in args.gene_symbols:
         with report_exceptions():
-            gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
-            e = sv.GenebankTssEntry(gene_symbol)
-            e.load_gene(gene_id)
-            e.set_tissueset(db.get_dbtss_tissues())
+            try:
+                gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
+            except db.NoSuchGene,e:
+                log('gene entry: No such Gene %s'%value)
+                continue
 
-            p = sv.SeqvFile()
-            p.load_genbankentry(e)
+            sv = seqv.Seqview()
+            sv.load_gene(gene_symbol, gene_id)
+            sv.top().dbtss.set_tissueset(db.get_dbtss_tissues())
 
             outputp = get_output_path(gene_symbol, args.output, len(args.gene_symbols)>1)
 
-            p.write_html(outputp)
+            sv.write_html(outputp)
 
 
 def get_genbank():

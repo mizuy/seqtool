@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 
 def parse_file(fileobj):
     lineno = 0

@@ -1,19 +1,20 @@
 from __future__ import absolute_import
 
 from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
 
 from math import log, log10
 import re
 
-from .memoize import memoize
-from . import xmlwriter
-
+from . import to_seq
 from . import melt_temp
-from .nucleotide import *
+from ..util.memoize import memoize
+from ..util import xmlwriter
+from .. import parser
+from .cpg import gc_ratio, bisulfite, cpg_sites, count_cpg
 
-__all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv']
+from . import *
+
+__all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv', 'load_primer_list_file']
 
 def annealing_score_n(x,y):
     if (x=='A' and y=='T') or (x=='T' and y=='A'):
@@ -139,7 +140,8 @@ class Annealing(object):
 class Primer(object):
     def __init__(self, name, seq):
         self.name = name
-        self.seq = seq
+        self.seq = to_seq(seq)
+
     def __repr__(self):
         return "Primer(%s: %s)"%(self.name,self.seq)
     def __len__(self):
@@ -153,7 +155,7 @@ class Primer(object):
     @property
     @memoize
     def gc_ratio(self):
-        return GC(self.seq)
+        return gc_ratio(self.seq)
 
     def melting_temperature(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=True):
         return melt_temp.melting_temperature_unmethyl(self.seq, pcr_mix, unmethyl)
@@ -307,11 +309,6 @@ class PCRProduct(object):
         seqstr = self.seq
 
         with b.div:
-            cpg = count_cpg(self.seq)
-            b.text('forward primer=%s, reverse primer=%s '%(self.fw.name, self.rv.name))
-            b.text('length=%d, CpG=%d, detectable CpG=%d'%(len(self), cpg, self.detectable_cpg()))
-            b.br
-
             s = self.start
             cm = ColorMap()
             for i in range(0, self.start_i-s):
@@ -323,9 +320,13 @@ class PCRProduct(object):
                 cm.add_color(i+1-s, 255, 0, 0)
 
             pprint_sequence_html(w, self.seq, cm.get_color)
+            with b.span(**{'class':'length'}):
+                b.text('length=%d'%len(self))
+                b.br()
+                b.text('CpG=%d, CpG between primers=%d'%(count_cpg(self.seq), self.detectable_cpg()))
 
-            with b.textarea(cols='10', rows='1', cls='copybox'):
-                w.write(str(self.seq))
+            #with b.textarea(cols='10', rows='1', cls='copybox'):
+            #    w.write(str(self.seq))
 
 class Condition(object):
     def __init__(self, weight, optimal, minimum, maximum):
@@ -446,7 +447,7 @@ class PCR(object):
     def __init__(self, name, template, primer_fw, primer_rv):
         self.name = name
         self.template = template
-        self.primers = PrimerPair(primer_fw,primer_rv)
+        self.primers = PrimerPair(primer_fw, primer_rv)
 
     @property
     def fw(self):
@@ -544,3 +545,8 @@ class PCR(object):
             for c in self.products:
                 c.write_html(w)
 
+def load_primer_list_file(fileobj):
+    primer = []
+    for name, value, em in parser.parse_file(fileobj):
+        primer.append(Primer(name, value))
+    return primer

@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 
-from . import xmlwriter
+from ..util import xmlwriter
 import itertools
 from StringIO import StringIO
 

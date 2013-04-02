@@ -2,7 +2,6 @@ from math import log10, log, exp
 
 __all__ = ['melting_temperature_unambiguous','melting_temperature_unmethyl']
 
-
 # gas constant, [J/molK]
 R = 1.987
 K = 273.15

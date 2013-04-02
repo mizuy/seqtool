@@ -11,7 +11,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.sql import select, or_, and_
-from ..prompt import prompt
+from ..util.prompt import prompt
 from collections import defaultdict
 
 db_file = os.path.join(os.path.dirname(__file__),'../../_db/seqtool.db')

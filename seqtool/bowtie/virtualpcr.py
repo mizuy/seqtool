@@ -5,14 +5,6 @@ import subprocess
 import sys, os, time
 import tempfile
 
-'''
--p 2 : number of thread
---best : matches are ordered on number of mismatches.
--k 1000 : maximum number of matches.
--n 2 : allowed number of mismatches per primer.
-'''
-bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie -p 2 --best -k 1000 -n 2')
-
 class PrimerAlign(object):
     def __init__(self, template, seq, mismatch, offset):
         self.template = template
@@ -28,7 +20,7 @@ class PCRFragment(object):
     def __len__(self):
         return self.rv.offset - self.fw.offset + len(self.rv.origin)
 
-def virtualpcr(template, seqstrs, threshold=None):
+def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
     '''
     bowtie manual: http://bowtie-bio.sourceforge.net/manual.shtml
     parser for default bowtie output
@@ -146,7 +138,15 @@ def main():
         parser.error('bisulfite option and template option are exclusive.')
 
     def s(template):
-        result = virtualpcr(template, primers, length)
+        '''
+        -p 2 : number of thread
+        --best : matches are ordered on number of mismatches.
+        -k 1000 : maximum number of matches.
+        -n 2 : allowed number of mismatches per primer.
+        '''
+        bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie -p 2 --best -k 1000 -n 2')
+
+        result = virtualpcr(template, primers, bowtie_path, length)
         if result:
             for r in result:
                 print 'match at %s length=%10d %s(%s) -> %s(%s)' %(str(r.template).ljust(10), len(r), r.fw.origin,r.fw.mismatch, r.rv.origin,r.rv.mismatch)

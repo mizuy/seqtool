@@ -1,14 +1,9 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
-from collections import defaultdict
 from math import ceil, log, log10
 
-from .nucleotide import bisulfite, base_color, cpg_sites, seq_cpg_analysis, seq_cpg_obs_per_exp
-from .pcr import PCR, Primer
-from . import xmlwriter
+from ..nucleotide import base_color
+from ..nucleotide.cpg import cpg_sites, seq_cpg_analysis, seq_cpg_obs_per_exp
 from .svg import *
 
 __all__ = ['SeqviewTrack']

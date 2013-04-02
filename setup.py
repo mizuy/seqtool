@@ -39,8 +39,8 @@ tssview = seqtool.command:tssview
 primers = seqtool.command:primers
 seqvcmd = seqtool.seqvcmd:main
 bisearch = seqtool.bisearch:main
-convert_bs = seqtool.convert_bs:main
-virtualpcr = seqtool.virtualpcr:main
+convert_bs = seqtool.bowtie.convert_bs:main
+virtualpcr = seqtool.bowtie.virtualpcr:main
 seqtool_loadsql = seqtool.db.sql:load_all
 bisulfite = script.bisulfite:main
 """)

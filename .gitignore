@@ -41,3 +41,10 @@ temp
 
 # virtualenv
 /env
+
+# sublimetext
+*.sublime-project
+*.sublime-workspace
+
+
+*.orig
