@@ -321,9 +321,7 @@ class PCRProduct(object):
 
             pprint_sequence_html(w, self.seq, cm.get_color)
             with b.span(**{'class':'length'}):
-                b.text('length=%d'%len(self))
-                b.br()
-                b.text('CpG=%d, CpG between primers=%d'%(count_cpg(self.seq), self.detectable_cpg()))
+                b.text('length=%d, CpG=%d, CpG between primers=%d'%(len(self.seq), count_cpg(self.seq), self.detectable_cpg()))
 
             #with b.textarea(cols='10', rows='1', cls='copybox'):
             #    w.write(str(self.seq))
