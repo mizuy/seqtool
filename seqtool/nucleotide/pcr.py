@@ -97,36 +97,6 @@ def annealing_score(p,q,end_annealing=False,getindex=False):
     else:
         return eav[0], eav[1]
 
-class Annealing(object):
-    def __init__(self, p, q, end_annealing=False):
-        s, (i, ss) = annealing_score(p,q,end_annealing)
-        self.p = p
-        self.q = q
-        self.score = s
-        self.scores = ss
-        self.index = i
-
-
-    def get_bar(self):
-        i = self.index
-        p = self.p
-        q = self.q
-        spc = ' '*abs(i)
-        ss = self.scores
-        bar = ''.join(['|' if s>0 else ' ' for s in ss])
-
-        if i>0:
-            return [spc+"5'-%s-3'"%p, spc+"  <"+bar+">", "3'-%s-5'"%q[::-1] ]
-        else:
-            return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
-
-    def write_html(self, w):
-        w.push('div',style='annealing')
-        w.push('p','pea=%s, index=%s'%(pea.score,self.index))
-        w.push('pre')
-        w.text('\n'.join(self.get_bar()))
-        w.pop()
-        w.pop()
 
 class Primer(object):
     def __init__(self, name, seq):
@@ -154,16 +124,20 @@ class Primer(object):
     @property
     @memoize
     def self_annealing(self):
-        return Annealing(self.seq, self.seq)
+        return PrimerAnnealing(self.seq, self.seq)
     @property
     @memoize
     def self_end_annealing(self):
-        return Annealing(self.seq, self.seq, True)
+        return PrimerAnnealing(self.seq, self.seq, True)
 
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template):
+    def search(self, template, match_length=None):
+        """
+        Return tuple of fowards anneal locations and reverse anneal locations.
+        anneal locations are (5'location, 3'location)
+        """
         def _gen_re_seq(seq):
             table = {
                 'A': 'A',
@@ -184,8 +158,13 @@ class Primer(object):
                 }
             return ''.join([table[s] for s in str(seq).upper()])
 
-        primer = self.seq
-        cprimer = self.seq.reverse_complement()
+        if match_length and len(self.seq) > match_length > 0:
+            l = len(self.seq) - match_length
+            seq = self.seq[l:]
+        else:
+            seq = self.seq
+        primer = seq
+        cprimer = seq.reverse_complement()
         reg = re.compile('(%s)|(%s)'%(_gen_re_seq(primer),_gen_re_seq(cprimer)))
 
         template = str(template).upper()
@@ -197,10 +176,11 @@ class Primer(object):
             if not m:
                 break
             start = m.start()+1
+            length = m.end()-m.start()
             if m.group(1):
-                pp.append(m.start())
+                pp.append(PrimerTemplateAnnealing(self, template, True, m.end()-1, length))
             if m.group(2):
-                pc.append(m.start())
+                pc.append(PrimerTemplateAnnealing(self, template, False, m.start(), length))
         return pp,pc
 
     def debugprint(self):
@@ -264,58 +244,6 @@ class Primer(object):
         return i
 
 
-class PCRProduct(object):
-    def __init__(self, template, start, end, primer_fw, primer_rv):
-        self.template = template
-        self.seq = template[start:end]
-        self.start = start
-        self.start_i = start+len(primer_fw)
-        self.end = end
-        self.end_i = end-len(primer_rv)
-        self.fw = primer_fw
-        self.rv = primer_rv
-        self.head = template[self.start:self.start_i]
-        self.middle = template[self.start_i:self.end_i]
-        self.tail = template[self.end_i:self.end]
-
-    def __repr__(self):
-        return "PCRProduct(%s -> %s: %s)"%(self.fw.name, self.rv.name, self.seq)
-
-    def __len__(self):
-        return len(self.seq)
-
-    def __str__(self):
-        return str(self.seq)
-
-    def detectable_cpg(self):
-        return len(self.cpg_sites())
-
-    def cpg_sites(self):
-        s = self.start_i-1
-        e = self.end_i+1
-        return [i+s for i in cpg_sites(self.template[s:e])]
-
-    def write_html(self, w):
-        b = xmlwriter.builder(w)
-
-        with b.div:
-            s = self.start
-            cm = ColorMap()
-            for i in range(0, self.start_i-s):
-                cm.add_color(i, 0, 200, 0)
-            for i in range(self.end_i-s, self.end-s):
-                cm.add_color(i, 0, 0, 200)
-            for i in self.cpg_sites():
-                cm.add_color(i-s, 255, 0, 0)
-                cm.add_color(i+1-s, 255, 0, 0)
-
-            pprint_sequence_html(w, self.seq, cm.get_color)
-            with b.span(**{'class':'length'}):
-                b.text('length=%d, CpG=%d, CpG between primers=%d'%(len(self.seq), count_cpg(self.seq), self.detectable_cpg()))
-
-            #with b.textarea(cols='10', rows='1', cls='copybox'):
-            #    w.write(str(self.seq))
-
 class Condition(object):
     def __init__(self, weight, optimal, minimum, maximum):
         self.optimal = optimal
@@ -348,11 +276,11 @@ class PrimerPair(object):
     @property
     @memoize
     def pair_annealing(self):
-        return Annealing(self.fw.seq, self.rv.seq)
+        return PrimerAnnealing(self.fw.seq, self.rv.seq)
     @property
     @memoize
     def pair_end_annealing(self=False):
-        return Annealing(self.fw.seq, self.rv.seq, True)
+        return PrimerAnnealing(self.fw.seq, self.rv.seq, True)
 
     pa = pair_annealing
     pea = pair_end_annealing
@@ -429,6 +357,135 @@ def primers_write_html(w, primers):
                         b.td(str(v))
 
         b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
+
+class PrimerAnnealing(object):
+    def __init__(self, p, q, end_annealing=False):
+        s, (i, ss) = annealing_score(p,q,end_annealing)
+        self.p = p
+        self.q = q
+        self.score = s
+        self.scores = ss
+        self.index = i
+
+    def get_bar(self):
+        i = self.index
+        p = self.p
+        q = self.q
+        spc = ' '*abs(i)
+        ss = self.scores
+        bar = ''.join(['|' if s>0 else ' ' for s in ss])
+
+        if i>0:
+            return [spc+"5'-%s-3'"%p, spc+"  <"+bar+">", "3'-%s-5'"%q[::-1] ]
+        else:
+            return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
+
+    def write_html(self, w):
+        w.push('div',style='annealing')
+        w.push('p','score=%s, index=%s'%(self.score,self.index))
+        w.push('pre')
+        w.text('\n'.join(self.get_bar()))
+        w.pop()
+        w.pop()
+
+
+class PrimerTemplateAnnealing(object):
+    def __init__(self, primer, template, strand, loc_3p, length):
+        """
+        strand == True
+
+            5      3
+            ------->
+            |       |
+           left    right
+
+        strand == False
+
+            3      5
+            <-------
+            |       |
+           left    right
+
+        """
+        self.primer = primer
+        self.template = template
+        self.strand = strand
+        self.length = length
+        self.loc_3p = loc_3p
+
+        if self.strand:
+            self.loc_5p = self.loc_3p - self.length + 1
+            self.left =  self.loc_5p
+            self.right = self.loc_3p + 1
+        else:
+            self.loc_5p = self.loc_3p + self.length - 1
+            self.left =  self.loc_3p
+            self.right = self.loc_5p + 1
+
+    def __le__(self, rhs):
+        return (self.left <= rhs.left) and (self.right <= rhs.right)
+
+
+class PCRProduct(object):
+    def __init__(self, i, j):
+        assert(i.template == j.template)
+        assert(i <= j)
+
+        self.template = i.template
+
+        self.start = i.left
+        self.start_i = i.right
+        self.end_i = j.left
+        self.end = j.right
+
+        self.fw = i.primer
+        self.rv = j.primer
+
+        self.head = self.fw.seq
+        self.middle = self.template[self.start_i:self.end_i]
+        self.tail = self.rv.seq.reverse_complement()
+
+        self.seq = self.head + self.middle + self.tail
+
+    def __repr__(self):
+        return "PCRProduct(%s -> %s: %s)"%(self.fw.name, self.rv.name, self.seq)
+
+    def __len__(self):
+        return len(self.seq)
+
+    def __str__(self):
+        return str(self.seq)
+
+    def detectable_cpg(self):
+        return len(self.cpg_sites())
+
+    def cpg_sites(self):
+        s = self.start_i-1
+        e = self.end_i+1
+        return [i+s for i in cpg_sites(self.template[s:e])]
+
+    def write_html(self, w):
+        b = xmlwriter.builder(w)
+
+        with b.div:
+            s = self.start
+            cm = ColorMap()
+            for i in range(0, self.start_i-s):
+                cm.add_color(i, 0, 200, 0)
+            for i in range(self.end_i-s, self.end-s):
+                cm.add_color(i, 0, 0, 200)
+            for i in self.cpg_sites():
+                cm.add_color(i-s, 255, 0, 0)
+                cm.add_color(i+1-s, 255, 0, 0)
+
+            pprint_sequence_html(w, self.seq, cm.get_color)
+            with b.span(**{'class':'length'}):
+                b.text('length=%d, CpG=%d, CpG between primers=%d'%(len(self.seq), count_cpg(self.seq), self.detectable_cpg()))
+
+            #with b.textarea(cols='10', rows='1', cls='copybox'):
+            #    w.write(str(self.seq))
+
+
 
 class PCRBand(object):
     def __init__(self, pcr):
@@ -511,24 +568,23 @@ class PCR(object):
         return list(self._search(bisulfite(self.template, methyl=methyl, sense=sense)))
 
     def _search(self, template):
-        def d(fw, rv, i, j):
-            return PCRProduct(template, i, j+len(rv), fw, rv)
         fpp,fpc = self.fw.search(template)
         rpp,rpc = self.rv.search(template)
+
         for i in fpp:
-            for j in fpc:
-                if i<=j:
-                    yield d(self.fw, self.fw, i, j)
-            for j in rpc:
-                if i<=j:
-                    yield d(self.fw, self.rv, i, j)
+            for j in fpc: # fw -> fw
+                if i <= j:
+                    yield PCRProduct(i,j)
+            for j in rpc: # fw -> rv
+                if i <= j:
+                    yield PCRProduct(i,j)
         for i in rpp:
-            for j in fpc:
-                if i<=j:
-                    yield d(self.rv, self.fw, i, j)
-            for j in rpc:
-                if i<=j:
-                    yield d(self.rv, self.rv, i, j)
+            for j in fpc: # rv -> fw
+                if i <= j:
+                    yield PCRProduct(i,j)
+            for j in rpc: # rv -> rv
+                if i <= j:
+                    yield PCRProduct(i,j)
 
     @property
     @memoize

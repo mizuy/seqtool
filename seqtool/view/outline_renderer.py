@@ -262,12 +262,10 @@ class OutlineRenderer(NamedTracks):
         primers = []
         for p in primers:
             f,r = p.search(template)
-            for ff in f:
-                start,end = ff, ff+len(p)-1
-                primers.append( (p.name, start, end, True) )
-            for rr in r:
-                start,end = rr, rr+len(p)-1
-                primers.append( (p.name, start, end, False) )
+            for a in f:
+                primers.append( (p.name, a.left, a.right, True) )
+            for a in r:
+                primers.append( (p.name, a.left, a.right, False) )
 
         for name, start, end, forward in primers:
             named = svg.SvgItemsVStack()

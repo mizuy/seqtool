@@ -140,9 +140,9 @@ class BaseseqRenderer(object):
         for name, ds in self.dss:
             pp,pc = primer.search(ds.seq)
             for a in pp:
-                ds.pos_anno.add(primer.name, a, a+len(primer))
+                ds.pos_anno.add(primer.name, a.left, a.right)
             for a in pc:
-                ds.neg_anno.add(primer.name, a, a+len(primer))
+                ds.neg_anno.add(primer.name, a.left, a.right)
 
 
     def add_restriction_batche(self, restriction_batch):
