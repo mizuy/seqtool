@@ -19,7 +19,7 @@ from .css import seqview_css
 from .template import *
 from .block import *
 
-from .annotated_seq import Annotation, AnnotatedSeq
+from .annotated_seq import AnnotatedSeq
 
 from collections import OrderedDict
 
@@ -141,9 +141,9 @@ class SeqviewEntity(object):
                     b.img(src=transcript_l,width='1000px')
 
             if True:
-                b.h3('annotated sequence')
+                b.h3('sequence')
                 with b.a(href=annotated_l):
-                    b.img(src=annotated_l,width='1000px')
+                    b.text("sequence")
 
         #with b.div(**{'class':'primers'}):
         #    b.h2('Primers')
@@ -200,23 +200,7 @@ class Seqview(object):
     def load_gene(self, name, gene_id):
         self.append(SeqviewEntity.create_gene(name, gene_id))
 
-'''
-    def write_html(self, outputp):
-        with open(outputp.path,'w') as f:
-            html = xmlwriter.XmlWriter(f)
-            b = xmlwriter.builder(html)
-            with b.html:
-                with b.head:
-                    with b.style(type='text/css'):
-                        b.text(seqview_css)
-            with b.body:
-                for e in self.entries:
-                    subfs = SubFileSystem(outputp.dir, outputp.prefix)
 
-                    e.write_html(b, subfs)
-
-                    subfs.finish()
-'''
 class SeqvFile(Seqview):
     def __init__(self):
         super(SeqvFile,self).__init__()

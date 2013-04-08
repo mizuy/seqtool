@@ -111,6 +111,10 @@ class SvgBase(object):
     def svg(self, width=None, height=None):
         return SVG_HEADER + self.svg_node(width,height)
 
+class SvgNone(SvgBase):
+    def __init__(self):
+        super(SvgNone,self).__init__()
+
 ### wrappers
 
 def g_translate(b,x,y):
@@ -221,10 +225,6 @@ class SvgItemsVStack(SvgItems):
                 item.draw(b)
             y += item.rect.height
 
-def flatten(listOfLists):
-    "Flatten one level of nesting"
-    return chain.from_iterable(listOfLists)
-
 def grouper(n, iterable, fillvalue=None):
     "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
@@ -301,7 +301,7 @@ class SvgMatrix(SvgBase):
 
     def add_row(self, fixeditems, align=None):
         """fixed items are list. default item is SvgBase() if item is None"""
-        replaced = [x if x else SvgBase() for x in fixeditems]
+        replaced = [x if x else SvgNone() for x in fixeditems]
         self.rows.append(replaced)
         self.aligns.append(align)
 
@@ -345,8 +345,10 @@ class SvgMatrix(SvgBase):
                 else:
                     tx = 0
 
-                with g_translate(b,x+tx,y):
-                    cell.draw(b)
+                if not isinstance(cell, SvgNone):
+                    with g_translate(b,x+tx,y):
+                        cell.draw(b)
+                        #b.test(repr(cell))
                 x += col_w[ix]
                 ix += 1
             y += row_h[iy]

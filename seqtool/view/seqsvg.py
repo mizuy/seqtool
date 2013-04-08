@@ -35,7 +35,7 @@ class NamedTracks(svg.SvgMatrix):
         self.add_row([self.gen.text(name, 0,0), self.gen.text(' ',0,0), track], ['right',None,None])
 
     def add(self, track):
-        self.add_row([svg.SvgBase(), svg.SvgBase(), track])
+        self.add_row([None, None, track])
 
     def add_padding(self, height):
         self.add(svg.SvgItemsFixedHeight(height))

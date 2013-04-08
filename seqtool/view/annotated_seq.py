@@ -3,56 +3,18 @@ from __future__ import absolute_import
 from ..nucleotide.cpg import bisulfite_conversion
 from . import svg
 
-__all__ = ['Annotation', 'AnnotatedSeq']
+__all__ = ['AnnotatedSeq']
 
-def join(l, sep):
-    for x in l[:-1]:
-        yield x
-        yield sep
-    yield l[-1]
 
 def reverse(seq):
     return str(seq)[::-1]
 
-
-def negative(seq):
-    return "3'-{0}-5'".format(reverse(seq))
-
-def positive(seq):
-    return "5'-{0}-3'".format(seq)
-
 def complement(seq):
     return reverse(seq.reverse_complement())
-
-def c_to_t(seq):
-    muta = seq.tomutable()
-    for i,c in enumerate(muta):
-        if c=='C':
-            muta[i] = 'T'
-    return muta.toseq()
-
-
 
 def iter_step(width, start, end):
     for x in range(start, end, width):
         yield x, min(x+width, end)
-
-def step_location(x, step):
-    rx = x / step
-    xx = x % step
-
-    if rx == 0:
-        return xx
-    elif rx == 1:
-        return step + 1 + xx
-    else:
-        return rx * (step + 1) -1 + xx
-
-def location(x, width, step):
-    rx1 = x / width
-    x1 = x % width
-
-    return (rx1, step_location(x1,step))
 
 class Annotation(object):
     def __init__(self, name, left, right, lt_closed=True, rt_closed=True):
@@ -108,16 +70,6 @@ def svg_primer_bar(name, lt, rt):
     b.add(r)
     return b
 
-"""
-    b = svg.SvgItemsFixedHeight(8)
-    b.add(svg.SvgHbar(lt, rt, svg.font_height()/2, 4, color='gray'))
-
-    v = svg.SvgItemsVStack()
-
-    v.add(n)
-    v.add(b)
-    return v
-"""
 class AnnotatedSeqTrack(svg.SvgMatrix):
     def __init__(self):
         self.gen = svg.SvgItemGenerator(1, 1)
@@ -125,8 +77,8 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
 
     def svg_seq(self, seq, p, q):
         r = svg.SvgItemsVStack()
-        r.add(svg.SvgText(str(seq[p:q]), 0, 0))
-        r.add(svg.SvgText(complement(seq)[p:q], 0, 0))
+        r.add(svg.SvgText(str(seq[p:q])))
+        r.add(svg.SvgText(complement(seq)[p:q]))
         return r
 
     def add_sequence(self, name, index, seq):
@@ -134,7 +86,7 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
         self.add_named(name , index, " 3'-", self.gen.text(complement(seq)), "-5'")
 
     def add_named(self, name, index, pre, track, post):
-        self.add_row([self.gen.text(name+' '),
+        self.add_row([self.gen.text(name),
                      self.gen.text(str(index)+': '),
                      self.gen.text(pre), track, self.gen.text(post)],
                      ['right', 'right', 'right', None, 'left'])
@@ -153,9 +105,13 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
     def add_annotation(self, annos):
         w = svg.font_width()
         u = svg.SvgItemsVFree()
+
+        flag = False
         for a in annos:
             u.add(svg_primer_bar(a.name, a.left*w, a.right*w))
-        self.add(u)
+            flag = True
+        if flag:
+            self.add(u)
 
 class DoubleStrand(object):
     def __init__(self, seq):
@@ -214,61 +170,3 @@ class AnnotatedSeq(object):
             t.add_hline(width*svg.font_width())
 
         return t
-
-
-'''
-    def write_text(self, outfp, width, step, start):
-        length = len(self.seq)
-
-        for p,q in iter_step(width, 0, length):
-            isize = len(str(length))
-            index = str(p+start).rjust(isize)
-            space = ' '.rjust(isize)
-
-            l = loc(width)
-
-
-            def loc(x):
-                return step_location(x, step)
-
-            def print_bar(r,s):
-                assert p<=r<=s<=q
-                loc(r), loc(s)
-
-            def print_seq(seq):
-                return ' '.join(join(seq[pp:qq] for pp, qq in iter_step(step, p, q-p), ' '))
-
-            # print positive
-
-            print >>outfp,index,"5'-{0}-3'".format(print_seq(self.pos_seq[p:q]))
-            print >>outfp,index,"3'-{0}-5'".format(print_seq(self.neg_seq[p:q]))
-
-            # print negative
-
-            print >>outfp,space,"---{0}---".format("-"**l)
-
-
-class AnnotatedLines(object):
-    def __init__(self, seq, width=100, start=0):
-        self.seq = seq
-        self.aseq = AnnotatedSeq(seq)
-
-        self.width = width
-
-        x = 0
-        while x < length:
-            self.seqline.append(SeqLine(seq[x:x+width]))
-            x += width
-
-    def get_location(self, x):
-        return (x / self.width, x % self.wdith)
-
-
-class AnnotatedSequenceTrack(NamedTracks):
-    def __init__(self, seq, width=100, step=10):
-        self.gen = SvgItemGenerator(1, 1)
-
-    def add_seqline(self):
-        self.seqline.append()
-        self.add_row
-'''
