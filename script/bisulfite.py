@@ -1,9 +1,8 @@
 # encoding: utf-8
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
+from Bio import Seq
 from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
 
 from seqtool import nucleotide as nuc
 
@@ -18,7 +17,6 @@ def positive(seq):
     return "5'-{0}-3'".format(seq)
 
 def main():
-    import sys
     from argparse import ArgumentParser
 
     parser = ArgumentParser(prog='bisulfite', description='Print bisulfite-modified sequence')

@@ -178,23 +178,27 @@ def count_cpg(seq):
             count += 1
     return count
 
-def bisulfite(seq, methyl):
-    key = '_bisulfite_' + ('met' if methyl else 'unmet')
-    if not hasattr(seq, key):
-        muta = seq.tomutable()
-        old = 'X'
-        for i,c in enumerate(muta[:-1]):
-            if c=='C':
-                if not(muta[i+1]=='G' and methyl):
-                    muta[i] = 'T'
-        if muta[-1]=='C':
-            muta[-1]='T'
-        ret = muta.toseq()
+def bisulfite_conversion(seq, methyl):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta[:-1]):
+        if c=='C':
+            if not(muta[i+1]=='G' and methyl):
+                muta[i] = 'T'
+    if muta[-1]=='C':
+        muta[-1]='T'
+    return muta.toseq()
 
+def bisulfite(seq, methyl, sense=True):
+    key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
+
+    if not hasattr(seq, key):
+        if sense:
+            ret = bisulfite_conversion(seq, methyl)
+        else:
+            ret = bisulfite_conversion(seq.reverse_complement(), methyl)
         setattr(seq, key, ret)
 
     return getattr(seq, key)
-
 
 def gc_ratio(seq):
     return GC(seq)

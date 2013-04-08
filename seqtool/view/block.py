@@ -16,7 +16,7 @@ class Primers(object):
         return len(self.primers)
 
     def __iter__(self):
-        return iter(self.pcrs)
+        return iter(self.primers)
 
     def load(self, filename):
         with open(filename,'r') as f:

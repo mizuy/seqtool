@@ -1,13 +1,13 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
+from Bio import Seq
 from Bio.Alphabet import IUPAC
 
 import os
 
 from ..util import xmlwriter
-from ..nucleotide.pcr import Primer, PCR, primers_write_html
-from ..parser import parse_file, SettingFile
+from ..nucleotide.pcr import Primer
+from ..parser import SettingFile
 from . import seqsvg
 
 from ..util.subfs import SubFileSystem
@@ -19,11 +19,13 @@ from .css import seqview_css
 from .template import *
 from .block import *
 
+from .annotated_seq import Annotation, AnnotatedSeq
+
 from collections import OrderedDict
 
 LENGTH_THRESHOLD = 800
 
-__all__ = ['Seqview, SeqvFile']
+__all__ = ['Seqview', 'SeqvFile']
 
 class SeqviewEntity(object):
     def __init__(self, name, template):
@@ -31,7 +33,7 @@ class SeqviewEntity(object):
         self.template = template
 
         self.primers = Primers()
-                
+
         self.pcrs = PcrsBlock(self.template, self.primers)
         self.bs_pcrs = BsPcrsBlock(self.template, self.primers)
         self.rt_pcrs = RtPcrsBlock(self.template, self.primers)
@@ -90,6 +92,14 @@ class SeqviewEntity(object):
             self.rt_pcrs.svg_transcript(t, tr)
         return t
 
+    def track_annotatedseq(self):
+        aseq = AnnotatedSeq(self.template.seq)
+
+        for p in self.primers:
+            aseq.add_primer(p)
+
+        return aseq.track()
+
     def has_transcripts(self):
         return not not self.template.transcripts
 
@@ -101,29 +111,39 @@ class SeqviewEntity(object):
         """
         genome_n = 'genome.svg'
         transcript_n = 'transcript.svg'
+        annotated_n = 'annotatedseq.svg'
 
         # writing svgs
         subfs.write(genome_n, self.track_genome().svg())
         if self.has_transcripts():
             subfs.write(transcript_n, self.track_transcript().svg())
+        subfs.write(annotated_n, self.track_annotatedseq().svg())
 
         # link path for svg files
         genome_l = subfs.get_link_path(genome_n)
         if self.has_transcripts():
             transcript_l = subfs.get_link_path(transcript_n)
+        annotated_l = subfs.get_link_path(annotated_n)
 
         # writing html
         #b.h1(self.template.description)
         b.h2(self.template.description)
         with b.div(**{'class':'images'}):
-            b.h3('genome overview')
-            with b.a(href=genome_l):
-                #b.write_raw(self.track_genome().svg_node())
-                b.img(src=genome_l, width='1000px')
+            if True:
+                b.h3('genome overview')
+                with b.a(href=genome_l):
+                    #b.write_raw(self.track_genome().svg_node())
+                    b.img(src=genome_l, width='1000px')
+
             if self.has_transcripts():
                 b.h3('transcript overview')
                 with b.a(href=transcript_l):
                     b.img(src=transcript_l,width='1000px')
+
+            if True:
+                b.h3('annotated sequence')
+                with b.a(href=annotated_l):
+                    b.img(src=annotated_l,width='1000px')
 
         #with b.div(**{'class':'primers'}):
         #    b.h2('Primers')
