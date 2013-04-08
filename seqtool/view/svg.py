@@ -401,17 +401,27 @@ class SvgText(SvgBase):
     def __init__(self, text, x, y, fontsize=12, font='Monaco', color='black', anchor='start'):
         self.text = text
 
-        # You need to tell all the location of each characters respectively.
-        self.x = ' '.join(str(x+i*font_width(fontsize)) for i in range(len(text)))
-        self.y = y
-        self.style = {'font-size':fontsize, 'font-family':font, 'text-anchor':anchor, 'style':'fill:%s;'%color}
         self.w = font_width(fontsize) * len(text)
         self.h = font_height(fontsize)
-        if anchor=='start':
-            self._rect = Rectangle(x, x+self.w, y, y+self.h)
-        elif anchor=='middle':
-            m = (self.w)/2
-            self._rect = Rectangle(x-m, x+m, y, y+self.h)
+
+        # dont use svg attribute, anchor='middle'
+        if anchor == 'middle':
+            x -= self.w/2.
+
+        # Chrome: You need to tell all the location of each characters respectively.
+        self.x = ' '.join(str(x+i*font_width(fontsize)) for i in range(len(text)))
+        self.y = y
+        self.style =   {'font-size':fontsize,
+                        'font-family':font,
+                        'text-anchor':'start',
+                        'style':'fill:%s;'%color}
+
+        self._rect = Rectangle(x, x+self.w, y, y+self.h)
+        #if anchor=='start':
+        #    self._rect = Rectangle(x, x+self.w, y, y+self.h)
+        #elif anchor=='middle':
+        #    m = (self.w)/2
+        #    self._rect = Rectangle(x-m, x+m, y, y+self.h)
 
     def draw(self,b):
         with b['text'](x=self.x, y=self.y+self.h,**self.style):

@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from Bio import Restriction
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 
@@ -97,6 +98,8 @@ class SeqviewEntity(object):
 
         for p in self.primers:
             aseq.add_primer(p)
+
+        aseq.add_restriction_batche(Restriction.CommOnly)
 
         return aseq.track().svg()
 

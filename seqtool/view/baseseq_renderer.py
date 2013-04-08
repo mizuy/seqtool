@@ -95,9 +95,9 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
     def add_padding(self, height):
         self.add(svg.SvgItemsFixedHeight(height))
 
-    def add_hline(self, length, height=5):
+    def add_hline(self, length, height=5, **kwargs):
         t = svg.SvgItemsFixedHeight(height)
-        t.add(self.gen.hline(0, length, height/2))
+        t.add(self.gen.hline(0, length, height/2, **kwargs))
         self.add(t)
 
     def add_annotation(self, annos):
@@ -124,7 +124,6 @@ class BaseseqRenderer(object):
     def __init__(self, seq):
         self.primers = []
         self.regions = []
-        self.res = []
 
         self.length = len(seq)
         self.seq = DoubleStrand(seq)
@@ -146,8 +145,13 @@ class BaseseqRenderer(object):
                 ds.neg_anno.add(primer.name, a, a+len(primer))
 
 
-    def add_restriction_enzymes(self, enzyme):
-        self.res.append(enzyme)
+    def add_restriction_batche(self, restriction_batch):
+        for name, ds in self.dss:
+            for enzyme, locs in restriction_batch.search(ds.seq).items():
+                if len(locs)>1:
+                    continue
+                for l in locs:
+                    ds.pos_anno.add(str(enzyme), l, l+len(enzyme.site))
 
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))
@@ -156,15 +160,22 @@ class BaseseqRenderer(object):
 
         t = AnnotatedSeqTrack()
 
+        t.add_hline(width*svg.font_width(), color='black', **{'stroke-width':'3'})
+
         for p,q in iter_step(width, 0, self.length):
 
+            count = 0
             for ds_name, ds in self.dss:
+                if count != 0:
+                    t.add_hline(width*svg.font_width(), color='gray')
+                count += 1
+
                 t.add_padding(8)
                 t.add_annotation(ds.pos_anno.cut_range(p, q))
                 t.add_sequence(ds_name, p, ds.seq[p:q])
                 t.add_annotation(ds.neg_anno.cut_range(p, q))
                 t.add_padding(8)
 
-            t.add_hline(width*svg.font_width())
+            t.add_hline(width*svg.font_width(), color='black', **{'stroke-width':'3'})
 
         return t
