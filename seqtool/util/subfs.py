@@ -1,4 +1,3 @@
-from cStringIO import StringIO
 import os
 
 """

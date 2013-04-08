@@ -245,7 +245,7 @@ class SeqvFile(Seqview):
                             continue
                         pcrname = n[0].strip()
                         cellline = n[1].strip().upper()
-                        annotations = n[2:]
+                        #annotations = n[2:]
                         if not pcrname or not cellline:
                             em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
                             continue

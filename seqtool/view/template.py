@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from Bio import SeqIO
 from cStringIO import StringIO
 from ..util.memoize import memoize
+from ..nucleotide.cpg import bisulfite
 
 class BaseTemplate(object):
     def __init__(self):

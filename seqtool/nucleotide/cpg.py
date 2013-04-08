@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
 from Bio.SeqUtils import GC
 
 def drop_small_region(items, length):
@@ -139,7 +138,7 @@ def cpg_obs_per_exp(seq):
     c = 0
     g = 0
     cpg = 0
-    for i,b in xenumerate(seq):
+    for i,b in enumerate(seq):
         b = b.upper()
         if b=='C': c+=1
         if b=='G': g+=1

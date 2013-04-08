@@ -132,7 +132,7 @@ class SvgTranslate(SvgBase):
         self.child = child
     
     def draw(self, b):
-        with translate(b,self.x,self.y):
+        with g_translate(b,self.x,self.y):
             self.child.draw(b)
 
 class SvgScale(SvgBase):

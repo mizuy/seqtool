@@ -21,7 +21,7 @@ def report_exceptions():
         yield
     except Exception:
         info = sys.exc_info()
-        tbinfo = traceback.format_tb( info[2] )             
+        tbinfo = traceback.format_tb( info[2] )
         print 'exception traceback:'.ljust( 80, '=' )
         for tbi in tbinfo:
             print tbi

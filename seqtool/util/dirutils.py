@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import os
+import inspect
 
 def module_path(local_function):
    ''' returns the module path without the use of __file__.  Requires a function defined 

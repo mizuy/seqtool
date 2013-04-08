@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 from ..nucleotide.pcr import Primer, PCR, load_primer_list_file
 
-from ..util.subfs import SubFileSystem
 from ..db.dbtss import TissuesetLocus
 
 from .bisulfite_sequencing import BisulfiteSequencingResult
@@ -64,7 +63,7 @@ class Pcrs(object):
     def get(self, name):
         return self.pcrs.get(name)
     
-    def used_primers(pcrs):
+    def used_primers(self, pcrs):
         ret = set()
         for p in self.pcrs:
             if p.products:
