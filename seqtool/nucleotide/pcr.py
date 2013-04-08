@@ -1,8 +1,5 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
-
-from math import log, log10
 import re
 
 from . import to_seq
@@ -113,13 +110,9 @@ class Annealing(object):
 
 
     def get_bar(self):
-        sv = annealing_score_n
-
         i = self.index
         p = self.p
         q = self.q
-        lp = len(p)
-        lq = len(q)
         spc = ' '*abs(i)
         ss = self.scores
         bar = ''.join(['|' if s>0 else ' ' for s in ss])
@@ -306,7 +299,6 @@ class PCRProduct(object):
 
     def write_html(self, w):
         b = xmlwriter.builder(w)
-        seqstr = self.seq
 
         with b.div:
             s = self.start

@@ -7,12 +7,9 @@ from argparse import ArgumentParser, FileType
 from .util.dirutils import Filepath
 from .view import seqview as seqv
 from . import db
-from .util.prompt import prompt
 from .util import xmlwriter
 from .nucleotide.pcr import primers_write_html, load_primer_list_file, primers_write_csv
 from contextlib import contextmanager
-
-
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -22,7 +19,7 @@ def log(message):
 def report_exceptions():
     try:
         yield
-    except Exception as e:
+    except Exception:
         info = sys.exc_info()
         tbinfo = traceback.format_tb( info[2] )             
         print 'exception traceback:'.ljust( 80, '=' )
@@ -67,8 +64,11 @@ def seqview():
     parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
     parser.add_argument("inputs", nargs='+', metavar="seqvfiles", help=".seqv files")
     parser.add_argument("-o", "--output", dest="output", help="output html filename or directory")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for input in args.inputs:
         with report_exceptions():
@@ -80,12 +80,20 @@ def seqview():
             p.load_seqvfileentry(inputp.path)
             p.write_html(outputp)
 
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
+
 def tssview():
     parser = ArgumentParser(prog='tssview', description='pretty HTML+SVG report of dbtss of multiple genes')
     parser.add_argument("inputs", nargs='+', metavar='tssviewfiles', help=".tssv files")
     parser.add_argument("-o", "--output", dest="output", help="output filename or directory")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for input in args.inputs:
         with report_exceptions():
@@ -99,19 +107,27 @@ def tssview():
             tssv.write_csv(outputp.change_ext('.csv').path)
             tssv.write_html(outputp)
 
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
+
 def geneview():
     parser = ArgumentParser(prog='geneview', description='pretty HTML+SVG report of gene')
     parser.add_argument("gene_symbols", nargs='+', help="Gene Symbols")
     parser.add_argument("-o", "--output", dest="output", help="output filename")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for gene_symbol in args.gene_symbols:
         with report_exceptions():
             try:
                 gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
-            except db.NoSuchGene,e:
-                log('gene entry: No such Gene %s'%value)
+            except db.NoSuchGene:
+                log('gene entry: No such Gene %s'%gene_symbol)
                 continue
 
             sv = seqv.Seqview()
@@ -122,6 +138,10 @@ def geneview():
 
             sv.write_html(outputp)
 
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
 
 def get_genbank():
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
@@ -165,4 +185,5 @@ def primers():
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
                 primers_write_html(html, ps)
+
 
