@@ -32,7 +32,7 @@ class SeqviewEntity(object):
         self.name = name
         self.template = template
 
-        self.primers = block.Primers()
+        self.primers = block.PrimersHolder()
 
         self.pcrs = block.PcrsBlock(self.template, self.primers)
         self.bs_pcrs = block.BsPcrsBlock(self.template, self.primers)

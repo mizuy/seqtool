@@ -7,7 +7,7 @@ from ..db.dbtss import TissuesetLocus
 from .bisulfite_sequencing import BisulfiteSequencingResult
 from ..util.namedlist import NamedList, DefaultNamedList
 
-class Primers(object):
+class PrimersHolder(object):
     def __init__(self):
         self.primers = NamedList()
 
@@ -39,7 +39,7 @@ class Primers(object):
         rv = self.get(rv_primer, 'PCR-RV(%s)'%pcr_name)
         return fw, rv
 
-class Pcrs(object):
+class PcrsHolder(object):
     def __init__(self, template, primers):
         self.pcrs = NamedList()
         self.primers = primers
@@ -86,7 +86,7 @@ class BaseBlock(object):
 class PcrsBlock(BaseBlock):
     def __init__(self, template, primers):
         self.kind = 'Genome PCR'
-        self.pcrs = Pcrs(template, primers)
+        self.pcrs = PcrsHolder(template, primers)
         self.template = template
 
     def __iter__(self):

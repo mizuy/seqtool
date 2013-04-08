@@ -61,8 +61,6 @@ class Annotations(object):
                 yield c.shift(-left)
 
 def svg_primer_bar(name, lt, rt):
-
-
     n = svg.SvgText(name, lt, 0, color='black')
     r = svg.SvgRect(lt, 0, rt-lt, svg.font_height(), style='fill:none;')
     b = svg.SvgItemsFixedHeight(8)
@@ -86,8 +84,8 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
         self.add_named(name , index, " 3'-", self.gen.text(complement(seq)), "-5'")
 
     def add_named(self, name, index, pre, track, post):
-        self.add_row([self.gen.text(name),
-                     self.gen.text(str(index)+': '),
+        self.add_row([self.gen.text(name+" "),
+                     self.gen.text(" {0}: ".format(str(index))),
                      self.gen.text(pre), track, self.gen.text(post)],
                      ['right', 'right', 'right', None, 'left'])
 
@@ -133,9 +131,9 @@ class BaseseqRenderer(object):
         self.bs_pos = DoubleStrand(bisulfite_conversion(seq, True))
         self.bs_neg = DoubleStrand(bisulfite_conversion(seq.reverse_complement(), True).reverse_complement())
 
-        self.dss = [("BS+", self.bs_pos),
-                     ("origin", self.seq),
-                     ("BS-", self.bs_neg)]
+        self.dss = [("BS(+)", self.bs_pos),
+                     ("", self.seq),
+                     ("BS(-)", self.bs_neg)]
 
     def add_primer(self, primer):
         self.primers.append(primer)
