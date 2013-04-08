@@ -1,6 +1,11 @@
 from cStringIO import StringIO
 import os
 
+"""
+subfs must have 2 methods
+def write(self, filename, content_text)
+def get_link_path(self, filename)
+"""
 class DefaultSubFileSystem(object):
     """just store"""
     def __init__(self):

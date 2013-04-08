@@ -11,14 +11,14 @@ class BsaResult(object):
 
         p = pcr.bs_met_products
         if not len(p)==1:
-            raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr_name,len(products)))
+            raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr.name,len(p)))
         self.product = p[0]
         if not all(i in 'MUP?' for i in result):
             raise ValueError('bsa result must contain only M,U,P or ?')
 
         self.num_cpg = self.product.detectable_cpg()
         if len(result)!=self.num_cpg:
-            raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr_name,self.num_cpg,len(result)))
+            raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr.name,self.num_cpg,len(result)))
 
         self.cpg_sites = self.product.cpg_sites()
 

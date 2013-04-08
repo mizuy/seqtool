@@ -3,7 +3,7 @@ from __future__ import absolute_import
 from ..nucleotide.cpg import bisulfite_conversion
 from . import svg
 
-__all__ = ['AnnotatedSeq']
+__all__ = ['BaseseqRenderer']
 
 
 def reverse(seq):
@@ -122,7 +122,7 @@ class DoubleStrand(object):
         self.pos_anno = Annotations()
         self.neg_anno = Annotations()
 
-class AnnotatedSeq(object):
+class BaseseqRenderer(object):
     def __init__(self, seq):
         self.primers = []
         self.regions = []

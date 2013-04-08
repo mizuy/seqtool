@@ -6,7 +6,7 @@ from ..nucleotide import base_color
 from ..nucleotide.cpg import cpg_sites, seq_cpg_analysis
 from . import svg
 
-__all__ = ['SeqviewTrack']
+__all__ = ['OutlineRenderer']
 
 def get_feature_name(feature):
     t = feature.type
@@ -46,9 +46,9 @@ class NamedTracks(svg.SvgMatrix):
         self.add(t)
 
 
-class SeqviewTrack(NamedTracks):
+class OutlineRenderer(NamedTracks):
     def __init__(self, scale):
-        super(SeqviewTrack,self).__init__(scale)
+        super(OutlineRenderer,self).__init__(scale)
 
     def add_measure_track(self, length, start):
         # 10, 100, 1000

@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
+from Bio import SeqIO
 from cStringIO import StringIO
 from ..util.memoize import memoize
 

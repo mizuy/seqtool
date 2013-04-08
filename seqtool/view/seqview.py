@@ -8,7 +8,6 @@ import os
 from ..util import xmlwriter
 from ..nucleotide.pcr import Primer
 from ..parser import SettingFile
-from . import seqsvg
 
 from ..util.subfs import SubFileSystem
 from ..util.dirutils import Filepath
@@ -16,10 +15,11 @@ from .. import db
 
 from .css import seqview_css
 
-from .template import *
-from .block import *
+from . import template as temp
+from . import block
 
-from .annotated_seq import AnnotatedSeq
+from .baseseq_renderer import BaseseqRenderer
+from .outline_renderer import OutlineRenderer
 
 from collections import OrderedDict
 
@@ -32,14 +32,14 @@ class SeqviewEntity(object):
         self.name = name
         self.template = template
 
-        self.primers = Primers()
+        self.primers = block.Primers()
 
-        self.pcrs = PcrsBlock(self.template, self.primers)
-        self.bs_pcrs = BsPcrsBlock(self.template, self.primers)
-        self.rt_pcrs = RtPcrsBlock(self.template, self.primers)
+        self.pcrs = block.PcrsBlock(self.template, self.primers)
+        self.bs_pcrs = block.BsPcrsBlock(self.template, self.primers)
+        self.rt_pcrs = block.RtPcrsBlock(self.template, self.primers)
 
-        self.dbtss = DbtssBlock(self.template)
-        self.bsa = BsaBlock(self.bs_pcrs)
+        self.dbtss = block.DbtssBlock(self.template)
+        self.bsa = block.BsaBlock(self.bs_pcrs)
 
         self.blocks = [self.dbtss,
                      self.bsa,
@@ -49,22 +49,22 @@ class SeqviewEntity(object):
 
     @classmethod
     def create_genbank(cls, name, content):
-        template = GenbankTemplate(content, None)
+        template = temp.GenbankTemplate(content, None)
         return cls(name, template)
 
     @classmethod
     def create_sequence(cls, name, content):
         sequence = Seq.Seq(content.upper(), IUPAC.unambiguous_dna)
-        template = SequenceTemplate(sequence)
+        template = temp.SequenceTemplate(sequence)
         return cls(name, template)
 
     @classmethod
     def create_gene(cls, name, gene_id):
         locus = db.get_gene_locus(gene_id).expand(1000,1000)
-        template = GenbankTemplate(db.get_locus_genbank(locus), locus)
+        template = temp.GenbankTemplate(db.get_locus_genbank(locus), locus)
         return cls(name, template)
 
-    def track_genome(self):
+    def svg_genome(self):
         # todo change track_genome to svg_genome(self, t)
 
         scale = 1.
@@ -72,7 +72,7 @@ class SeqviewEntity(object):
         if length > LENGTH_THRESHOLD:
             scale = 1.*length/LENGTH_THRESHOLD
 
-        t = seqsvg.SeqviewTrack(scale)
+        t = OutlineRenderer(scale)
 
         t.add_padding(10)
         start = -1* self.template.transcript_start_site
@@ -82,73 +82,52 @@ class SeqviewEntity(object):
             t.add_hline(length, 10)
             block.svg_genome(t)
 
-        return t
+        return t.svg()
 
-    def track_transcript(self):
-        t = seqsvg.SeqviewTrack(1)
+    def svg_transcript(self):
+        t = OutlineRenderer(1)
 
         for tr in self.template.transcripts:
             t.add_transcript_track(tr.name, tr.seq, tr.feature)
             self.rt_pcrs.svg_transcript(t, tr)
-        return t
+        return t.svg()
 
-    def track_annotatedseq(self):
-        aseq = AnnotatedSeq(self.template.seq)
+    def svg_baseseq(self):
+        aseq = BaseseqRenderer(self.template.seq)
 
         for p in self.primers:
             aseq.add_primer(p)
 
-        return aseq.track()
+        return aseq.track().svg()
 
     def has_transcripts(self):
         return not not self.template.transcripts
 
     def write_html(self, b, subfs):
-        """
-        subfs must have 2 methods
-        def write(self, filename, content_text)
-        def get_link_path(self, filename)
-        """
-        genome_n = 'genome.svg'
-        transcript_n = 'transcript.svg'
-        annotated_n = 'annotatedseq.svg'
-
-        # writing svgs
-        subfs.write(genome_n, self.track_genome().svg())
+        svgs = [('genome.svg', 'Outline', self.svg_genome(), True),
+                ('baseseq.svg', 'Base Sequence', self.svg_baseseq(), False)]
         if self.has_transcripts():
-            subfs.write(transcript_n, self.track_transcript().svg())
-        subfs.write(annotated_n, self.track_annotatedseq().svg())
+            svgs.insert(1, ('transcript.svg', 'Transcript', self.svg_transcript(), True))
 
-        # link path for svg files
-        genome_l = subfs.get_link_path(genome_n)
-        if self.has_transcripts():
-            transcript_l = subfs.get_link_path(transcript_n)
-        annotated_l = subfs.get_link_path(annotated_n)
+        b.h2(self.name)
+        for filename, name, svg, show in svgs:
+            subfs.write(filename, svg)
+            link = subfs.get_link_path(filename)
 
-        # writing html
-        #b.h1(self.template.description)
-        b.h2(self.template.description)
-        with b.div(**{'class':'images'}):
-            if True:
-                b.h3('genome overview')
-                with b.a(href=genome_l):
-                    #b.write_raw(self.track_genome().svg_node())
-                    b.img(src=genome_l, width='1000px')
-
-            if self.has_transcripts():
-                b.h3('transcript overview')
-                with b.a(href=transcript_l):
-                    b.img(src=transcript_l,width='1000px')
-
-            if True:
-                b.h3('sequence')
-                with b.a(href=annotated_l):
-                    b.text("sequence")
+            b.h3(name)
+            with b.a(href=link):
+                if show:
+                    #b.write_raw(svg.svg_node())
+                    b.img(src=link, width='1000px')
+                else:
+                    with b.a(href=link):
+                        b.text(filename)
 
         #with b.div(**{'class':'primers'}):
         #    b.h2('Primers')
         #    primers_write_html(b.get_writer(), self.primers)
 
+        b.h3('Analysis')
         for block in self.blocks:
             block.write_html(b, subfs)
 
