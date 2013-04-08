@@ -432,6 +432,49 @@ def primers_write_html(w, primers):
 
         b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
 
+class PCRBand(object):
+    def __init__(self, pcr):
+        self.pcr = pcr
+        self.bs_pos_met = None
+        self.bs_pos_unmet = None
+        self.bs_neg_met = None
+        self.bs_neg_unmet = None
+        self.origin = None
+
+    def set_bs_product(self, methyl, sense, product):
+        if sense:
+            if methyl:
+                self.bs_pos_met = product
+            else:
+                self.bs_pos_unmet = product
+        else:
+            if methyl:
+                self.bs_neg_met = product
+            else:
+                self.bs_neg_unmet = product
+
+    def get_bs_product(self, methyl, sense):
+        if sense:
+            return self.bs_pos_met if methyl else self.bs_pos_unmet
+        else:
+            return self.bs_neg_met if methyl else self.bs_neg_unmet
+
+    def get_product(self):
+        return self.origin or self.bs_pos_met or self.bs_pos_unmet or self.bs_neg_met or self.bs_neg_unmet
+
+    def match_str(self):
+        r = ''
+        if self.bs_pos_met:
+            r += "M"
+        if self.bs_pos_unmet:
+            r += "U"
+        if self.bs_neg_met:
+            r += "m"
+        if self.bs_neg_unmet:
+            r += "u"
+        if self.origin:
+            r += "G"
+        return r
 
 class PCR(object):
     def __init__(self, name, template, primer_fw, primer_rv):
@@ -466,15 +509,8 @@ class PCR(object):
     def products(self):
         return list(self._search(self.template))
 
-    @property
-    @memoize
-    def bs_met_products(self):
-        return list(self._search(bisulfite(self.template, True)))
-
-    @property
-    @memoize
-    def bs_unmet_products(self):
-        return list(self._search(bisulfite(self.template, False)))
+    def bs_products(self, methyl, sense):
+        return list(self._search(bisulfite(self.template, methyl=methyl, sense=sense)))
 
     def _search(self, template):
         def d(fw, rv, i, j):
@@ -504,16 +540,15 @@ class PCR(object):
         products in the same position are in the same tuple.
         if not all products are exist, the other values are None.
         """
-        ret = defaultdict(lambda: [None,None,None])
+        ret = defaultdict(lambda :PCRBand(self))
         
-        for p in self.bs_met_products:
-            ret[(p.start,p.end,p.fw,p.rv)][0] = p
-
-        for p in self.bs_unmet_products:
-            ret[(p.start,p.end,p.fw,p.rv)][1] = p
+        for methyl in [True,False]:
+            for sense in [True,False]:
+                for p in self.bs_products(methyl, sense):
+                    ret[(p.start,p.end,p.fw,p.rv)].set_bs_product(methyl,sense,p)
 
         for p in self.products:
-            ret[(p.start,p.end,p.fw,p.rv)][2] = p
+            ret[(p.start,p.end,p.fw,p.rv)].origin = p
 
         return list(ret.values())
 

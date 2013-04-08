@@ -194,7 +194,7 @@ def bisulfite(seq, methyl, sense=True):
         if sense:
             ret = bisulfite_conversion(seq, methyl)
         else:
-            ret = bisulfite_conversion(seq.reverse_complement(), methyl)
+            ret = bisulfite_conversion(seq.reverse_complement(), methyl).reverse_complement()
         setattr(seq, key, ret)
 
     return getattr(seq, key)

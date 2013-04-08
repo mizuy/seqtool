@@ -138,10 +138,14 @@ class BsPcrsBlock(PcrsBlock):
 
                 b.h4('products')
                 with b.div(**{'class':'products'}):
-                    b.h5('template = Bisulfite-Treated (Methyl)')
-                    self.write_products(b, pcr.bs_met_products)
-                    b.h5('template = Bisulfite-Treated (Unmethyl)')
-                    self.write_products(b, pcr.bs_unmet_products)
+                    b.h5('template = Bisulfite-Treated Sense Strand (CpG Methylated)')
+                    self.write_products(b, pcr.bs_products(methyl=True,sense=True))
+                    b.h5('template = Bisulfite-Treated Sense Strand (CpG Unmethylated)')
+                    self.write_products(b, pcr.bs_products(methyl=False,sense=True))
+                    b.h5('template = Bisulfite-Treated Antisense Strand (CpG Methylated)')
+                    self.write_products(b, pcr.bs_products(methyl=True,sense=False))
+                    b.h5('template = Bisulfite-Treated Antisense Strand (CpG Unmethylated)')
+                    self.write_products(b, pcr.bs_products(methyl=False,sense=False))
                     b.h5('template = Genome')
                     self.write_products(b, pcr.products)
 

@@ -152,7 +152,7 @@ class BaseseqRenderer(object):
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))
 
-    def track(self, width=100):
+    def track(self, width=200):
 
         t = AnnotatedSeqTrack()
 

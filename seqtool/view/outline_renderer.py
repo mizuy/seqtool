@@ -251,19 +251,9 @@ class OutlineRenderer(NamedTracks):
     def add_bs_pcrs_track(self, name, pcrs):
         def d():
             for pcr in pcrs:
-                for met, unmet, genome in pcr.bisulfite_products:
-                    assert(met or unmet or genome)
-                    p = None
-                    r = ''
-                    if met:
-                        r += "M"
-                        p = met
-                    if unmet:
-                        r += "U"
-                        p = unmet
-                    if genome:
-                        r += "G"
-                        p = genome
+                for band in pcr.bisulfite_products:
+                    p = band.get_product()
+                    r = band.match_str()
                     yield pcr.name+' [%s]'%r, p
         self.add_named(name, self.get_pcrs_track(d()))
 
