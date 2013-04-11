@@ -146,18 +146,22 @@ class BaseseqRenderer(object):
         for name, ds in self.dss:
             pp,pc = primer.search(ds.seq)
             for a in pp:
-                ds.pos_anno.add(primer.name, a.left, a.right)
+                name = primer.name + ('' if a.full else '(partial)')
+                ds.pos_anno.add(name, a.left, a.right)
             for a in pc:
-                ds.neg_anno.add(primer.name, a.left, a.right)
+                name = primer.name + ('' if a.full else '(partial)')
+                ds.neg_anno.add(name, a.left, a.right)
 
 
     def add_restriction_batch(self, restriction_batch):
         for name, ds in self.dss:
             for enzyme, locs in restriction_batch.search(ds.seq).items():
-                if len(locs)>1:
-                    continue
+                #if len(locs)>1:
+                #    continue
                 for l in locs:
-                    ds.pos_anno.add(str(enzyme), l, l+len(enzyme.site))
+                    # TODO: pretty prent restriction cut pattern
+                    p = l -1 - enzyme.fst5
+                    ds.pos_anno.add(str(enzyme), p, p+len(enzyme.site))
 
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))

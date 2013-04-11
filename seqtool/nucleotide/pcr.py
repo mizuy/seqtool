@@ -458,6 +458,7 @@ class PrimerTemplateAnnealing(object):
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
+        self.full = self.length == len(self.primer)
 
     def __le__(self, rhs):
         return (self.left <= rhs.left) and (self.right <= rhs.right)
