@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import re
 
+from Bio import Seq
 from collections import defaultdict
 from . import to_seq, melt_temp, tm_gc, ColorMap, pprint_sequence_html
 from ..util.memoize import memoize
@@ -133,7 +134,8 @@ class Primer(object):
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template, match_length=None):
+
+    def search(self, template, min_length=15):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)
@@ -158,8 +160,8 @@ class Primer(object):
                 }
             return ''.join([table[s] for s in str(seq).upper()])
 
-        if match_length and len(self.seq) > match_length > 0:
-            l = len(self.seq) - match_length
+        if min_length and len(self.seq) > min_length > 0:
+            l = len(self.seq) - min_length
             seq = self.seq[l:]
         else:
             seq = self.seq
@@ -176,11 +178,10 @@ class Primer(object):
             if not m:
                 break
             start = m.start()+1
-            length = m.end()-m.start()
             if m.group(1):
-                pp.append(PrimerTemplateAnnealing(self, template, True, m.end()-1, length))
+                pp.append(PrimerTemplateAnnealing(self, template, True, m.end()-1))
             if m.group(2):
-                pc.append(PrimerTemplateAnnealing(self, template, False, m.start(), length))
+                pc.append(PrimerTemplateAnnealing(self, template, False, m.start()))
         return pp,pc
 
     def debugprint(self):
@@ -388,9 +389,37 @@ class PrimerAnnealing(object):
         w.pop()
         w.pop()
 
+def count_while(iteration):
+    count = 0
+
+    for i in iteration:
+        if i:
+            count += 1
+        else:
+            break
+
+    return count
+
+_AN = {
+    'A': 'A',
+    'T': 'T',
+    'G': 'G',
+    'C': 'C',
+    'R': 'GA',
+    'Y': 'TC',
+    'M': 'AC',
+    'K': 'GT',
+    'S': 'GC',
+    'W': 'AT',
+    'H': 'ACT',
+    'B': 'GTC',
+    'V': 'GCA',
+    'D': 'GAT',
+    'N': 'GATC',
+    }
 
 class PrimerTemplateAnnealing(object):
-    def __init__(self, primer, template, strand, loc_3p, length):
+    def __init__(self, primer, template, strand, loc_3p):
         """
         strand == True
 
@@ -410,14 +439,22 @@ class PrimerTemplateAnnealing(object):
         self.primer = primer
         self.template = template
         self.strand = strand
-        self.length = length
+
         self.loc_3p = loc_3p
 
         if self.strand:
+            p = primer.seq
+            self.length = count_while(template[loc_3p-i] in _AN[p[len(p)-1-i]] for i in range(len(p)))
+            assert(self.length > 0)
+
             self.loc_5p = self.loc_3p - self.length + 1
             self.left =  self.loc_5p
             self.right = self.loc_3p + 1
         else:
+            p = primer.seq.reverse_complement()
+            self.length = count_while(template[loc_3p+i] in _AN[p[i]] for i in range(len(p)))
+            assert(self.length > 0)
+
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
@@ -425,11 +462,13 @@ class PrimerTemplateAnnealing(object):
     def __le__(self, rhs):
         return (self.left <= rhs.left) and (self.right <= rhs.right)
 
-
 class PCRProduct(object):
     def __init__(self, i, j):
         assert(i.template == j.template)
         assert(i <= j)
+
+        self.i = i
+        self.j = j
 
         self.template = i.template
 
@@ -441,11 +480,14 @@ class PCRProduct(object):
         self.fw = i.primer
         self.rv = j.primer
 
-        self.head = self.fw.seq
+        self.head = self.fw.seq[:-self.i.length]
+        self.fw_3 = self.fw.seq[-self.i.length:]
         self.middle = self.template[self.start_i:self.end_i]
-        self.tail = self.rv.seq.reverse_complement()
+        self.rv_3 = self.rv.seq.reverse_complement()[:self.j.length]
+        self.tail = self.rv.seq.reverse_complement()[self.j.length:]
 
-        self.seq = self.head + self.middle + self.tail
+        self.seq = self.head + self.template[self.start:self.end] + self.tail
+
 
     def __repr__(self):
         return "PCRProduct(%s -> %s: %s)"%(self.fw.name, self.rv.name, self.seq)
@@ -456,31 +498,36 @@ class PCRProduct(object):
     def __str__(self):
         return str(self.seq)
 
-    def detectable_cpg(self):
-        return len(self.cpg_sites())
-
-    def cpg_sites(self):
-        s = self.start_i-1
-        e = self.end_i+1
-        return [i+s for i in cpg_sites(self.template[s:e])]
-
     def write_html(self, w):
         b = xmlwriter.builder(w)
 
         with b.div:
-            s = self.start
             cm = ColorMap()
-            for i in range(0, self.start_i-s):
-                cm.add_color(i, 0, 200, 0)
-            for i in range(self.end_i-s, self.end-s):
-                cm.add_color(i, 0, 0, 200)
-            for i in self.cpg_sites():
-                cm.add_color(i-s, 255, 0, 0)
-                cm.add_color(i+1-s, 255, 0, 0)
 
-            pprint_sequence_html(w, self.seq, cm.get_color)
+            parts = [(self.head, 200, 0, 0),
+                     (self.fw_3, 0, 200, 0),
+                     (self.middle, 0, 0, 0),
+                     (self.rv_3, 0, 0, 200),
+                     (self.tail, 200, 0, 0) ]
+
+            allseq = Seq.Seq('')
+            k = 0
+            for seq, rr, gg, bb in parts:
+                l = len(seq)
+                for i in range(k, k+l):
+                    cm.add_color(i, rr,gg,bb)
+                k += l
+                allseq += seq
+
+            for i in cpg_sites(allseq):
+                cm.add_color(i, 255, 0, 0)
+                cm.add_color(i+1, 255, 0, 0)
+
+            assert( str(allseq) == str(self.seq) )
+
+            pprint_sequence_html(w, allseq, cm.get_color)
             with b.span(**{'class':'length'}):
-                b.text('length=%d, CpG=%d, CpG between primers=%d'%(len(self.seq), count_cpg(self.seq), self.detectable_cpg()))
+                b.text('length=%d, CpG=%d'%(len(allseq), count_cpg(allseq)))
 
             #with b.textarea(cols='10', rows='1', cls='copybox'):
             #    w.write(str(self.seq))

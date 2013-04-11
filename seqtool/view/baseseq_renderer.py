@@ -10,7 +10,8 @@ def reverse(seq):
     return str(seq)[::-1]
 
 def complement(seq):
-    return reverse(seq.reverse_complement())
+    return seq.complement()
+    #reverse(seq.reverse_complement())
 
 def iter_step(width, start, end):
     for x in range(start, end, width):
@@ -121,7 +122,7 @@ class DoubleStrand(object):
         self.neg_anno = Annotations()
 
 class BaseseqRenderer(object):
-    def __init__(self, seq):
+    def __init__(self, seq, bisulfite=False):
         self.primers = []
         self.regions = []
 
@@ -130,9 +131,14 @@ class BaseseqRenderer(object):
         self.bs_pos = DoubleStrand(bisulfite_conversion(seq, True))
         self.bs_neg = DoubleStrand(bisulfite_conversion(seq.reverse_complement(), True).reverse_complement())
 
-        self.dss = [("BS(+)", self.bs_pos),
-                     ("", self.seq),
-                     ("BS(-)", self.bs_neg)]
+        if bisulfite:
+            self.dss = [("BS(+)", self.bs_pos),
+                         ("", self.seq),
+                         ("BS(-)", self.bs_neg)]
+        else:
+            self.dss = [    ("", self.seq)]
+
+        self.bisulfite = bisulfite
 
     def add_primer(self, primer):
         self.primers.append(primer)
@@ -145,7 +151,7 @@ class BaseseqRenderer(object):
                 ds.neg_anno.add(primer.name, a.left, a.right)
 
 
-    def add_restriction_batche(self, restriction_batch):
+    def add_restriction_batch(self, restriction_batch):
         for name, ds in self.dss:
             for enzyme, locs in restriction_batch.search(ds.seq).items():
                 if len(locs)>1:
@@ -156,7 +162,7 @@ class BaseseqRenderer(object):
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))
 
-    def track(self, width=200):
+    def track(self, width=160):
 
         t = AnnotatedSeqTrack()
 

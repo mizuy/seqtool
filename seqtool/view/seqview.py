@@ -34,6 +34,7 @@ class SeqviewEntity(object):
         self.template = template
 
         self.primers = block.PrimersHolder()
+        self.restrictions = []
 
         self.pcrs = block.PcrsBlock(self.template, self.primers)
         self.bs_pcrs = block.BsPcrsBlock(self.template, self.primers)
@@ -47,6 +48,11 @@ class SeqviewEntity(object):
                      self.pcrs,
                      self.bs_pcrs,
                      self.rt_pcrs]
+
+        self.show_bisulfite = False
+
+    def set_show_bisulfite(self, b):
+        self.show_bisulfite = b
 
     @classmethod
     def create_genbank(cls, name, content):
@@ -94,12 +100,12 @@ class SeqviewEntity(object):
         return t.svg()
 
     def svg_baseseq(self):
-        aseq = BaseseqRenderer(self.template.seq)
+        aseq = BaseseqRenderer(self.template.seq, self.show_bisulfite)
 
         for p in self.primers:
             aseq.add_primer(p)
 
-        aseq.add_restriction_batche(Restriction.CommOnly)
+        aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
 
         return aseq.track().svg()
 
@@ -220,6 +226,22 @@ class SeqvFile(Seqview):
                             e.set_tissueset([x.strip() for x in value.split(',')])
                         elif name=='bsa':
                             e.bsa.set_celllines([x.strip() for x in value.split(',')])
+
+                        elif name =='restriction':
+                            for v in value.split(','):
+                                if v not in Restriction.AllEnzymes:
+                                    em('No such Restriction Enzyme: {0}'.format(v))
+                                    continue
+                                e.restrictions.append(v)
+
+                        elif name == 'show_bisulfite':
+                            if value in ['True','1','true','t','T']:
+                                e.set_show_bisulfite(True)
+                            elif value in ['False','0','false','f','F']:
+                                e.set_show_bisulfite(False)
+                            else:
+                                em('Unkown Boolean value: {0}. must be True or False'.format(value))
+
                     elif category == 'primer':
                         e.primers.add(Primer(name, value))
                     elif category == 'motif':
