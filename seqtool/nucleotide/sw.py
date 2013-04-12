@@ -1,11 +1,30 @@
 from .sw_c import smith_waterman
 
-def match_nucleotide(a,b):
-    return a==b
+def bar_nucleotide(i,j):
+    if i == j:
+        return '|'
+    elif i=='N' or j=='N':
+        return ':'
+
+    elif i == 'Y':
+        if j=='C' or j=='T':
+            return '|'
+    elif i == 'R':
+        if j=='G' or j=='A':
+            return '|'
+
+    elif j == 'Y':
+        if i=='C' or i=='T':
+            return '|'
+    elif j == 'R':
+        if i=='G' or i=='A':
+            return '|'
+
+    return ' '
 
 def match_bar(s0, s1):
     assert(len(s0)==len(s1))
-    return ''.join('|' if match_nucleotide(s0[i],s1[i]) else ' ' for i in xrange(len(s0)))
+    return ''.join(bar_nucleotide(s0[i],s1[i]) for i in xrange(len(s0)))
 
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
@@ -23,9 +42,11 @@ class Alignment(object):
                                ' '*upstream+match_bar(self.aseq0.mid, self.aseq1.mid),
                                self.aseq1.local(upstream,downstream) )
 
+    def length(self):
+        return len(self.aseq0.mid)
 
     def score_density(self):
-        return 1. * self.score / len(self.seq0.mid)
+        return 1. * self.score / self.length()
 
 def print_sw(s0, s1):
     a = Alignment(s0, s1)

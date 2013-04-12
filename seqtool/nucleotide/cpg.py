@@ -177,7 +177,13 @@ def count_cpg(seq):
             count += 1
     return count
 
-def bisulfite_conversion(seq, methyl):
+def asymmetric_conversion(seq, conv, sense):
+    if sense:
+        return conv(seq)
+    else:
+        return conv(seq.reverse_complement()).reverse_complement()
+
+def _bisulfite_conversion(seq, methyl):
     muta = seq.tomutable()
     for i,c in enumerate(muta[:-1]):
         if c=='C':
@@ -187,17 +193,43 @@ def bisulfite_conversion(seq, methyl):
         muta[-1]='T'
     return muta.toseq()
 
+def bisulfite_conversion(seq, methyl, sense=True):
+    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x, methyl), sense)
+
+def _bisulfite_conversion_ambiguous(seq):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta[:-1]):
+        if c=='C':
+            if muta[i+1]=='G':
+                muta[i] = 'Y'
+            else:
+                muta[i] = 'T'
+    if muta[-1]=='C':
+        muta[-1]='T'
+    return muta.toseq()
+
+def bisulfite_conversion_ambiguous(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion_ambiguous(x), sense)
+
+
 def bisulfite(seq, methyl, sense=True):
     key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
 
     if not hasattr(seq, key):
-        if sense:
-            ret = bisulfite_conversion(seq, methyl)
-        else:
-            ret = bisulfite_conversion(seq.reverse_complement(), methyl).reverse_complement()
+        ret = bisulfite_conversion(seq, methyl, sense)
         setattr(seq, key, ret)
 
     return getattr(seq, key)
 
 def gc_ratio(seq):
     return GC(seq)
+
+def _c2t_conversion(seq):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta):
+        if c=='C':
+            muta[i] = 'Y'
+    return muta.toseq()
+
+def c2t_conversion(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _c2t_conversion(x), sense)

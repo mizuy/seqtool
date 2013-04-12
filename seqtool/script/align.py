@@ -2,13 +2,21 @@
 
 import sys, os
 import readline
+import traceback
 
 REGEX = False
 
 from seqtool.nucleotide import to_seq
-from seqtool.nucleotide.cpg import bisulfite
+from seqtool.nucleotide.cpg import bisulfite_conversion_ambiguous, c2t_conversion
 from seqtool.nucleotide import sw
 from Bio import SeqIO
+
+conversions = [
+    ('origin(MH)', lambda x: x),
+    ('BS+ (N)', lambda x: bisulfite_conversion_ambiguous(x, True)),
+    ('BS- (N)', lambda x: bisulfite_conversion_ambiguous(x, False)),
+    ('C2T+ (NMH)', lambda x: c2t_conversion(x, True)),
+    ('C2T- (NMH)', lambda x: c2t_conversion(x, False)) ]
 
 def load_fasta(filename):
     seqs = []
@@ -16,25 +24,50 @@ def load_fasta(filename):
     fff = open(filename,'r')
     for record in SeqIO.parse(fff, "fasta"):
         s = record.seq
-        seqs.append((record.id + ' origin(MH)', s))
-        seqs.append((record.id + ' BS+ met', bisulfite(s, True, True)))
-        seqs.append((record.id + ' BS+ unm(N)', bisulfite(s, False, True)))
-        seqs.append((record.id + ' BS- met', bisulfite(s, True, False)))
-        seqs.append((record.id + ' BS- unm(N)', bisulfite(s, False, False)))
+        seqs.append((record.id, s))
 
     return seqs
 
 def print_result(target, seqs):
     print 'target length = ',len(target)
+
     for (name,s) in seqs:
         print name
 
-        sense = sw.Alignment(str(target), str(s))
-        asense = sw.Alignment(str(to_seq(target).reverse_complement()), str(s))
-        print '  sense: target {}, template {}'.format(sense.aseq0.location(), sense.aseq1.location())
-        print sense.text_local()
-        print '  asense: target {}, template {}'.format(asense.aseq1.location(), asense.aseq1.location())
-        print asense.text_local()
+        results = []
+
+        for cname, func in conversions:
+            for sense in [True,False]:
+                if sense:
+                    mtarget = str(target)
+                else:
+                    mtarget = str(to_seq(target).reverse_complement())
+
+                al = sw.Alignment(mtarget, str(func(s)))
+
+                pc =  '     {} {}: score {} = {} * {}'.format(
+                        cname,'sense' if sense else 'asens',
+                        al.score, al.score_density(), al.length())
+
+                pp = '{}\n{}\n{}\n\n'.format(pc,
+                                    '     target {}, template {}'.format(
+                                            al.aseq0.location(),al.aseq1.location()),
+                                    al.text_local())
+
+                print pc
+                results.append((al.score, pp))
+
+        mscore = 0
+        mpp = []
+        for score, pp in results:
+            if score > mscore:
+                mscore = score
+                mpp = [pp]
+            elif score == mscore:
+                mpp.append(pp)
+        print ' maximum score: ',mscore
+        for m in mpp:
+            print m
 
 def clear_screen():
     #os.system('clear')
@@ -59,7 +92,9 @@ def main():
             target = s.upper()
             print_result(target, seqs)
         except:
-            print 'error. try again.'
+            print traceback.format_exc()
+#            print sys.exc_info()[0]
+#            print 'error. try again.'
             continue
 
 

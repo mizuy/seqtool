@@ -16,14 +16,33 @@ little optimization
 bin/py script/pcmv.py GGAGCTCCTGATTTAGAGCTTGACGGGGAAAG  0.26s user 0.11s system 98% cpu 0.373 total
 '''
 cdef int SCORE_MATCH = 2
+cdef int SCORE_PARTIAL = 2
 cdef int SCORE_MISMATCH = -2
 cdef int SCORE_GAP = -1
 
+# 'R': '[GA]',
+# 'Y': '[TC]',
 cdef inline int match(int i,int j):
     if i == j:
         return SCORE_MATCH
-    else:
-        return SCORE_MISMATCH
+    elif i=='N' or j=='N':
+        return SCORE_PARTIAL
+
+    elif i == 'Y':
+        if j=='C' or j=='T':
+            return SCORE_MATCH
+    elif i == 'R':
+        if j=='G' or j=='A':
+            return SCORE_MATCH
+
+    elif j == 'Y':
+        if i=='C' or i=='T':
+            return SCORE_MATCH
+    elif j == 'R':
+        if i=='G' or i=='A':
+            return SCORE_MATCH
+
+    return SCORE_MISMATCH
 
 class AlingnedSeq(object):
     def __init__(self, seq, first, mid, last):
