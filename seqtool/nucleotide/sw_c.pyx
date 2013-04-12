@@ -43,7 +43,7 @@ cdef _sw(bytes s0_, bytes s1_):
     cdef int m = len(s0_)
     cdef int n = len(s1_)
 
-    cdef np.ndarray[np.int8_t, ndim=2] matrix = np.zeros((m+1,n+1),dtype=np.int8)
+    cdef np.ndarray[np.int_t, ndim=2] matrix = np.zeros((m+1,n+1),dtype=np.int)
     cdef np.ndarray[np.int8_t, ndim=2] direction = np.zeros((m+1,n+1),dtype=np.int8)
 
     cdef int j, i, w, p, q, ii, jj, a0, a1
