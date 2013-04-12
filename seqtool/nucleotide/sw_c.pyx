@@ -1,9 +1,12 @@
+# distutils: extra_compile_args = -w
+
 import numpy as np
 cimport numpy as np
 #np.import_array()
 
 # http://en.wikipedia.org/wiki/Smith%E2%80%93Waterman_algorithm
 # http://www.ibm.com/developerworks/jp/java/library/j-seqalign/
+
 
 '''
 no optomization
@@ -36,6 +39,9 @@ class AlingnedSeq(object):
 
     def local(self, upstream, downstream):
         return self.first[-upstream:].rjust(upstream) + self.mid + self.last[:downstream].ljust(downstream)
+
+    def location(self):
+        return (len(self.first), len(self.first)+len(self.mid))
 
 cdef _sw(bytes s0_, bytes s1_):
     cdef char* s0 = s0_
@@ -94,12 +100,12 @@ cdef _sw(bytes s0_, bytes s1_):
         ii,jj = [(0,0), (i-1,j-1), (i-1,j), (i,j-1)][d]
         tracer.append((ii,jj,direction[ii,jj]))
 
-    return tracer
+    return tracer, mv
 
 def smith_waterman(str s0, str s1):
     cdef bytes s0__ = s0.encode()
     cdef bytes s1__ = s1.encode()
-    tracer = _sw(s0__, s1__)
+    tracer,mv = _sw(s0__, s1__)
 
     p,q,d = tracer[0]
 
@@ -124,4 +130,4 @@ def smith_waterman(str s0, str s1):
     aseq0 = AlingnedSeq(s0, s0[:first[0]], mid0, s0[last[0]:])
     aseq1 = AlingnedSeq(s1, s1[:first[1]], mid1, s1[last[1]:])
 
-    return aseq0, aseq1
+    return aseq0, aseq1, mv

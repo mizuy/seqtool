@@ -32,6 +32,11 @@ temp
 *~
 *.svg
 
+# cython
+*.so
+/seqtool/**/*.c
+/seqtool/**/*.cpp
+
 # Sphinx's builds
 /docs/_build
 

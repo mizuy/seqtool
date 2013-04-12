@@ -4,7 +4,7 @@ from __future__ import absolute_import
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 
-from seqtool import nucleotide as nuc
+from seqtool.nucleotide.cpg import bisulfite
 
 
 def reverse(seq):
@@ -25,8 +25,8 @@ def main():
 
     s = Seq.Seq(args.sequence[0],IUPAC.unambiguous_dna)
 
-    sense = nuc.bisulfite(s, True)
-    asense = nuc.bisulfite(s.reverse_complement(), True)
+    sense = bisulfite(s, True)
+    asense = bisulfite(s.reverse_complement(), True)
 
     print 'Fw = ',positive(s)
     print 'Rv = ',positive(s.reverse_complement())

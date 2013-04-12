@@ -9,7 +9,7 @@ def match_bar(s0, s1):
 
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
-        self.aseq0, self.aseq1 = smith_waterman(seq_s0,seq_s1)
+        self.aseq0, self.aseq1, self.score = smith_waterman(seq_s0,seq_s1)
 
     def text_all(self):
         p,q = self.aseq0.adjust, self.aseq1.adjust
@@ -22,6 +22,10 @@ class Alignment(object):
         return '{}\n{}\n{}'.format(self.aseq0.local(upstream,downstream), 
                                ' '*upstream+match_bar(self.aseq0.mid, self.aseq1.mid),
                                self.aseq1.local(upstream,downstream) )
+
+
+    def score_density(self):
+        return 1. * self.score / len(self.seq0.mid)
 
 def print_sw(s0, s1):
     a = Alignment(s0, s1)

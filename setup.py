@@ -1,10 +1,11 @@
 import os
 from setuptools import setup, find_packages
 
-#from distutils.core import setup
 from Cython.Build import cythonize
-#from Cython.Distutils import build_ext
 
+# not compatible with distribute
+#from distutils.extension import Extension
+#from Cython.Distutils import build_ext
 
 import numpy
 version = '0.2.1'
@@ -50,5 +51,7 @@ bisearch = seqtool.bisearch:main
 convert_bs = seqtool.bowtie.convert_bs:main
 virtualpcr = seqtool.bowtie.virtualpcr:main
 seqtool_loadsql = seqtool.db.sql:load_all
-bisulfite = script.bisulfite:main
+bisulfite = seqtool.script.bisulfite:main
+rpm = seqtool.script.cf:main
+align = seqtool.script.align:main
 """)
