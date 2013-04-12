@@ -8,7 +8,7 @@ import os
 
 from ..util import xmlwriter
 from ..nucleotide.pcr import Primer
-from ..parser import SettingFile
+from .parser import SettingFile
 
 from ..util.subfs import SubFileSystem
 from ..util.dirutils import Filepath

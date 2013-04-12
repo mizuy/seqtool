@@ -189,3 +189,6 @@ class BaseseqRenderer(object):
             t.add_hline(width*svg.font_width(), color='black', **{'stroke-width':'3'})
 
         return t
+
+
+

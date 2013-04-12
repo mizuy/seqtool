@@ -7,7 +7,7 @@ from collections import defaultdict
 from . import to_seq, melt_temp, tm_gc, ColorMap, pprint_sequence_html
 from ..util.memoize import memoize
 from ..util import xmlwriter
-from .. import parser
+from ..view import parser
 from .cpg import gc_ratio, bisulfite, cpg_sites, count_cpg
 
 __all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv', 'load_primer_list_file']
