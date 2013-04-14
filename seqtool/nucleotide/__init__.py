@@ -12,12 +12,12 @@ def to_seq(s):
         return s
 
     t = str(s).upper()
-    if all(n in 'ATGC' for n in t):
+    if all(n in IUPAC.unambiguous_dna.letters for n in t):
         return Seq.Seq(t,IUPAC.unambiguous_dna)
-    elif all(n in ('ATGC'+IUPAC.ambiguous_dna.letters) for n in t):
+    elif all(n in IUPAC.ambiguous_dna.letters for n in t):
         return Seq.Seq(t,IUPAC.ambiguous_dna)
 
-    raise ValueError("invalid DNA sequence: %s"%s)
+    raise ValueError("invalid DNA sequence, base must be one of %s: %s"%(IUPAC.ambiguous_dna.letters,s))
 
 def base_color(n):
     return {'A':'#00FF00',

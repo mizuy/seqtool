@@ -16,9 +16,9 @@ little optimization
 bin/py script/pcmv.py GGAGCTCCTGATTTAGAGCTTGACGGGGAAAG  0.26s user 0.11s system 98% cpu 0.373 total
 '''
 cdef int SCORE_MATCH = 2
-cdef int SCORE_PARTIAL = 2
+cdef int SCORE_PARTIAL = 1
 cdef int SCORE_MISMATCH = -2
-cdef int SCORE_GAP = -1
+cdef int SCORE_GAP = -3
 
 # 'R': '[GA]',
 # 'Y': '[TC]',
@@ -45,22 +45,25 @@ cdef inline int match(int i,int j):
     return SCORE_MISMATCH
 
 class AlingnedSeq(object):
-    def __init__(self, seq, first, mid, last):
+    def __init__(self, seq, first, last, mid_gap):
         self.seq = seq
-        self.first = first
-        self.mid = mid
-        self.last = last
+        self.location = (first,last)
+        self.first = seq[:first]
+        self.mid = seq[first:last]
+        self.last = seq[:last]
+
+        self.mid_gap = mid_gap
 
         self.adjust = len(self.first)
 
     def combined(self):
-        return self.first + self.mid + self.last
+        return self.first + self.mid_gap + self.last
 
     def local(self, upstream, downstream):
-        return self.first[-upstream:].rjust(upstream) + self.mid + self.last[:downstream].ljust(downstream)
+        return self.first[-upstream:].rjust(upstream) + self.mid_gap + self.last[:downstream].ljust(downstream)
 
     def location(self):
-        return (len(self.first), len(self.first)+len(self.mid))
+        return self.location
 
 cdef _sw(bytes s0_, bytes s1_):
     cdef char* s0 = s0_
@@ -146,7 +149,10 @@ def smith_waterman(str s0, str s1):
     first = tracer[-1][:2]
     last = tracer[0][:2]
 
-    aseq0 = AlingnedSeq(s0, s0[:first[0]], mid0, s0[last[0]:])
-    aseq1 = AlingnedSeq(s1, s1[:first[1]], mid1, s1[last[1]:])
+    aseq0 = AlingnedSeq(s0, first[0], last[0], mid0)
+    aseq1 = AlingnedSeq(s1, first[1], last[1], mid1)
+
+    #aseq0 = AlingnedSeq(s0, s0[:first[0]], mid0, s0[last[0]:])
+    #aseq1 = AlingnedSeq(s1, s1[:first[1]], mid1, s1[last[1]:])
 
     return aseq0, aseq1, mv

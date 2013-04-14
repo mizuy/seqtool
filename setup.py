@@ -54,4 +54,5 @@ seqtool_loadsql = seqtool.db.sql:load_all
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
 align = seqtool.script.align:main
+sequencing = seqtool.command:sequencing
 """)

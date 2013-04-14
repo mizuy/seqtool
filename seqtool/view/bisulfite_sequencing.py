@@ -9,7 +9,7 @@ class BsaResult(object):
         self.pcr = pcr
         self.result = result
 
-        p = pcr.bs_met_products
+        p = pcr.bs_products(True, True)
         if not len(p)==1:
             raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr.name,len(p)))
         self.product = p[0]

@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-import sys, os
+import sys, os, glob
 import traceback
 from argparse import ArgumentParser, FileType
 
@@ -10,6 +10,7 @@ from . import db
 from .util import xmlwriter
 from .nucleotide.pcr import primers_write_html, load_primer_list_file, primers_write_csv
 from contextlib import contextmanager
+from .script.sequencing import SequencingAnalysis
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -142,6 +143,37 @@ def geneview():
 
     if outputs and args.open:
         os.system('open {0}'.format(' '.join(outputs)))
+
+
+def sequencing():
+    parser = ArgumentParser(prog='sequencing', description='sequencing result aligner')
+    parser.add_argument('input', help="directory contains .seq files.")
+    parser.add_argument("-t", "--template", dest="template", help="template fasta file.")
+    parser.add_argument("-o", "--output", dest="output", help="output html filename or directory")
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
+    args = parser.parse_args()
+    assert(os.path.isdir(args.input))
+    p = SequencingAnalysis()
+    p.load_fasta(args.template)
+
+    if args.output:
+        if os.path.isdir(args.output):
+            outputp = Filepath(os.path.join(args.output, 'sequencing_analysis.html') )
+        else:
+            outputp = Filepath(args.output)
+    else:
+        outputp = Filepath(os.path.join(args.input, 'sequencing_analysis.html') )
+
+    for sf in glob.glob(os.path.join(args.input,'*.seq')):
+        print ' processing:',sf
+        p.load_seqfile(sf)
+    
+    p.write_html(outputp)
+
+    if args.open:
+        os.system('open {0}'.format(outputp.path))
+
 
 def get_genbank():
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')

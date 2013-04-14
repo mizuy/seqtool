@@ -1,25 +1,43 @@
 from .sw_c import smith_waterman
 
-def bar_nucleotide(i,j):
+M_MATCH = 0
+M_MISMATCH = 1
+M_NOTBAD = 2
+M_GAP = 3
+
+def does_match(i,j):
     if i == j:
-        return '|'
+        return M_MATCH
+    elif i=='-' or j=='-':
+        return M_GAP
     elif i=='N' or j=='N':
-        return ':'
+        return M_NOTBAD
 
     elif i == 'Y':
         if j=='C' or j=='T':
-            return '|'
+            return M_MATCH
     elif i == 'R':
         if j=='G' or j=='A':
-            return '|'
+            return M_MATCH
 
     elif j == 'Y':
         if i=='C' or i=='T':
-            return '|'
+            return M_MATCH
     elif j == 'R':
         if i=='G' or i=='A':
-            return '|'
+            return M_MATCH
+    return M_MISMATCH
 
+def bar_nucleotide(i,j):
+    m = does_match(i,j)
+    if m==M_MATCH:
+        return '|'
+    elif m==M_MISMATCH:
+        return ' '
+    elif m==M_NOTBAD:
+        return ':'
+    elif m==M_GAP:
+        return ' '
     return ' '
 
 def match_bar(s0, s1):
@@ -28,7 +46,7 @@ def match_bar(s0, s1):
 
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
-        self.aseq0, self.aseq1, self.score = smith_waterman(seq_s0,seq_s1)
+        self.aseq0, self.aseq1, self.score = smith_waterman(str(seq_s0),str(seq_s1))
 
     def text_all(self):
         p,q = self.aseq0.adjust, self.aseq1.adjust
@@ -39,14 +57,71 @@ class Alignment(object):
     def text_local(self, upstream=30, downstream=30):
         p,q = self.aseq0.adjust, self.aseq1.adjust
         return '{}\n{}\n{}'.format(self.aseq0.local(upstream,downstream), 
-                               ' '*upstream+match_bar(self.aseq0.mid, self.aseq1.mid),
+                               ' '*upstream+self.match_bar(),
                                self.aseq1.local(upstream,downstream) )
+
+    def match_bar(self):
+        return match_bar(self.aseq0.mid_gap, self.aseq1.mid_gap)
+
+    def compare_bar(self, index):
+        """
+        view   : ATTTG-CA
+        mb     : |   |:
+        base   : A---AACN
+
+        compare: Ag-CA
+        gap    :  <   
+        base'  : AAACN
+        """
+        if index == 0:
+            base = self.aseq1.mid_gap
+            based = self.aseq1.mid
+            view = self.aseq0.mid_gap
+        else:
+            base = self.aseq0.mid_gap
+            based = self.aseq0.mid
+            view = self.aseq1.mid_gap
+
+        compare = ''
+        gap = ''
+        next_gap = True
+
+        length = len(base)
+        for i in range(length):
+            bi = base[i]
+            vi = view[i]
+            m = does_match(bi,vi)
+            if m==M_MATCH or m==M_NOTBAD:
+                compare += vi
+                gap += ('<' if next_gap else '-')
+                next_gap = False
+            elif m==M_GAP:
+                if bi=='-':
+                    next_gap = True
+                else:
+                    compare += '-'
+                    gap += ('<' if next_gap else '-')
+                    next_gap = False
+            elif m==M_MISMATCH:
+                compare += vi.lower()
+                gap += ('<' if next_gap else '-')
+                next_gap = False
+            else:
+                raise Exception('unreachable')
+
+        assert(len(compare)==len(gap)==len(based))
+
+        return compare, gap
 
     def length(self):
         return len(self.aseq0.mid)
 
     def score_density(self):
         return 1. * self.score / self.length()
+
+    def score_text(self):
+        return '{} = {:.2f} * {}'.format(self.score, self.score_density(), self.length())
+
 
 def print_sw(s0, s1):
     a = Alignment(s0, s1)

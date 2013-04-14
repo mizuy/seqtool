@@ -4,8 +4,6 @@ import sys, os
 import readline
 import traceback
 
-REGEX = False
-
 from seqtool.nucleotide import to_seq
 from seqtool.nucleotide.cpg import bisulfite_conversion_ambiguous, c2t_conversion
 from seqtool.nucleotide import sw
@@ -18,6 +16,12 @@ conversions = [
     ('C2T+ (NMH)', lambda x: c2t_conversion(x, True)),
     ('C2T- (NMH)', lambda x: c2t_conversion(x, False)) ]
 
+def foreach_conversions(seq):
+    for cname, func in conversions:
+        for sense in [True,False]:
+            name = '{} {}'.format(cname,'sense' if sense else 'asens')
+            yield name, str(func(seq)), sense
+
 def load_fasta(filename):
     seqs = []
 
@@ -28,6 +32,7 @@ def load_fasta(filename):
 
     return seqs
 
+
 def print_result(target, seqs):
     print 'target length = ',len(target)
 
@@ -36,26 +41,22 @@ def print_result(target, seqs):
 
         results = []
 
-        for cname, func in conversions:
-            for sense in [True,False]:
-                if sense:
-                    mtarget = str(target)
-                else:
-                    mtarget = str(to_seq(target).reverse_complement())
+        for cname, cseq, sense in foreach_conversions(s):
+            if sense:
+                mtarget = str(target)
+            else:
+                mtarget = str(to_seq(target).reverse_complement())
 
-                al = sw.Alignment(mtarget, str(func(s)))
+            al = sw.Alignment(mtarget, cseq)
 
-                pc =  '     {} {}: score {} = {} * {}'.format(
-                        cname,'sense' if sense else 'asens',
-                        al.score, al.score_density(), al.length())
+            pc =  '     {}: score {}'.format(cname, al.score_text())
 
-                pp = '{}\n{}\n{}\n\n'.format(pc,
-                                    '     target {}, template {}'.format(
-                                            al.aseq0.location(),al.aseq1.location()),
-                                    al.text_local())
+            loc = '     target {}, template {}'.format(
+                                        al.aseq0.location(),al.aseq1.location())
+            pp = '{}\n{}\n{}\n\n'.format(pc, loc, al.text_local())
 
-                print pc
-                results.append((al.score, pp))
+            print pc
+            results.append((al.score, pp))
 
         mscore = 0
         mpp = []

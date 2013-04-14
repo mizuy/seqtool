@@ -18,12 +18,14 @@ def iter_step(width, start, end):
         yield x, min(x+width, end)
 
 class Annotation(object):
-    def __init__(self, name, left, right, lt_closed=True, rt_closed=True):
+    def __init__(self, name, left, right, sequences=[], lt_closed=True, rt_closed=True):
         self.name = name
         self.left = left
         self.right = right
+        self.sequences = sequences
         self.lt_closed = lt_closed
         self.rt_closed = rt_closed
+
 
     def overlap_range(self, left, right):
         """return True if the self overlap the range [left:right]"""
@@ -37,10 +39,11 @@ class Annotation(object):
         lo = not (self.left < left)
         r = min(right, self.right)
         ro = not (right < self.right)
-        return Annotation(self.name, l, r, lo, ro)
+        seq = [s[l-self.left:r-self.left] for s in self.sequences]
+        return Annotation(self.name, l, r, seq, lo, ro)
 
     def shift(self, x):
-        return Annotation(self.name, self.left+x, self.right+x, self.lt_closed, self.rt_closed)
+        return Annotation(self.name, self.left+x, self.right+x, self.sequences, self.lt_closed, self.rt_closed)
 
 class Annotations(object):
     def __init__(self):
@@ -49,8 +52,8 @@ class Annotations(object):
     def __iter__(self):
         return iter(self._items)
 
-    def add(self, name, left, right, lt_closed=True, rt_closed=True):
-        self._items.append(Annotation(name, left, right, lt_closed, rt_closed))
+    def add(self, name, left, right, sequences=[], lt_closed=True, rt_closed=True):
+        self._items.append(Annotation(name, left, right, sequences, lt_closed, rt_closed))
 
     def cut_range(self, left, right):
         """
@@ -60,14 +63,6 @@ class Annotations(object):
             c = i.cut_range(left, right)
             if c:
                 yield c.shift(-left)
-
-def svg_primer_bar(name, lt, rt):
-    n = svg.SvgText(name, lt, 0, color='black')
-    r = svg.SvgRect(lt, 0, rt-lt, svg.font_height(), style='fill:none;')
-    b = svg.SvgItemsFixedHeight(8)
-    b.add(n)
-    b.add(r)
-    return b
 
 class AnnotatedSeqTrack(svg.SvgMatrix):
     def __init__(self):
@@ -107,7 +102,25 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
 
         flag = False
         for a in annos:
-            u.add(svg_primer_bar(a.name, a.left*w, a.right*w))
+            lt = a.left*w
+            rt = a.right*w
+            h = svg.font_height()
+
+            if not a.sequences:
+                b = svg.SvgItemsFixedHeight(h)
+                b.add(svg.SvgText(a.name, lt, 0, color='black'))
+                b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;'))
+            else:
+                t = svg.SvgItemsVStack()
+                t.add(svg.SvgText(a.name, lt, 0, color='black'))
+                for s in a.sequences:
+                    t.add(svg.SvgText(s, lt, 0, color='black'))
+
+                b = svg.SvgItemsFixedHeight(t.rect.height)
+                b.add(t)
+                b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;'))
+            u.add(b)
+
             flag = True
         if flag:
             self.add(u)
@@ -162,6 +175,9 @@ class BaseseqRenderer(object):
                     # TODO: pretty prent restriction cut pattern
                     p = l -1 - enzyme.fst5
                     ds.pos_anno.add(str(enzyme), p, p+len(enzyme.site))
+
+    def add_alignment(self, name, p, q, bars):
+        self.seq.pos_anno.add(name, p, q, bars)
 
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))
