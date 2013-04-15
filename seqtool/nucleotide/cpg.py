@@ -1,12 +1,6 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
 from Bio.SeqUtils import GC
-
-from collections import defaultdict
-
-from . import xmlwriter
 
 def drop_small_region(items, length):
     ret = []
@@ -144,7 +138,7 @@ def cpg_obs_per_exp(seq):
     c = 0
     g = 0
     cpg = 0
-    for i,b in xenumerate(seq):
+    for i,b in enumerate(seq):
         b = b.upper()
         if b=='C': c+=1
         if b=='G': g+=1
@@ -169,37 +163,12 @@ def cpg_sites(seq):
         j += 1
     return ret
 
-def base_color(n):
-    return {'A':'#00FF00',
-            'T':'#FF0000',
-            'G':'#000000',
-            'C':'#0000FF'}[n.upper()]
-
-def tm_gc(seq):
-    gc = seq.count('G')+seq.count('C')
-    at = seq.count('A')+seq.count('T')
-    return '4x%s+2x%s=%s'%(gc,at,4*gc+2*at)
-
 def is_cpg(seq,i):
     if i+1>=len(seq):
         return False
     if seq[i]=='C' and seq[i+1]=='G':
         return True
     return False
-
-def is_repeat(seq,i,repeatno=8):
-    v = seq[i]
-    tail = 0
-    for t in seq[i+1:]:
-        if t!=v:
-            break
-        tail += 1
-    head = 0
-    for t in seq[:i][::-1]:
-        if t!=v:
-            break
-        head += 1
-    return tail+head+1 >= repeatno
 
 def count_cpg(seq):
     count = 0
@@ -208,50 +177,59 @@ def count_cpg(seq):
             count += 1
     return count
 
-def bisulfite(seq, methyl):
-    key = '_bisulfite_' + ('met' if methyl else 'unmet')
+def asymmetric_conversion(seq, conv, sense):
+    if sense:
+        return conv(seq)
+    else:
+        return conv(seq.reverse_complement()).reverse_complement()
+
+def _bisulfite_conversion(seq, methyl):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta[:-1]):
+        if c=='C':
+            if not(muta[i+1]=='G' and methyl):
+                muta[i] = 'T'
+    if muta[-1]=='C':
+        muta[-1]='T'
+    return muta.toseq()
+
+def bisulfite_conversion(seq, methyl, sense=True):
+    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x, methyl), sense)
+
+def _bisulfite_conversion_ambiguous(seq):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta[:-1]):
+        if c=='C':
+            if muta[i+1]=='G':
+                muta[i] = 'Y'
+            else:
+                muta[i] = 'T'
+    if muta[-1]=='C':
+        muta[-1]='T'
+    return muta.toseq()
+
+def bisulfite_conversion_ambiguous(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion_ambiguous(x), sense)
+
+
+def bisulfite(seq, methyl, sense=True):
+    key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
+
     if not hasattr(seq, key):
-        muta = seq.tomutable()
-        old = 'X'
-        for i,c in enumerate(muta[:-2]):
-            if c=='C':
-                if not(muta[i+1]=='G' and methyl):
-                    muta[i] = 'T'
-
-        ret = muta.toseq()
-
+        ret = bisulfite_conversion(seq, methyl, sense)
         setattr(seq, key, ret)
 
     return getattr(seq, key)
 
-class ColorMap(object):
-    def __init__(self):
-        self.colors = defaultdict(lambda: (0,0,0))
+def gc_ratio(seq):
+    return GC(seq)
 
-    def add_color(self, i, red, green, blue):
-        r,g,b = self.colors[i]
-        self.colors[i] = (r+red, g+green, b+blue)
+def _c2t_conversion(seq):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta):
+        if c=='C':
+            muta[i] = 'Y'
+    return muta.toseq()
 
-    def get_color(self, i):
-        return '#%02x%02x%02x'%self.colors[i]
-
-def pprint_sequence_html(w, seq, get_color):
-    b = xmlwriter.builder(w)
-    seqstr = str(seq)
-    with b.pre:
-        for i in range(0, len(seqstr), 100):
-            w.write('<span style="black">%4d: </span>'%i)
-            oldcol = None
-            for ii in range(i, min(i+100, len(seqstr)), 10):
-                for iii in range(ii, min(ii+10, len(seqstr)), 1):
-                    color = get_color(iii)
-                    if oldcol!=color:
-                        if oldcol:
-                            w.write('</span>')
-                        w.write('<span style="color:%s">'%color)
-                        oldcol = color
-                    w.write(seqstr[iii])
-                w.write(' ')
-            w.write('\n')
-            if oldcol:
-                w.write('</span>')
+def c2t_conversion(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _c2t_conversion(x), sense)

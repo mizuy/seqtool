@@ -1,7 +1,7 @@
 #!/usr/bin/env python 
 import commands
+
 from Bio import SeqIO, Seq
-from Bio.Alphabet import IUPAC
 from Bio.SeqRecord import SeqRecord
 
 def bisulfite(seq, methyl):

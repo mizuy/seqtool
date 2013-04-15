@@ -1,22 +1,57 @@
-*.pyc
-*.pyo
-*~
-*.svg
-#*
-environ
-output
-build
-dist
+# inputs and outputs
 example/*.html
-seqtool.egg-info
 _private
 _env
 _cache
 _db
 _output
 _tmp
-env
-input
 temp
-bin
-matplotlib
+/input
+/output
+
+# Buildout's directories
+/bin
+/develop-eggs
+/eggs
+/parts
+/.installed.cfg
+/downloads
+/lib
+/src
+.mr.developer.cfg
+
+# Setuptools/Distribute's files
+*.egg-info
+/dist
+/build
+
+# Python's precompiled files
+*.pyc
+*.pyo
+*~
+*.svg
+
+# cython
+*.so
+/seqtool/**/*.c
+/seqtool/**/*.cpp
+
+# Sphinx's builds
+/docs/_build
+
+# backup files
+*~
+#*
+
+# virtualenv
+/env
+
+# sublimetext
+*.sublime-project
+*.sublime-workspace
+*.sublime-*
+
+*.orig
+*.ps
+*.pdf

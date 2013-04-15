@@ -4,7 +4,7 @@ import cPickle as pickle
 
 from collections import defaultdict, OrderedDict
 from .locus import Locus
-from ..listdict import ListDict
+from ..util.namedlist import NamedList
 import numpy
 import os
 
@@ -195,7 +195,7 @@ class TissueLocus(object):
 class TissuesetLocus(object):
     def __init__(self, tissue_names, locus):
         self.tissue_names = tissue_names
-        self.tl = ListDict()
+        self.tl = NamedList()
         self.maxtag = 1
 
         for tissue in tissue_names:

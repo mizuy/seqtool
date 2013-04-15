@@ -6,7 +6,6 @@ import bisect
 from numpy import *
 from Bio import SeqIO, Seq
 from Bio.Alphabet import IUPAC
-from Bio.SeqUtils import GC
 from threading import Lock, Thread
 
 __all__ = ['PrimerSearchOptions', 'dynamic_primer_search', 'adhoc_primer_search']

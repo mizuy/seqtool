@@ -1,12 +1,19 @@
-from __future__ import absolute_import
-
-from cStringIO import StringIO
 import os
 
+"""
+subfs must have 2 methods
+def write(self, filename, content_text)
+def get_link_path(self, filename)
+"""
 class DefaultSubFileSystem(object):
     """just store"""
     def __init__(self):
         self.storage = []
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
     def write(self, filename, content_text):
         self.storage.append((self.get_link_path(filename), content_text))
@@ -20,6 +27,11 @@ class SubFileSystem(object):
         self.prefix = prefix
         self.storage = []
 
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finish()
+        
     def write(self, filename, content_text):
         self.storage.append((self.get_link_path(filename), content_text))
 
@@ -46,6 +58,11 @@ class SubsubFileSystem(object):
         self.parent = parent
         self.prefix = prefix
         self.storage = self.parent.storage
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
     def write(self, filename, content_text):
         self.storage.append((self.get_link_path(filename), content_text))

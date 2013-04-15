@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 
-from . import xmlwriter
+from ..util import xmlwriter
 import itertools
 from StringIO import StringIO
 
@@ -110,6 +111,10 @@ class SvgBase(object):
     def svg(self, width=None, height=None):
         return SVG_HEADER + self.svg_node(width,height)
 
+class SvgNone(SvgBase):
+    def __init__(self):
+        super(SvgNone,self).__init__()
+
 ### wrappers
 
 def g_translate(b,x,y):
@@ -127,7 +132,7 @@ class SvgTranslate(SvgBase):
         self.child = child
     
     def draw(self, b):
-        with translate(b,self.x,self.y):
+        with g_translate(b,self.x,self.y):
             self.child.draw(b)
 
 class SvgScale(SvgBase):
@@ -220,10 +225,6 @@ class SvgItemsVStack(SvgItems):
                 item.draw(b)
             y += item.rect.height
 
-def flatten(listOfLists):
-    "Flatten one level of nesting"
-    return chain.from_iterable(listOfLists)
-
 def grouper(n, iterable, fillvalue=None):
     "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
@@ -299,11 +300,13 @@ class SvgMatrix(SvgBase):
         self.aligns = []
 
     def add_row(self, fixeditems, align=None):
-        self.rows.append(fixeditems)
+        """fixed items are list. default item is SvgBase() if item is None"""
+        replaced = [x if x else SvgNone() for x in fixeditems]
+        self.rows.append(replaced)
         self.aligns.append(align)
 
     def _width_height(self):
-        num_rows = len(self.rows)
+        #num_rows = len(self.rows)
         num_columns = max(len(row) for row in self.rows)
         col_widths = [0]*num_columns
         row_heights = []
@@ -342,8 +345,10 @@ class SvgMatrix(SvgBase):
                 else:
                     tx = 0
 
-                with g_translate(b,x+tx,y):
-                    cell.draw(b)
+                if not isinstance(cell, SvgNone):
+                    with g_translate(b,x+tx,y):
+                        cell.draw(b)
+                        #b.test(repr(cell))
                 x += col_w[ix]
                 ix += 1
             y += row_h[iy]
@@ -387,23 +392,39 @@ class SvgHbar(SvgRect):
     def __init__(self, start, end, y, thick, **kwargs):
         super(SvgHbar,self).__init__(start, y-thick/2, end-start, thick, **kwargs)
 
-class SvgText(SvgBase):
-    def __init__(self, text, x, y, fontsize=12, font='Meonaco', color='black', anchor='start'):
-        self.text = text
-        self.x = x
-        self.y = y
-        self.style = {'font-size':fontsize, 'font-family':font, 'text-anchor':anchor, 'style':'fill:%s;'%color}
-        self.w = fontsize * 0.6 * len(text)
-        self.h = fontsize * 1.1
-        if anchor=='start':
-            self._rect = Rectangle(x, x+self.w, y, y+self.h)
-        elif anchor=='middle':
-            m = (self.w)/2
-            self._rect = Rectangle(x-m, x+m, y, y+self.h)
+def font_width(fontsize=12):
+    return fontsize*0.6
+def font_height(fontsize=12):
+    return fontsize*1.1
 
+class SvgText(SvgBase):
+    def __init__(self, text, x, y, fontsize=12, font='Monaco', color='black', anchor='start'):
+        self.text = text
+
+        self.w = font_width(fontsize) * len(text)
+        self.h = font_height(fontsize)
+
+        # dont use svg attribute, anchor='middle'
+        if anchor == 'middle':
+            x -= self.w/2.
+
+        # Chrome: You need to tell all the location of each characters respectively.
+        self.x = ' '.join(str(x+i*font_width(fontsize)) for i in range(len(text)))
+        self.y = y
+        self.style =   {'font-size':fontsize,
+                        'font-family':font,
+                        'text-anchor':'start',
+                        'style':'fill:%s;'%color}
+
+        self._rect = Rectangle(x, x+self.w, y, y+self.h)
+        #if anchor=='start':
+        #    self._rect = Rectangle(x, x+self.w, y, y+self.h)
+        #elif anchor=='middle':
+        #    m = (self.w)/2
+        #    self._rect = Rectangle(x-m, x+m, y, y+self.h)
 
     def draw(self,b):
-        with b['text'](x=self.x, y=self.y+self.h, **self.style):
+        with b['text'](x=self.x, y=self.y+self.h,**self.style):
             b.text(self.text)
         if DEBUG:
             b.rect(x=self.rect.x0, y=self.rect.y0, width=self.rect.width, height=self.rect.height, stroke='red', style='fill:none;')
@@ -465,7 +486,7 @@ class SvgItemGenerator(object):
         thick /= self.sy
         return SvgHbar(start, end, y, thick, **kwargs)
 
-    def text(self, text, x, y, fontsize=12, font='Monaco', color='black', anchor='start'):
+    def text(self, text, x=0, y=0, fontsize=12, font='Monaco', color='black', anchor='start'):
         x /= self.sx
         y /= self.sy
         return SvgText(text, x, y, fontsize, font, color, anchor)

@@ -31,9 +31,10 @@ class XmlWriter(object):
         self._nl()
 
     def text(self, t):
-        self.write(escape(t))
+        self.write(escape(str(t)))
+        
     def textl(self, t):
-        self.writel(escape(t))
+        self.writel(escape(str(t)))
 
     def attr_hook(self, attrv):
         if attrv=='cls':
@@ -87,7 +88,7 @@ class XmlWriter(object):
         self._s()
         self._fpush = False
         self._stag(tag,**attrs)
-        self._write(escape(text))
+        self._write(escape(str(text)))
         self._etag(tag)
         self._nl()
 
@@ -109,7 +110,7 @@ class builder(object):
             self.queue = None
 
     def text(self, text):
-        self.w.text(text)
+        self.w.text(str(text))
 
     def write_raw(self, text):
         self.w.write(text)

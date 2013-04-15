@@ -1,19 +1,16 @@
 from __future__ import absolute_import
 
-import sys, os
+import sys, os, glob
 import traceback
 from argparse import ArgumentParser, FileType
 
-from .dirutils import Filepath
-from . import seqview as sv
-from . import tssview as tv
-from . import primers
+from .util.dirutils import Filepath
+from .view import seqview as seqv
 from . import db
-from .primers import load_primer_list_file, primers_write_csv
-from .prompt import prompt
-from . import xmlwriter
-from .pcr import primers_write_html
+from .util import xmlwriter
+from .nucleotide.pcr import primers_write_html, load_primer_list_file, primers_write_csv
 from contextlib import contextmanager
+from .script.sequencing import SequencingAnalysis
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -23,9 +20,9 @@ def log(message):
 def report_exceptions():
     try:
         yield
-    except Exception as e:
+    except Exception:
         info = sys.exc_info()
-        tbinfo = traceback.format_tb( info[2] )             
+        tbinfo = traceback.format_tb( info[2] )
         print 'exception traceback:'.ljust( 80, '=' )
         for tbi in tbinfo:
             print tbi
@@ -68,8 +65,11 @@ def seqview():
     parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')
     parser.add_argument("inputs", nargs='+', metavar="seqvfiles", help=".seqv files")
     parser.add_argument("-o", "--output", dest="output", help="output html filename or directory")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for input in args.inputs:
         with report_exceptions():
@@ -77,16 +77,24 @@ def seqview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
-            p = sv.SeqvFile()
+            p = seqv.SeqvFile()
             p.load_seqvfileentry(inputp.path)
             p.write_html(outputp)
+
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
 
 def tssview():
     parser = ArgumentParser(prog='tssview', description='pretty HTML+SVG report of dbtss of multiple genes')
     parser.add_argument("inputs", nargs='+', metavar='tssviewfiles', help=".tssv files")
     parser.add_argument("-o", "--output", dest="output", help="output filename or directory")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for input in args.inputs:
         with report_exceptions():
@@ -95,31 +103,76 @@ def tssview():
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
             with open(inputp.path,'r') as f:
-                tssv = tv.TssvFile(f)
+                tssv = seqv.TssvFile(f)
 
             tssv.write_csv(outputp.change_ext('.csv').path)
             tssv.write_html(outputp)
+
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
 
 def geneview():
     parser = ArgumentParser(prog='geneview', description='pretty HTML+SVG report of gene')
     parser.add_argument("gene_symbols", nargs='+', help="Gene Symbols")
     parser.add_argument("-o", "--output", dest="output", help="output filename")
-    
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
     args = parser.parse_args()
+
+    outputs = []
 
     for gene_symbol in args.gene_symbols:
         with report_exceptions():
-            gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
-            e = sv.GenebankTssEntry(gene_symbol)
-            e.load_gene(gene_id)
-            e.set_tissueset(db.get_dbtss_tissues())
+            try:
+                gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
+            except db.NoSuchGene:
+                log('gene entry: No such Gene %s'%gene_symbol)
+                continue
 
-            p = sv.SeqvFile()
-            p.load_genbankentry(e)
+            sv = seqv.Seqview()
+            sv.load_gene(gene_symbol, gene_id)
+            sv.top().dbtss.set_tissueset(db.get_dbtss_tissues())
 
             outputp = get_output_path(gene_symbol, args.output, len(args.gene_symbols)>1)
 
-            p.write_html(outputp)
+            sv.write_html(outputp)
+
+            outputs.append(outputp.path)
+
+    if outputs and args.open:
+        os.system('open {0}'.format(' '.join(outputs)))
+
+
+def sequencing():
+    parser = ArgumentParser(prog='sequencing', description='sequencing result aligner')
+    parser.add_argument('input', help="directory contains .seq files.")
+    parser.add_argument("-t", "--template", dest="template", help="template fasta file.")
+    parser.add_argument("-o", "--output", dest="output", help="output html filename or directory")
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+
+    args = parser.parse_args()
+    assert(os.path.isdir(args.input))
+    p = SequencingAnalysis()
+    p.load_fasta(args.template)
+
+    if args.output:
+        if os.path.isdir(args.output):
+            outputp = Filepath(os.path.join(args.output, 'sequencing_analysis.html') )
+        else:
+            outputp = Filepath(args.output)
+    else:
+        outputp = Filepath(os.path.join(args.input, 'sequencing_analysis.html') )
+
+    for sf in glob.glob(os.path.join(args.input,'*.seq')):
+        print ' processing:',sf
+        p.load_seqfile(sf)
+    
+    p.write_html(outputp)
+
+    if args.open:
+        os.system('open {0}'.format(outputp.path))
 
 
 def get_genbank():
@@ -164,4 +217,5 @@ def primers():
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
                 primers_write_html(html, ps)
+
 
