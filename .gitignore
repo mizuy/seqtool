@@ -50,7 +50,7 @@ temp
 # sublimetext
 *.sublime-project
 *.sublime-workspace
-
+*.sublime-*
 
 *.orig
 *.ps

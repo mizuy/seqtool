@@ -2,11 +2,9 @@
 
 import numpy as np
 cimport numpy as np
-#np.import_array()
 
 # http://en.wikipedia.org/wiki/Smith%E2%80%93Waterman_algorithm
 # http://www.ibm.com/developerworks/jp/java/library/j-seqalign/
-
 
 '''
 no optomization
@@ -43,27 +41,6 @@ cdef inline int match(int i,int j):
             return SCORE_MATCH
 
     return SCORE_MISMATCH
-
-class AlingnedSeq(object):
-    def __init__(self, seq, first, last, mid_gap):
-        self.seq = seq
-        self.location = (first,last)
-        self.first = seq[:first]
-        self.mid = seq[first:last]
-        self.last = seq[:last]
-
-        self.mid_gap = mid_gap
-
-        self.adjust = len(self.first)
-
-    def combined(self):
-        return self.first + self.mid_gap + self.last
-
-    def local(self, upstream, downstream):
-        return self.first[-upstream:].rjust(upstream) + self.mid_gap + self.last[:downstream].ljust(downstream)
-
-    def location(self):
-        return self.location
 
 cdef _sw(bytes s0_, bytes s1_):
     cdef char* s0 = s0_
@@ -131,28 +108,24 @@ def smith_waterman(str s0, str s1):
 
     p,q,d = tracer[0]
 
-    mid0 = ''
-    mid1 = ''
+    mid0 = []
+    mid1 = []
     for p,q,d in tracer:
         if d==0:
             break
         elif d==1:
-            mid0 = s0[p-1] + mid0
-            mid1 = s1[q-1] + mid1
+            mid0.append(s0[p-1])
+            mid1.append(s1[q-1])
         elif d==2:
-            mid0 = s0[p-1] + mid0
-            mid1 = '-' + mid1
+            mid0.append(s0[p-1])
+            mid1.append('-')
         elif d==3:
-            mid0 = '-' + mid0
-            mid1 = s1[q-1] + mid1
+            mid0.append('-')
+            mid1.append(s1[q-1])
 
     first = tracer[-1][:2]
     last = tracer[0][:2]
 
-    aseq0 = AlingnedSeq(s0, first[0], last[0], mid0)
-    aseq1 = AlingnedSeq(s1, first[1], last[1], mid1)
+    mid = ''.join(mid0[::-1]), ''.join(mid1[::-1])
 
-    #aseq0 = AlingnedSeq(s0, s0[:first[0]], mid0, s0[last[0]:])
-    #aseq1 = AlingnedSeq(s1, s1[:first[1]], mid1, s1[last[1]:])
-
-    return aseq0, aseq1, mv
+    return (s0, s1), first, last, mid, mv

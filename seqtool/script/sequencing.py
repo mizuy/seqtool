@@ -63,6 +63,47 @@ class TemplateCandidate(object):
             else:
                 self.add_template(name, record.seq)
 
+    def alignments(self, target):
+        ret = []
+        for name, template in self:
+            al = sw.Alignment(target, template)
+            p,q = al.aseq0.location
+            tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
+            ret.append((al, p, q, tempname))
+        return ret
+
+class SeqFile(object):
+    def __init__(self, name, filename, template_candidate):
+        self.name = name
+        self.filename = filename
+        self.tc = template_candidate
+        self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+        self._alignment = self.tc.alignments(self.seq)
+
+    def svg(self):
+        render = BaseseqRenderer(to_seq(self.seq), False)
+        for primer in self.tc.primers:
+            render.add_primer(primer)
+
+        for al, p, q, tempname in self._alignment:
+            comp,gap = al.compare_bar(1)
+
+            if al.score_density() < SCORE_THRESHOLD:
+                continue
+            render.add_alignment(tempname, p, q, [comp, gap])
+
+        return render.track(len(self.seq)+10).svg()
+
+    def html(self, b):
+        #b.h3(self.name)
+        for al, p, q, tempname in self._alignment:
+            b.h4(tempname)
+            if al.score_density() < SCORE_THRESHOLD:
+                continue
+            with b.pre:
+                b.text(al.text_local())
+
+
 class SequencingAnalysis(object):
     def __init__(self):
         self.tc = TemplateCandidate()
@@ -72,51 +113,29 @@ class SequencingAnalysis(object):
         self.tc.load_fasta(fasta_file)
 
     def load_seqfile(self, seqfile):
-        target = ''.join(i.strip() for i in open(seqfile,'rU').readlines())
-        self._seqfiles.append((seqfile, target))
-
-    def svg_seq(self, name, seq_result):
-        render = BaseseqRenderer(to_seq(seq_result), False)
-        for primer in self.tc.primers:
-            render.add_primer(primer)
-
-        for name, template in self.tc:
-            al = sw.Alignment(seq_result, template)
-            p,q = al.aseq0.location
-            #print name, al.aseq0.location, al.aseq1.location
-            tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
-            comp,gap = al.compare_bar(1)
-            print name
-            print al.text_local()
-            print al.aseq0.mid
-            print al.aseq1.mid
-
-            if al.score_density() < SCORE_THRESHOLD:
-                continue
-            render.add_alignment(tempname, p, q, [comp, gap])
-
-        return render.track(800).svg()
+        self._seqfiles.append(SeqFile(os.path.basename(seqfile), seqfile, self.tc))
 
     def write_html(self, outputp):
-        subfs = SubFileSystem(outputp.dir, outputp.prefix)
+        with SubFileSystem(outputp.dir, outputp.prefix) as subfs:
 
-        with open(outputp.path,'w') as output:
-            html = xmlwriter.XmlWriter(output)
-            b = xmlwriter.builder(html)
-            with b.html:
-                with b.head:
-                    with b.style(type='text/css'):
-                        b.text(seqview_css)
-            with b.body:
-                b.h2('Sequencing Analysis:')
-                for name, seq in self._seqfiles:
-                    filename = os.path.basename(name)+'.svg'
-                    link = subfs.get_link_path(filename)
-                    b.h3(name)
-                    with b.a(href=link):
-                        b.img(src=link, width='1000px')
+            with open(outputp.path,'w') as output:
+                html = xmlwriter.XmlWriter(output)
+                b = xmlwriter.builder(html)
+                with b.html:
+                    with b.head:
+                        with b.style(type='text/css'):
+                            b.text(seqview_css)
+                with b.body:
+                    b.h2('Sequencing Analysis:')
+                    b.h3('Alignment View')
+                    for sf in self._seqfiles:
+                        filename = sf.name+'.svg'
+                        subfs.write(filename, sf.svg())
+                        link = subfs.get_link_path(filename)
 
-                    svg = self.svg_seq(filename, seq)
-                    subfs.write(filename, svg)
+                        b.h3(sf.name)
+                        with b.div(cls='products'):
+                            with b.a(href=link):
+                                b.img(src=link, width='1000px')
+                            sf.html(b)
 
-        subfs.finish()
