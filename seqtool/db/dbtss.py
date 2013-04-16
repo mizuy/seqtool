@@ -154,7 +154,7 @@ class Dbtss(object):
 
     def search(self, tissue, chrom, strand, lower, higher):
         assert(lower <= higher)
-        return self.tissues[tissue][chrom].search(sense,lower,higher)
+        return self.tissues[tissue][chrom].search(strand,lower,higher)
 
 _dbtss = None
 def get_dbtss():

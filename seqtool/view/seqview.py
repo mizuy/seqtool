@@ -8,7 +8,7 @@ import os
 
 from ..util import xmlwriter
 from ..nucleotide.pcr import Primer
-from .parser import SettingFile
+from ..util.parser import TreekvParser
 
 from ..util.subfs import SubFileSystem
 from ..util.dirutils import Filepath
@@ -17,7 +17,7 @@ from .. import db
 from .css import seqview_css
 
 from . import template as temp
-from . import block
+from . import block, bsa_block, dbtss_block
 
 from .baseseq_renderer import BaseseqRenderer
 from .outline_renderer import OutlineRenderer
@@ -26,7 +26,7 @@ from collections import OrderedDict
 
 LENGTH_THRESHOLD = 800
 
-__all__ = ['Seqview', 'SeqvFile']
+__all__ = ['Seqviews', 'TssvFile']
 
 class SeqviewEntity(object):
     def __init__(self, name, template):
@@ -40,8 +40,8 @@ class SeqviewEntity(object):
         self.bs_pcrs = block.BsPcrsBlock(self.template, self.primers)
         self.rt_pcrs = block.RtPcrsBlock(self.template, self.primers)
 
-        self.dbtss = block.DbtssBlock(self.template)
-        self.bsa = block.BsaBlock(self.bs_pcrs)
+        self.dbtss = dbtss_block.DbtssBlock(self.template)
+        self.bsa = bsa_block.BsaBlock(self.bs_pcrs)
 
         self.blocks = [self.dbtss,
                      self.bsa,
@@ -53,6 +53,123 @@ class SeqviewEntity(object):
 
     def set_show_bisulfite(self, b):
         self.show_bisulfite = b
+
+    @classmethod
+    def load_seqv(cls, filename):
+        parser = TreekvParser()
+
+        inputp = Filepath(filename)
+        relative_path = lambda x: inputp.relative(x)
+
+        post_processing = []
+
+        def ignore_child(kv):
+            if kv.has_items():
+                print 'Ignoring unkown child items'
+                print kv.lineinfo.error_msg()
+
+        with open(filename,'r') as fileobj:
+            bn = os.path.basename(filename)
+
+            tree = parser.readfp(fileobj, filename)
+
+            e = None
+
+            kv = tree.get_one('general/genbank')
+            if kv:
+                with open(relative_path(kv.value), 'r') as f:
+                    e = cls.create_genbank(bn, f.read())
+            else:
+                kv = tree.get_one('general/sequence')
+                if kv:
+                    e = cls.create_sequence(bn, kv.value)
+                else:
+                    kv = tree.get_one('general/gene')
+                    if kv:
+                        try:
+                            gene_id, gene_symbol = db.get_gene_from_text(kv.value)
+                            e = cls.create_gene(gene_symbol, gene_id)
+                        except db.NoSuchGene,e:
+                            print 'gene entry: No such Gene %s'%kv.value
+            if not e:
+                print 'unkown sequence. exit.'
+                return None
+
+            kv = tree.get_one('general/primers')
+            if kv:
+                e.primers.load(relative_path(kv.value))
+
+            kv = tree.get_one('general/tss')
+            if kv:
+                e.dbtss.set_tissueset(kv.value_list())
+
+            kv = tree.get_one('general/restriction')
+            if kv:
+                for v in kv.value_list():
+                    if v not in Restriction.AllEnzymes:
+                        print 'No such Restriction Enzyme: {0}'.format(v)
+                        continue
+                    e.restrictions.append(v)
+
+            kv = tree.get_one('general/show_bisulfite')
+            if kv:
+                if kv.value in ['True','1','true','t','T']:
+                    e.set_show_bisulfite(True)
+                elif kv.value in ['False','0','false','f','F']:
+                    e.set_show_bisulfite(False)
+                else:
+                    print 'Unkown Boolean value: {0}. must be True or False'.format(kv.value)
+
+            kv = tree.get_one('general/bsa')
+            kv = tree.get_one('general/bsa/result')
+            if kv:
+                bsa_file = relative_path(kv.value)
+                def lazy():
+                    e.bsa.read(relative_path(bsa_file))
+                post_processing.append(lazy)
+            kv = tree.get_one('general/bsa/celllines')
+            if kv:
+                e.bsa.set_celllines(kv.value_list())
+
+            for kv in tree.get_one('general').get_unused():
+                print kv.lineinfo.error_msg('Ignored.')
+
+            kv = tree.get_one('primers')
+            if kv:
+                for kv in kv.items():
+                    e.primers.add(Primer(kv.key, kv.value))
+
+            def pcr_line(kv):
+                name = kv.key.split(',')[0].strip()
+                ls = kv.value.split(',')
+                if len(ls)!=2:
+                    print 'you must specify 2 primer names separated by "," for each pcr: %s'%name
+                    return None, None, None
+                fw = ls[0].strip()
+                rv = ls[1].strip()
+                return name, fw, rv
+
+            for kv in tree.get_one('pcr').items():
+                name, fw, rv = pcr_line(kv)
+                if not name:
+                    continue
+                e.pcrs.add(name, fw, rv)
+
+            for kv in tree.get_one('rt_pcr').items():
+                name, fw, rv = pcr_line(kv)
+                if not name:
+                    continue
+                e.rt_pcrs.add(name, fw, rv)
+
+            for kv in tree.get_one('bs_pcr').items():
+                name, fw, rv = pcr_line(kv)
+                if not name:
+                    continue
+                e.bs_pcrs.add(name, fw, rv)
+
+        for p in post_processing:
+            p()
+        return e
 
     @classmethod
     def create_genbank(cls, name, content):
@@ -140,18 +257,12 @@ class SeqviewEntity(object):
         for block in self.blocks:
             block.write_html(b, subfs)
 
-class Seqview(object):
+class Seqviews(object):
     def __init__(self):
         self.entries = []
 
     def append(self, entity):
         self.entries.append(entity)
-
-    def top(self):
-        if len(self.entries)>0:
-            return self.entries[-1]
-        else:
-            return None
 
     def write_html(self, outputp):
         subfs = SubFileSystem(outputp.dir, outputp.prefix)
@@ -173,160 +284,47 @@ class Seqview(object):
 
         subfs.finish()
 
+    def load_seqv(self, filename):
+        e = SeqviewEntity.load_seqv(filename)
+        self.append(e)
+        return e
+
+    def load_gene(self,name, gene_id):
+        e = SeqviewEntity.create_gene(name, gene_id)
+        self.append(e)
+        return e
+
+class TssvFile(Seqviews):
+    def __init__(self):
+        self.tissueset = []
+        super(TssvFile,self).__init__()
+
     def write_csv(self, outputfile):
         with open(outputfile, 'w') as f:
             f.write(', '.join(['tss \\ tissue']+[n for n in self.tissueset]) + '\n')
             for gt in self.entries:
                 f.write(gt.dbtss.tss_count_csv())
 
-    def load_genbank(self, name, content):
-        self.append(SeqviewEntity.create_genbank(name, content))
+    def load_tssv(self, filename):
+        parser = TreekvParser()
 
-    def load_sequence(self, name, content):
-        self.append(SeqviewEntity.create_sequence(name, content))
-
-    def load_gene(self, name, gene_id):
-        self.append(SeqviewEntity.create_gene(name, gene_id))
-
-
-class SeqvFile(Seqview):
-    def __init__(self):
-        super(SeqvFile,self).__init__()
-
-    def load_genbankentry(self, genbankentry):
-        self.append(genbankentry)
-
-    def load_seqvfileentry(self, filename):
-        inputp = Filepath(filename)
-        relative_path = lambda x: inputp.relative(x)
-
-        with open(filename,'r') as fileobj:
-            bn = os.path.basename(filename)
-            for category, name, value, em in self.parse(fileobj):
-                e = self.top()
-                if not name and not value:
-                    pass
-                else:
-                    if category == 'general':
-                        if name=='genbank':
-                            with open(relative_path(value), 'r') as f:
-                                self.load_genbank(bn, f.read())
-                        elif name=='sequence':
-                            self.load_sequence(bn, value)
-                        elif name=='gene':
-                            try:
-                                gene_id, gene_symbol = db.get_gene_from_text(value)
-                            except db.NoSuchGene,e:
-                                em('gene entry: No such Gene %s'%value)
-                                continue
-                            self.load_gene(bn, gene_id)
-                        elif name=='primers':
-                            e.primers.load(relative_path(value))
-                        elif name=='tss':
-                            e.set_tissueset([x.strip() for x in value.split(',')])
-                        elif name=='bsa':
-                            e.bsa.set_celllines([x.strip() for x in value.split(',')])
-
-                        elif name =='restriction':
-                            for v in value.split(','):
-                                if v not in Restriction.AllEnzymes:
-                                    em('No such Restriction Enzyme: {0}'.format(v))
-                                    continue
-                                e.restrictions.append(v)
-
-                        elif name == 'show_bisulfite':
-                            if value in ['True','1','true','t','T']:
-                                e.set_show_bisulfite(True)
-                            elif value in ['False','0','false','f','F']:
-                                e.set_show_bisulfite(False)
-                            else:
-                                em('Unkown Boolean value: {0}. must be True or False'.format(value))
-
-                    elif category == 'primer':
-                        e.primers.add(Primer(name, value))
-                    elif category == 'motif':
-                        pass
-                    elif category in ['pcr','rt_pcr','bs_pcr']:
-                        name = name.split(',')[0].strip()
-                        ls = value.split(',')
-                        if len(ls)!=2:
-                            em('you must specify 2 primer names separated by "," for each pcr: %s'%name)
-                            continue
-                        fw = ls[0].strip()
-                        rv = ls[1].strip()
-
-                        if category == 'pcr':
-                            e.pcrs.add(name, fw, rv)
-                        elif category == 'rt_pcr':
-                            e.rt_pcrs.add(name, fw, rv)
-                        elif category == 'bs_pcr':
-                            e.bs_pcrs.add(name, fw, rv)
-                        else:
-                            raise ValueError
-                    elif category == 'bsa':
-                        n = [n.strip() for n in name.split(',')]
-                        if not len(n)>=2:
-                            em('each bsa must have at least 2 key; cell line name and pcr name')
-                            continue
-                        pcrname = n[0].strip()
-                        cellline = n[1].strip().upper()
-                        #annotations = n[2:]
-                        if not pcrname or not cellline:
-                            em('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
-                            continue
-
-                        e.bsa.add(cellline, pcrname, value.strip().upper())
-                    else:
-                        em('unkown category: %s'%category)
-
-    def parse(self, fileobj):
-        s = SettingFile()
-        s.parse(fileobj)
-
-        def error(msg,l,lineno):
-            print ':%s: %s: "%s"'%(lineno,msg,l)
-        
-        for block in s:
-            category = block.name
-            yield category, None, None, lambda x:error(x, block.line, block.lineno)
-            for line,lineno in block:
-                ls = line.split(':')
-                if len(ls)!=2:
-                    error('unknown line', line, lineno)
-                    continue
-                name = ls[0].strip()
-                value = ls[1].strip()
-                yield category, name, value, lambda x:error(x, line, lineno)
-
-class TssvFile(Seqview):
-    def __init__(self, fileobj):
-        super(TssvFile,self).__init__()
-        self.parse(fileobj)
-
-    def parse(self, fileobj):
-        tissues = []
         genes = OrderedDict() # i need ordered default dict....
 
-        s = SettingFile()
-        s.parse(fileobj)
+        with open(filename,'r') as fileobj:
+            tree = parser.readfp(fileobj, filename)
 
-        def error(msg,l,lineno):
-            print ':%s: %s: "%s"'%(lineno,msg,l)
+            e = None
         
-        for block in s:
-            if block.name=='tss':
-                for line, lineno in block:
-                    ls = [x.strip() for x in line.split(':')]
-                    if len(ls)!=2:
-                        error('unknown line', line, lineno)
-                        continue
-                    tissues.append(ls[0])
-                    # TODO ls[1] for tss tab file.
-            elif block.name=='genes':
-                for line, lineno in block:
-                    lp = [x.strip() for x in line.split(':')]
-                    name = lp[0]
-                    lq = [x.strip() for x in lp[1].split(',')]
+            kv = tree.get_one('tss/tissues')
+            if kv:
+                for t in kv.value_list():
+                    self.tissueset.append(t)
+
+            kv = tree.get_one('genes')
+            if kv:
+                for kv in kv.items():
+                    name = kv.key
+                    lq = kv.value_list()
                     gene = lq[0]
                     if lq[1]=='-':
                         start,stop = None,None
@@ -338,15 +336,16 @@ class TssvFile(Seqview):
                     else:
                         genes[gene].append((name,start,stop))
 
-        self.tissueset = tissues
-        for gene in genes.keys():
-            gene_id, symbol = db.get_gene_from_text(gene)
+            for gene in genes.keys():
+                gene_id, symbol = db.get_gene_from_text(gene)
 
-            self.load_gene(symbol, gene_id)
-            self.top().dbtss.set_tissueset(self.tissueset)
+                e = SeqviewEntity.create_gene(symbol, gene_id)
+                e.dbtss.set_tissueset(self.tissueset)
 
-            for name,start,stop in genes[gene]:
-                if not start or not stop:
-                    self.top().dbtss.add_default_tss(name)
-                else:
-                    self.top().dbtss.add_tss(start, stop, name)
+                for name,start,stop in genes[gene]:
+                    if not start or not stop:
+                        e.dbtss.add_default_tss(name)
+                    else:
+                        e.dbtss.add_tss(start, stop, name)
+
+                self.append(e)

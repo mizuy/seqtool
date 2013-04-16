@@ -7,8 +7,9 @@ from collections import defaultdict
 from . import to_seq, melt_temp, tm_gc, ColorMap, pprint_sequence_html
 from ..util.memoize import memoize
 from ..util import xmlwriter
-from ..view import parser
+from ..util.parser import TreekvParser
 from .cpg import gc_ratio, bisulfite, cpg_sites, count_cpg
+
 
 __all__ = ['Primer', 'PrimerPair', 'PrimerCondition', 'PCR', 'primers_write_html', 'primers_write_csv', 'load_primer_list_file']
 
@@ -489,6 +490,11 @@ class PCRProduct(object):
 
         self.seq = self.head + self.template[self.start:self.end] + self.tail
 
+    def num_cpg(self):
+        return len(self.cpg_sites())
+
+    def cpg_sites(self):
+        return cpg_sites(self.template, (self.start_i, self.end_i))
 
     def __repr__(self):
         return "PCRProduct(%s -> %s: %s)"%(self.fw.name, self.rv.name, self.seq)
@@ -524,7 +530,7 @@ class PCRProduct(object):
                 cm.add_color(i, 255, 0, 0)
                 cm.add_color(i+1, 255, 0, 0)
 
-            assert( str(allseq) == str(self.seq) )
+            assert( len(allseq) == len(self.seq) )
 
             pprint_sequence_html(w, allseq, cm.get_color)
             with b.span(**{'class':'length'}):
@@ -672,8 +678,12 @@ class PCR(object):
             for c in self.products:
                 c.write_html(w)
 
-def load_primer_list_file(fileobj):
-    primer = []
-    for name, value, em in parser.parse_file(fileobj):
-        primer.append(Primer(name, value))
-    return primer
+def load_primer_list_file(fileobj, filename=None):
+    parser = TreekvParser()
+    tree = parser.readfp(fileobj, filename)
+
+    primers = []
+    for kv in tree.items():
+        primers.append(Primer(kv.key, kv.value))
+    return primers
+
