@@ -1,11 +1,7 @@
 from __future__ import absolute_import
 
 from ..nucleotide.pcr import Primer, PCR, load_primer_list_file
-
-from ..db.dbtss import TissuesetLocus
-
-from .bisulfite_sequencing import BisulfiteSequencingResult
-from ..util.namedlist import NamedList, DefaultNamedList
+from ..util.namedlist import NamedList
 
 class PrimersHolder(object):
     def __init__(self):
@@ -179,88 +175,3 @@ class RtPcrsBlock(PcrsBlock):
 
                     b.h5('template = Genome')
                     self.write_products(b, pcr.products)
-
-
-class DbtssBlock(BaseBlock):
-    def __init__(self, template):
-        self.template = template
-        self.tss = None
-        self.tsl = None
-
-        self.tsss = []
-        self.tss_name_counter = 1
-    
-    def set_tissueset(self, tissues):
-        if not self.template.locus:
-            print "No Locus Defined."
-            return False
-        self.tsl = TissuesetLocus(tissues, self.template.locus)
-        return True
-
-    def add_default_tss(self, tss_name="Assumed TSS"):
-        p = self.template.transcript_start_site
-        start,end = p-200, p+200
-        self.tsss.append((tss_name, start, end))
-
-    def add_tss(self, start, end, name=None):
-        assert(not not start and not not end)
-        if not name:
-            name = "%s TSS No. %s" % (self.name, self.tss_name_counter)
-            self.tss_name_counter += 1
-        self.tsss.append((name, start, end))
-    
-    def tss_count_csv(self):
-        content = ''
-        for name, start, stop in self.tsss:
-            content += ','.join([name] + self.tsl.count_tags(start,stop)) + '\n'
-        return content
-
-    def svg_genome(self, t):
-        assert(self.template)
-        length = len(self.template)
-
-        if self.tsl:
-            for r in self.tsl:
-                t.add_hline(length)
-                t.add_dbtss_track(r, self.tsl.maxtag, self.template.seq)
-            t.add_hline(length)
-
-    def write_tss_count_csv(self, subfs):
-        content = ''
-        content += ', '.join(['range \\ tissue']+[t.name for t in self.tss])
-        content += '\n'
-        for name,start,end in self.tss_count:
-            content += ', '.join([name]+[str(t.count_range(start,end)) for t in self.tss])
-            content += '\n'
-        subfs.write('tss.csv', content)
-
-
-class BsaBlock(BaseBlock):
-    def __init__(self, bs_pcrs):
-        self.bsas = DefaultNamedList(BisulfiteSequencingResult)
-        self.celllines = None
-        self.bs_pcrs = bs_pcrs
-
-    def set_celllines(self, celllines):
-        self.celllines = celllines
-
-    def add(self, cellline, pcr_name, result):
-        assert isinstance(cellline,str)
-        assert isinstance(pcr_name,str)
-        assert isinstance(result,str)
-        try:
-            pcr = self.bs_pcrs.pcrs.get(pcr_name)
-        except KeyError:
-            raise ValueError('no such pcr: %s'%pcr_name)
-
-        self.bsas[cellline].add_bsa_result(pcr, result)
-
-    def svg_genome(self, t):
-        if self.celllines:
-            for name in self.celllines:
-                bsa_map, start, end = self.bsas[name].get_map()
-                t.add_bsa_track(name, bsa_map, start, end)
-        else:
-            for name, bsa in self.bsas.items():
-                bsa_map, start, end = bsa.get_map()
-                t.add_bsa_track(name, bsa_map, start, end)

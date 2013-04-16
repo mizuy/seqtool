@@ -77,8 +77,8 @@ def seqview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
-            p = seqv.SeqvFile()
-            p.load_seqvfileentry(inputp.path)
+            p = seqv.Seqviews()
+            p.load_seqv(inputp.path)
             p.write_html(outputp)
 
             outputs.append(outputp.path)
@@ -102,11 +102,10 @@ def tssview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
 
-            with open(inputp.path,'r') as f:
-                tssv = seqv.TssvFile(f)
-
-            tssv.write_csv(outputp.change_ext('.csv').path)
-            tssv.write_html(outputp)
+            sv = seqv.TssvFile()
+            sv.load_tssv(inputp.path)
+            sv.write_csv(outputp.change_ext('.csv').path)
+            sv.write_html(outputp)
 
             outputs.append(outputp.path)
 
@@ -131,9 +130,9 @@ def geneview():
                 log('gene entry: No such Gene %s'%gene_symbol)
                 continue
 
-            sv = seqv.Seqview()
-            sv.load_gene(gene_symbol, gene_id)
-            sv.top().dbtss.set_tissueset(db.get_dbtss_tissues())
+            sv = seqv.Seqviews()
+            e = sv.load_gene(gene_symbol, gene_id)
+            e.dbtss.set_tissueset(db.get_dbtss_tissues())
 
             outputp = get_output_path(gene_symbol, args.output, len(args.gene_symbols)>1)
 

@@ -3,11 +3,11 @@ CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
 
 all: seqview tssview geneview get_genbank primers bin/bisearch
 
-build: sequencing
+build: all
 
 sequencing:
-	bin/sequencing input/foxa2 -t input/foxa2.fasta
-	bin/sequencing input/oxbs -t input/oxbscontrol.fasta
+#	bin/sequencing input/foxa2 -t input/foxa2.fasta
+#	bin/sequencing input/oxbs -t input/oxbscontrol.fasta
 
 #	bin/sequencing input/seq_test -t input/oxbscontrol.fasta
 

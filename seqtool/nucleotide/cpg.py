@@ -151,15 +151,26 @@ def cpg_obs_per_exp(seq):
 
 
 #def cpg_sites(seq): return [i for i in range(0,len(seq)-1) if seq[i]=='C' and seq[i+1]=='G']
-def cpg_sites(seq):
+def cpg_sites(seq, range_=(None,None)):
     seqstr = str(seq)
+    length = len(seq)
+
+    p,q = range_
+    p = p or 0
+    if q:
+        q = min(q+1, length)
+    else:
+        q = length
+
+    seqstr = seqstr[p:q]
+
     ret = []
     j = 0
     while 1:
         j = seqstr.find('CG', j)
         if j<0:
             break
-        ret.append(j)
+        ret.append(p+j)
         j += 1
     return ret
 
@@ -170,10 +181,14 @@ def is_cpg(seq,i):
         return True
     return False
 
-def count_cpg(seq):
+def count_cpg(seq, range_=(None,None)):
+    p,q = range_
+    p = p or 0
+    q = q or -1
+
     count = 0
-    for i,n in enumerate(seq[:-1]):
-        if n=='C' and seq[i+1]=='G':
+    for i,n in enumerate(seq[p:q]):
+        if n=='C' and seq[p+i+1]=='G':
             count += 1
     return count
 
