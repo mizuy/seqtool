@@ -19,7 +19,7 @@ class PrimersHolder(object):
                 self.primers.append(i)
 
     def add(self, primer):
-        self.primers.add(primer)
+        self.primers.append(primer)
 
     def get(self, name, default_name):
         try:

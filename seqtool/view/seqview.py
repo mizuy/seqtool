@@ -149,23 +149,29 @@ class SeqviewEntity(object):
                 rv = ls[1].strip()
                 return name, fw, rv
 
-            for kv in tree.get_one('pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.pcrs.add(name, fw, rv)
+            pp = tree.get_one('pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.pcrs.add(name, fw, rv)
 
-            for kv in tree.get_one('rt_pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.rt_pcrs.add(name, fw, rv)
+            pp = tree.get_one('rt_pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.rt_pcrs.add(name, fw, rv)
 
-            for kv in tree.get_one('bs_pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.bs_pcrs.add(name, fw, rv)
+            pp = tree.get_one('bs_pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.bs_pcrs.add(name, fw, rv)
 
         for p in post_processing:
             p()

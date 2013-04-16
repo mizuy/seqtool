@@ -9,6 +9,12 @@ build:
 bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
 	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
 
+examples:
+	bin/seqview example/actb.seqv
+	bin/seqview example/b2m.seqv
+	bin/seqview example/btg3.seqv
+
+
 clean:
 	rm -f **/*~
 	rm -f #*
@@ -24,5 +30,5 @@ source.pdf: seqtool/*.py seqtool/**/*.py
 	pstopdf source.ps -o source.pdf
 	rm source.ps
 
-.PHONY: test all build clean
+.PHONY: test all build clean examples
 

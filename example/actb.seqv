@@ -1,6 +1,6 @@
->general
-genbank: actb.gb
-primers: primers.txt
+general:
+    gene: ACTB
+    primers: primers.txt
 
->rt_pcr
-ACTB: ACTB-qRT-FW, ACTB-qRT-RV
+rt_pcr:
+    ACTB: ACTB-qRT-FW, ACTB-qRT-RV
