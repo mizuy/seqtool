@@ -90,6 +90,7 @@ class SeqFile(object):
 
             if al.score_density() < SCORE_THRESHOLD:
                 continue
+
             render.add_alignment(tempname, p, q, [comp, gap])
 
         return render.track(len(self.seq)+10).svg()
@@ -100,6 +101,13 @@ class SeqFile(object):
             b.h4(tempname)
             if al.score_density() < SCORE_THRESHOLD:
                 continue
+            m = al.correspondance_map()
+
+            with b.pre:
+                for k,v in m.items():
+                    b.text(str(k)+':{'+', '.join('{}:{}'.format(kk,vv) for kk,vv in v.items())+'}')
+
+
             with b.pre:
                 b.text(al.text_local())
 
