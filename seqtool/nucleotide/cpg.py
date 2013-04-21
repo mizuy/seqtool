@@ -152,6 +152,14 @@ def cpg_obs_per_exp(seq):
 
 #def cpg_sites(seq): return [i for i in range(0,len(seq)-1) if seq[i]=='C' and seq[i+1]=='G']
 def cpg_sites(seq, range_=(None,None)):
+    """
+    return all cpg location of seq
+
+    >>> cpg_sites('ATGCCGCGATCG')
+    [4,6,10]
+    >>> cpg_sites('ATGCCGCGATCG',(2,6))
+    [4,6]
+    """
     seqstr = str(seq)
     length = len(seq)
 
@@ -175,6 +183,12 @@ def cpg_sites(seq, range_=(None,None)):
     return ret
 
 def is_cpg(seq,i):
+    """
+    >>> is_cpg('ATGCGC', 3)
+    True
+    >>> is_cpg('ATGCGC', 4)
+    False
+    """
     if i+1>=len(seq):
         return False
     if seq[i]=='C' and seq[i+1]=='G':
@@ -182,6 +196,12 @@ def is_cpg(seq,i):
     return False
 
 def count_cpg(seq, range_=(None,None)):
+    """
+    >>> count_cpg('ATGCCGCGATCG')
+    3
+    >>> count_cpg('ATGCCGCGATCG',(2,6))
+    2
+    """
     p,q = range_
     p = p or 0
     q = q or -1
@@ -226,8 +246,14 @@ def _bisulfite_conversion_ambiguous(seq):
 def bisulfite_conversion_ambiguous(seq, sense=True):
     return asymmetric_conversion(seq, lambda x: _bisulfite_conversion_ambiguous(x), sense)
 
-
 def bisulfite(seq, methyl, sense=True):
+    """
+    >>> import Bio.Seq as Seq
+    >>> bisulfite(Seq.Seq('ATGCGC'), True)
+    Seq('ATGCGT', Alphabet())
+    >>> bisulfite(Seq.Seq('ATGCGC'), False)
+    Seq('ATGTGT', Alphabet())
+    """
     key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
 
     if not hasattr(seq, key):

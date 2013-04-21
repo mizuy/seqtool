@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from .pcr import Primer, PrimerPair, PrimerCondition
+from .nucleotide.primer import Primer, PrimerPair, PrimerCondition
 
 import bisect
 from numpy import *

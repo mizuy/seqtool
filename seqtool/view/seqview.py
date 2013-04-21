@@ -7,7 +7,7 @@ from Bio.Alphabet import IUPAC
 import os
 
 from ..util import xmlwriter
-from ..nucleotide.pcr import Primer
+from ..nucleotide.primer import Primer
 from ..util.parser import TreekvParser
 
 from ..util.subfs import SubFileSystem

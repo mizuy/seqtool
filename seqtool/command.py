@@ -8,7 +8,7 @@ from .util.dirutils import Filepath
 from .view import seqview as seqv
 from . import db
 from .util import xmlwriter
-from .nucleotide.pcr import primers_write_html, load_primer_list_file, primers_write_csv
+
 from contextlib import contextmanager
 from .script.sequencing import SequencingAnalysis
 
@@ -198,6 +198,7 @@ def primers():
     args = parser.parse_args()
 
     inputfiles = args.primers
+    
     
     ps = []
     for filename in inputfiles:

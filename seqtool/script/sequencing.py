@@ -9,7 +9,7 @@ from seqtool.view.baseseq_renderer import BaseseqRenderer
 from ..util.subfs import SubFileSystem
 from ..util import xmlwriter
 from ..view.css import seqview_css
-from ..nucleotide.pcr import Primer
+from ..nucleotide.primer import Primer
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
