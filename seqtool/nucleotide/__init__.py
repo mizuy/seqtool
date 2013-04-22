@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from Bio import SeqIO, Seq
+from Bio import Seq
 from Bio.Alphabet import IUPAC
 
 from collections import defaultdict

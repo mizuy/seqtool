@@ -8,9 +8,10 @@ from .util.dirutils import Filepath
 from .view import seqview as seqv
 from . import db
 from .util import xmlwriter
-
+from .nucleotide.primer import Primers
 from contextlib import contextmanager
 from .script.sequencing import SequencingAnalysis
+import pdb
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -21,13 +22,13 @@ def report_exceptions():
     try:
         yield
     except Exception:
-        info = sys.exc_info()
-        tbinfo = traceback.format_tb( info[2] )
+        e, m, tb = sys.exc_info()
         print 'exception traceback:'.ljust( 80, '=' )
-        for tbi in tbinfo:
+        for tbi in traceback.format_tb( tb ):
             print tbi
-        print '  %s' % str( info[1] )
+        print '  %s' % str( m )
         print ''.rjust( 80, '=' )
+        pdb.post_mortem(tb)
 
 def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
     gene_id, gene_symbol = db.get_gene_from_text(gene_text)
@@ -199,15 +200,13 @@ def primers():
 
     inputfiles = args.primers
     
-    
-    ps = []
+    ps = Primers()
+
     for filename in inputfiles:
-        with open(filename,'r') as f:
-            for i in load_primer_list_file(f):
-                ps.append(i)
+        ps.load_file(filename)
 
     if args.csv:
-        args.output.write(primers_write_csv(ps))
+        args.output.write(ps.write_csv())
     else:
         html = xmlwriter.XmlWriter(args.output)
         b = xmlwriter.builder(html)
@@ -216,6 +215,6 @@ def primers():
                 pass
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
-                primers_write_html(html, ps)
+                ps.write_html(html)
 
 

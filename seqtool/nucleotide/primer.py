@@ -9,8 +9,9 @@ from ..util.parser import TreekvParser
 from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
+from ..design import pcond
 
-__all__ = ['Primer', 'PrimerPair', 'PrimerCondition']
+__all__ = ['Primer', 'PrimerPair']
 
 def annealing_score_n(x,y):
     if (x=='A' and y=='T') or (x=='T' and y=='A'):
@@ -99,32 +100,35 @@ def annealing_score(p,q,end_annealing=False,getindex=False):
         return eav[0], eav[1]
 
 
-class Condition(object):
-    def __init__(self, weight, optimal, minimum, maximum):
-        self.optimal = optimal
-        self.weight = weight
-        self.minimum = minimum
-        self.maximum = maximum
-    def score(self, value):
-        return self.weight * abs(value-self.optimal)
-    def bound(self, value):
-        return self.minimum <= value <= self.maximum
+class PrimerAnnealing(object):
+    def __init__(self, p, q, end_annealing=False):
+        s, (i, ss) = annealing_score(p,q,end_annealing)
+        self.p = p
+        self.q = q
+        self.score = s
+        self.scores = ss
+        self.index = i
 
-class PrimerCondition(object):
-    def __init__(self):
-        self.primer_length = Condition(0.5, 23., 10, 30)
-        self.gc        = Condition(1.0, 50., 30, 70)
-        self.tm            = Condition(1.0, 60., 45, 70)
-        self.sa            = Condition(0.1, 0., 0, 25)
-        self.sea           = Condition(0.2, 0., 0, 15)
-        self.pa            = Condition(0.1, 0., 0, 25)
-        self.pea           = Condition(0.2, 0., 0, 15)
+    def get_bar(self):
+        i = self.index
+        p = self.p
+        q = self.q
+        spc = ' '*abs(i)
+        ss = self.scores
+        bar = ''.join(['|' if s>0 else ' ' for s in ss])
 
-class PrimerConditionBisulfite(PrimerCondition):
-    def __init__(self):
-        super(PrimerConditionBisulfite,self).__init__()
-        self.gc        = Condition(1.0, 30., 0, 60)
+        if i>0:
+            return [spc+"5'-%s-3'"%p, spc+"  <"+bar+">", "3'-%s-5'"%q[::-1] ]
+        else:
+            return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
 
+    def write_html(self, w):
+        w.push('div',style='annealing')
+        w.push('p','score=%s, index=%s'%(self.score,self.index))
+        w.push('pre')
+        w.text('\n'.join(self.get_bar()))
+        w.pop()
+        w.pop()
 
 def count_while(iteration):
     count = 0
@@ -136,7 +140,6 @@ def count_while(iteration):
             break
 
     return count
-
 
 class PrimerTemplateAnnealing(object):
     def __init__(self, primer, template, strand, loc_3p):
@@ -187,10 +190,7 @@ class PrimerTemplateAnnealing(object):
         return (self.left <= rhs.left) and (self.right <= rhs.right)
 
     def n_percent(self):
-        count = 0
-        for b in self.template[self.left:self.right]:
-            if b=='N':
-                count += 1
+        count = self.template[self.left:self.right].count('N')
         return 1.*count/(self.right-self.left)
 
 
@@ -287,24 +287,16 @@ class Primer(object):
                                  '%.2f'%self.gc_ratio,
                                  self.sa.score,
                                  self.sea.score ]]
-    def _score(self, bisulfite=False):
-        pc = PrimerCondition(bisulfite)
-
-        return pc.primer_length.score(len(self)) \
-              + pc.gc.score(self.gc_ratio) \
-              + pc.tm.score(self.melting_temperature()) \
-              + pc.sa.score(self.sa.score) \
-              + pc.sea.score(self.sea.score)
 
     @property
     @memoize
     def score(self):
-        return self._score(False)
+        return pcond.NORMAL_PCR.score_primer(self)
 
     @property
     @memoize
     def score_bisulfite(self):
-        return self._score(True)
+        return pcond.BISULFITE_PCR.score_primer(self)
 
 
     def sdss_length(self, anneal_temp=None, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=False):
@@ -337,25 +329,21 @@ class PrimerPair(object):
         return PrimerAnnealing(self.fw.seq, self.rv.seq)
     @property
     @memoize
-    def pair_end_annealing(self=False):
+    def pair_end_annealing(self):
         return PrimerAnnealing(self.fw.seq, self.rv.seq, True)
 
     pa = pair_annealing
     pea = pair_end_annealing
 
-    def _score(self, bisulfite):
-        pc = PrimerCondition(bisulfite)
-        return self.fw._score(bisulfite) + self.rv._score(bisulfite) + pc.pa.score(self.pa.score) + pc.pea.score(self.pea.score)
-
     @property
     @memoize
     def score(self):
-        return self._score(False)
+        return pcond.NORMAL_PCR.score_primerpair(self)
 
     @property
     @memoize
     def score_bisulfite(self):
-        return self._score(True)
+        return pcond.BISULFITE_PCR.score_primerpair(self)
 
     def debugprint(self):
         print 'score=', self.score
@@ -390,35 +378,6 @@ class PrimerPair(object):
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
 
-class PrimerAnnealing(object):
-    def __init__(self, p, q, end_annealing=False):
-        s, (i, ss) = annealing_score(p,q,end_annealing)
-        self.p = p
-        self.q = q
-        self.score = s
-        self.scores = ss
-        self.index = i
-
-    def get_bar(self):
-        i = self.index
-        p = self.p
-        q = self.q
-        spc = ' '*abs(i)
-        ss = self.scores
-        bar = ''.join(['|' if s>0 else ' ' for s in ss])
-
-        if i>0:
-            return [spc+"5'-%s-3'"%p, spc+"  <"+bar+">", "3'-%s-5'"%q[::-1] ]
-        else:
-            return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
-
-    def write_html(self, w):
-        w.push('div',style='annealing')
-        w.push('p','score=%s, index=%s'%(self.score,self.index))
-        w.push('pre')
-        w.text('\n'.join(self.get_bar()))
-        w.pop()
-        w.pop()
 
 class Primers(NamedList):
     def __init__(self):
@@ -463,10 +422,8 @@ class Primers(NamedList):
 
     def get_default(self, name, default_name):
         try:
-            return self.primers[name]
+            return self[name]
         except KeyError:
-            try:
-                return Primer(default_name, name)
-            except:
-                raise KeyError("no such primer: %s"%name)
-
+            r = Primer(default_name, name)
+            self.append(r)
+            return r

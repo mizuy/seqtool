@@ -1,30 +1,9 @@
 
-
 def remove_space(d):
     ret = {}
     for k,v in d.items():
         ret[k] = v.replace(' ','')
     return ret
-
-
-_AN = {
-    'A': 'A',
-    'T': 'T',
-    'G': 'G',
-    'C': 'C',
-    'R': 'GA',
-    'Y': 'TC',
-    'M': 'AC',
-    'K': 'GT',
-    'S': 'GC',
-    'W': 'AT',
-    'H': 'ACT',
-    'B': 'GTC',
-    'V': 'GCA',
-    'D': 'GAT',
-    'N': 'GATC',
-    }
-
 
 basematch_partial = remove_space({
          # ATGC WRMKYS BVHD N

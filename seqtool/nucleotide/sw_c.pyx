@@ -104,7 +104,7 @@ cdef _sw(bytes s0_, bytes s1_):
 def smith_waterman(str s0, str s1):
     cdef bytes s0__ = s0.encode()
     cdef bytes s1__ = s1.encode()
-    tracer,mv = _sw(s0__, s1__) 
+    tracer,mv = _sw(s0__, s1__)
 
     p,q,d = tracer[0]
 

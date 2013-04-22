@@ -7,7 +7,7 @@ from Bio.Alphabet import IUPAC
 import os
 
 from ..util import xmlwriter
-from ..nucleotide.primer import Primer
+from ..nucleotide.primer import Primer,Primers
 from ..util.parser import TreekvParser
 
 from ..util.subfs import SubFileSystem
@@ -33,7 +33,7 @@ class SeqviewEntity(object):
         self.name = name
         self.template = template
 
-        self.primers = block.PrimersHolder()
+        self.primers = Primers()
         self.restrictions = []
 
         self.pcrs = block.PcrsBlock(self.template, self.primers)
@@ -97,7 +97,7 @@ class SeqviewEntity(object):
 
             kv = tree.get_one('general/primers')
             if kv:
-                e.primers.load(relative_path(kv.value))
+                e.primers.load_file(relative_path(kv.value))
 
             kv = tree.get_one('general/tss')
             if kv:
