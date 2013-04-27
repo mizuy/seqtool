@@ -86,6 +86,17 @@ class Alignment(object):
 
         return m
 
+    def correspondance_str(self):
+        m = defaultdict(str)
+
+        length = len(self.aseq0.mid_gap)
+        for i in range(length):
+            p = self.aseq0.mid_gap[i]
+            q = self.aseq1.mid_gap[i]
+            m[q] += p
+
+        return m
+
     def compare_bar(self, index):
         """
         view   : ATTTG-CA

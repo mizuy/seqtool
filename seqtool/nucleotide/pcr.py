@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from Bio import Seq
 from collections import defaultdict
-from . import ColorMap, pprint_sequence_html
+from . import ColorMap, pprint_sequence_html, no_stop_in_frame
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from .cpg import bisulfite, cpg_sites, count_cpg
@@ -81,7 +81,7 @@ class PCRProduct(object):
 
             pprint_sequence_html(w, allseq, cm.get_color)
             with b.span(**{'class':'length'}):
-                b.text('length=%d, CpG=%d'%(len(allseq), count_cpg(allseq)))
+                b.text('length=%d, CpG=%d, no stop=%s'%(len(allseq), count_cpg(allseq), no_stop_in_frame(allseq)))
 
             #with b.textarea(cols='10', rows='1', cls='copybox'):
             #    w.write(str(self.seq))

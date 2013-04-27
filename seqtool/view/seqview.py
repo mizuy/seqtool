@@ -137,7 +137,7 @@ class SeqviewEntity(object):
             kv = tree.get_one('primers')
             if kv:
                 for kv in kv.items():
-                    e.primers.add(Primer(kv.key, kv.value))
+                    e.primers.append(Primer(kv.key, kv.value))
 
             def pcr_line(kv):
                 name = kv.key.split(',')[0].strip()

@@ -101,12 +101,18 @@ class SeqFile(object):
             b.h4(tempname)
             if al.score_density() < SCORE_THRESHOLD:
                 continue
+
             m = al.correspondance_map()
+            ms = al.correspondance_str()
 
             with b.pre:
                 for k,v in m.items():
                     b.text(str(k)+':{'+', '.join('{}:{}'.format(kk,vv) for kk,vv in v.items())+'}')
 
+            for k,v in ms.items():
+                with b.span:
+                    b.text(str(k)+': '+v)
+                    b.br()
 
             with b.pre:
                 b.text(al.text_local())
