@@ -805,10 +805,10 @@ void bisearch(const char* input, ostream& output,
   }
   
 
-  output << "> general" << endl;
-  output << "sequence: " << genomic << endl;
+  output << "general:" << endl;
+  output << "    sequence: " << genomic << endl;
   output << endl;
-  output << "> bs_pcr" << endl;
+  output << "bs_pcr:" << endl;
 
   vector<PrimerPairResult> all;
   for(auto& rc: results){
@@ -828,13 +828,13 @@ void bisearch(const char* input, ostream& output,
     replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
     replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
 
-    output << "// rank=" << count << " score=" << ppr.score_;
+    output << "    // rank=" << count << " score=" << ppr.score_;
     output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
+    output << "    //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
     output << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
+    output << "    //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
     output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
-    output << "Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
+    output << "    Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
   }
   output << "// Total: " << count << " Results." << endl;
 }

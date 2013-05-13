@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 from Bio import Entrez
 import os
-from .locus import Locus
 
 directory = os.path.dirname(os.path.abspath(__file__))
 default_cache = os.path.join(directory,'../../_cache/')

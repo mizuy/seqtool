@@ -159,6 +159,17 @@ class SvgTranslateScale(SvgBase):
         with g_translate_scale(b, self.x,self.y,self.sx,self.sy):
             self.child.draw(b)
 
+class SvgPadding(SvgBase):
+    def __init__(self, x, y, child):
+        self._rect = Rectangle(child.rect.x0, child.rect.x1+2*x,child.rect.y0, child.rect.y1+2*y)
+        self.x = x
+        self.y = y
+        self.child = child
+    
+    def draw(self, b):
+        with g_translate(b, self.x, self.y):
+            self.child.draw(b)
+
 ### Containers
 
 class SvgItems(SvgBase):
@@ -176,7 +187,6 @@ class SvgItems(SvgBase):
     def draw(self, b):
         for c in self.items:
             c.draw(b)
-
 
 class SvgItemsFixedHeight(SvgItems):
     def __init__(self, height):
@@ -387,6 +397,17 @@ class SvgRect(SvgBase):
 
     def draw(self,b):
         b.rect(x=self.x, y=self.y, width=self.width, height=self.height, **self.kwargs)
+
+class SvgCircle(SvgBase):
+    def __init__(self, x, y, radius, **kwargs):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.kwargs = self._style(kwargs)
+        self._rect = Rectangle(x-radius, x+radius, y-radius, y+radius)
+
+    def draw(self,b):
+        b.circle(cx=self.x, cy=self.y, r=self.radius, **self.kwargs)
 
 class SvgHbar(SvgRect):
     def __init__(self, start, end, y, thick, **kwargs):

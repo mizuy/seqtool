@@ -55,8 +55,14 @@ Finished processing dependencies for seqtool==0.1.1
 
 ** databases
 
-ucsc table browser
-http://genome.ucsc.edu/cgi-bin/hgTables?hgsid=310886027&clade=mammal&org=Human&db=hg19&hgta_group=genes&hgta_track=refGene&hgta_table=refGene&hgta_regionType=genome&position=chr21%3A33031597-33041570&hgta_outputType=primaryTable&hgta_outFileName=
+for gene tables
+see: make dbload
+
+for dbtss
+http://dbtss.hgc.jp/
+
+use bed files of 'liftover' folders.
+ex. ftp://ftp.hgc.jp/pub/hgc/db/dbtss/dbtss_ver8/hg19_liftover/TSSseq/bed/adult-tissue/
 
 ** building boost
 no user-config.bjam required.

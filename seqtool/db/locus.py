@@ -36,7 +36,7 @@ class StrandPos(object):
 
     def antisense(self):
         print 'ANTISENSE ???'
-        return StrandPos(not self.sense, lower, higher)
+        return StrandPos(not self.sense, self.lower, self.higher)
 
     @property
     def start(self):

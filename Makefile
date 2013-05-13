@@ -21,8 +21,15 @@ clean:
 	rm -f **/*.pyc
 	rm example/*.html
 
+cleanall: clean
+	rm -rf develop-egg parts *.egg-info dist
+
 test:
 	bin/nosetests
+
+dbload:
+	cd database; make
+	bin/database_load --chrom_tab_file=database/chrom.tab --ucsc_tab_file=database/ucsc.tab --hgnc_tab_file=database/hgnc.tab
 
 pdf: source.pdf
 source.pdf: seqtool/*.py seqtool/**/*.py
@@ -30,5 +37,5 @@ source.pdf: seqtool/*.py seqtool/**/*.py
 	pstopdf source.ps -o source.pdf
 	rm source.ps
 
-.PHONY: test all build clean examples
+.PHONY: test all build clean examples cleanall dbload
 

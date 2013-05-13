@@ -23,7 +23,8 @@ temp
 .coverage
 
 # Setuptools/Distribute's files
-*.egg-info
+/*.egg
+/*.egg-info
 /dist
 /build
 
