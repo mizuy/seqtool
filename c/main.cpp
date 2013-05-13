@@ -17,11 +17,12 @@ int main(int argc, char* argv[]){
 
 	string inputfile;
 	int product_len_min=100;
-	int product_len_max=600;
+	int product_len_max=250;
 	int primer_len_min=20;
 	int primer_len_max=35;
 	PCRCondition cond=PCRCondition();
-	float max_tm_diff=8.0f;
+    float max_tm_diff=4.0f;
+    //float max_tm_diff=8.0f;
 	float max_met_tm_diff = 2.5f;
 	int score_threshold=100;
 	int max_results=200;
@@ -82,7 +83,7 @@ int main(int argc, char* argv[]){
 	string line;
 	while(f.good()){
 		getline(f, line);
-		if(line[0]=='>')
+		if(line[0]=='>' || line[0]=='#')
 			continue;
 		seq += line;
 	}

@@ -9,7 +9,7 @@ from seqtool.view.baseseq_renderer import BaseseqRenderer
 from ..util.subfs import SubFileSystem
 from ..util import xmlwriter
 from ..view.css import seqview_css
-from ..nucleotide.pcr import Primer
+from ..nucleotide.primer import Primer
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -90,6 +90,7 @@ class SeqFile(object):
 
             if al.score_density() < SCORE_THRESHOLD:
                 continue
+
             render.add_alignment(tempname, p, q, [comp, gap])
 
         return render.track(len(self.seq)+10).svg()
@@ -100,8 +101,22 @@ class SeqFile(object):
             b.h4(tempname)
             if al.score_density() < SCORE_THRESHOLD:
                 continue
-            with b.pre:
-                b.text(al.text_local())
+
+            with b.div(cls='indent'):
+                m = al.correspondance_map()
+                ms = al.correspondance_str()
+
+                with b.pre:
+                    for k,v in m.items():
+                        b.text(str(k)+':{'+', '.join('{}:{}'.format(kk,vv) for kk,vv in v.items())+'}')
+
+                for k,v in ms.items():
+                    with b.span:
+                        b.text(str(k)+': '+v)
+                        b.br()
+
+                with b.pre:
+                    b.text(al.text_local())
 
 
 class SequencingAnalysis(object):

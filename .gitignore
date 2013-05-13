@@ -20,9 +20,11 @@ temp
 /lib
 /src
 .mr.developer.cfg
+.coverage
 
 # Setuptools/Distribute's files
-*.egg-info
+/*.egg
+/*.egg-info
 /dist
 /build
 

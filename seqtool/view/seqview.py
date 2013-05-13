@@ -7,7 +7,7 @@ from Bio.Alphabet import IUPAC
 import os
 
 from ..util import xmlwriter
-from ..nucleotide.pcr import Primer
+from ..nucleotide.primer import Primer,Primers
 from ..util.parser import TreekvParser
 
 from ..util.subfs import SubFileSystem
@@ -33,7 +33,7 @@ class SeqviewEntity(object):
         self.name = name
         self.template = template
 
-        self.primers = block.PrimersHolder()
+        self.primers = Primers()
         self.restrictions = []
 
         self.pcrs = block.PcrsBlock(self.template, self.primers)
@@ -97,7 +97,7 @@ class SeqviewEntity(object):
 
             kv = tree.get_one('general/primers')
             if kv:
-                e.primers.load(relative_path(kv.value))
+                e.primers.load_file(relative_path(kv.value))
 
             kv = tree.get_one('general/tss')
             if kv:
@@ -137,7 +137,7 @@ class SeqviewEntity(object):
             kv = tree.get_one('primers')
             if kv:
                 for kv in kv.items():
-                    e.primers.add(Primer(kv.key, kv.value))
+                    e.primers.append(Primer(kv.key, kv.value))
 
             def pcr_line(kv):
                 name = kv.key.split(',')[0].strip()
@@ -149,23 +149,29 @@ class SeqviewEntity(object):
                 rv = ls[1].strip()
                 return name, fw, rv
 
-            for kv in tree.get_one('pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.pcrs.add(name, fw, rv)
+            pp = tree.get_one('pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.pcrs.add(name, fw, rv)
 
-            for kv in tree.get_one('rt_pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.rt_pcrs.add(name, fw, rv)
+            pp = tree.get_one('rt_pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.rt_pcrs.add(name, fw, rv)
 
-            for kv in tree.get_one('bs_pcr').items():
-                name, fw, rv = pcr_line(kv)
-                if not name:
-                    continue
-                e.bs_pcrs.add(name, fw, rv)
+            pp = tree.get_one('bs_pcr')
+            if pp:
+                for kv in pp.items():
+                    name, fw, rv = pcr_line(kv)
+                    if not name:
+                        continue
+                    e.bs_pcrs.add(name, fw, rv)
 
         for p in post_processing:
             p()

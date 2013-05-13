@@ -1,4 +1,5 @@
 from .sw_c import smith_waterman
+from collections import defaultdict
 
 __all__ = ['Alignment']
 
@@ -73,6 +74,28 @@ class Alignment(object):
 
     def match_bar(self):
         return match_bar(self.aseq0.mid_gap, self.aseq1.mid_gap)
+
+    def correspondance_map(self):
+        m = defaultdict(lambda: defaultdict(int))
+
+        length = len(self.aseq0.mid_gap)
+        for i in range(length):
+            p = self.aseq0.mid_gap[i]
+            q = self.aseq1.mid_gap[i]
+            m[q][p] += 1
+
+        return m
+
+    def correspondance_str(self):
+        m = defaultdict(str)
+
+        length = len(self.aseq0.mid_gap)
+        for i in range(length):
+            p = self.aseq0.mid_gap[i]
+            q = self.aseq1.mid_gap[i]
+            m[q] += p
+
+        return m
 
     def compare_bar(self, index):
         """

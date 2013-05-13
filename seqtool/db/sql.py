@@ -1,18 +1,17 @@
 import os
 
 directory = os.path.dirname(os.path.abspath(__file__))
-hgnc_tab_file = os.path.join(directory,'../../_db/hgnc.tab')
-ucsc_tab_file = os.path.join(directory,'../../_db/ucsc_gene_table.tab')
-                
+#hgnc_tab_file = os.path.join(directory,'../../_db/hgnc.tab')
+#ucsc_tab_file = os.path.join(directory,'../../_db/ucsc_gene_table.tab')
 
-from sqlalchemy import ForeignKey
-from sqlalchemy import Column, Date, Integer, String, Boolean
+#from sqlalchemy import ForeignKey
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, backref
-from sqlalchemy.schema import UniqueConstraint
-from sqlalchemy.sql import select, or_, and_
-from ..util.prompt import prompt
-from collections import defaultdict
+#from sqlalchemy.orm import relationship, backref
+#from sqlalchemy.schema import UniqueConstraint
+#from sqlalchemy.sql import select, or_, and_
+#from ..util.prompt import prompt
+#from collections import defaultdict
 
 db_file = os.path.join(os.path.dirname(__file__),'../../_db/seqtool.db')
 
@@ -23,33 +22,6 @@ engine = create_engine('sqlite:///'+db_file, echo=False)
 Session = sessionmaker(bind=engine)
 
 Base = declarative_base()
-
-t_chromosome = [[x.strip() for x in c.split(',')] for c in """
-chr1,  NC_000001, 224589800
-chr2,  NC_000002, 224589811
-chr3,  NC_000003, 224589815
-chr4,  NC_000004, 224589816
-chr5,  NC_000005, 224589817
-chr6,  NC_000006, 224589818
-chr7,  NC_000007, 224589819
-chr8,  NC_000008, 224589820
-chr9,  NC_000009, 224589821
-chr10, NC_000010, 224589801
-chr11, NC_000011, 224589802
-chr12, NC_000012, 224589803
-chr13, NC_000013, 224589804
-chr14, NC_000014, 224589805
-chr15, NC_000015, 224589806
-chr16, NC_000016, 224589807
-chr17, NC_000017, 224589808
-chr18, NC_000018, 224589809
-chr19, NC_000019, 224589810
-chr20, NC_000020, 224589812
-chr21, NC_000021, 224589813
-chr22, NC_000022, 224589814
-chrX,  NC_000023, 224589822
-chrY,  NC_000024, 224589823
-""".strip().split('\n')]
 
 class Chromosome(Base):
     __tablename__ = 'chromosome'
@@ -64,7 +36,9 @@ class Chromosome(Base):
         self.gid = gid
 
     @classmethod
-    def load(cls):
+    def load(cls, filename):
+        chrom = open(filename, 'r').read()
+        t_chromosome = [[x.strip() for x in c.split(',')] for c in chrom.strip().split('\n')]
         session = Session()
         for ch, ac, gid in t_chromosome:
             session.add(Chromosome(ch, ac, gid))
@@ -82,20 +56,20 @@ class GeneTable(Base):
         self.symbol = symbol
 
     @classmethod
-    def load(cls, hgnc_tab_file=hgnc_tab_file):
+    def load(cls, filename):
         session = Session()
-        with open(hgnc_tab_file, 'r') as f:
+        with open(filename, 'r') as f:
             lines = f.readlines()
             title = lines[0].strip().split('\t')
-            assert(title[1]=="Approved Symbol")
-            assert(title[2]=="Entrez Gene ID (mapped data supplied by NCBI)")
+            assert(title[0]=="Approved Symbol")
+            assert(title[1].startswith("Entrez Gene ID"))
             for line in lines[1:]:
                 l = line.strip().split('\t')
-                if len(l) < 4:
+                if len(l) < 2:
                     continue
                 try:
-                    symbol = l[1]
-                    gene_id = int(l[2])
+                    symbol = l[0]
+                    gene_id = int(l[1])
                 except:
                     continue
                 session.add(GeneTable(gene_id, symbol))
@@ -127,11 +101,11 @@ class UcscTable(Base):
         pass
 
     @classmethod
-    def load(cls, ucsc_tab_file=ucsc_tab_file):
+    def load(cls, filename):
         session = Session()
-        with open(ucsc_tab_file, 'r') as f:
+        with open(filename, 'r') as f:
             lines = f.readlines()
-            title = lines[0].strip().split('\t')
+            #title = lines[0].strip().split('\t')
             for line in lines[1:]:
                 l = line.strip().split('\t')
                 assert len(l) == 16
@@ -170,15 +144,22 @@ def clear_all():
 
     trans.commit() 
 
-def load_all():
+def database_load():
+    from argparse import ArgumentParser
+    parser = ArgumentParser(prog='database_load', description='load database')
+    parser.add_argument("--ucsc_tab_file", default='ucsc.tab', help='see Makefile')
+    parser.add_argument("--hgnc_tab_file", default='hgnc.tab', help='see Makefile')
+    parser.add_argument("--chrom_tab_file", default='chrom.tab', help='see Makefile')
+    args = parser.parse_args()
+
     clear_all()
     session = Session()
     print "loading Chromosome..."
-    Chromosome.load()
+    Chromosome.load(args.chrom_tab_file)
     print "loading GeneTable..."
-    GeneTable.load()
+    GeneTable.load(args.hgnc_tab_file)
     print "loading UcscTable..."
-    UcscTable.load()
+    UcscTable.load(args.ucsc_tab_file)
     print '...done.'
     session.commit()
 

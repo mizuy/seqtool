@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import cPickle as pickle
 
 from collections import defaultdict, OrderedDict
-from .locus import Locus
 from ..util.namedlist import NamedList
 import numpy
 import os
@@ -12,8 +11,6 @@ directory = os.path.dirname(os.path.abspath(__file__))
 
 database_dir = os.path.join(directory,'../../_db/dbtss/')
 default_cache_file = os.path.join(directory,'../../_cache/bed.cache')
-
-import bisect
 
 def settings(text, sp=','):
     return [[x.strip() for x in c.split(sp)] for c in text.strip().split('\n')]

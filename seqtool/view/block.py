@@ -1,39 +1,8 @@
 from __future__ import absolute_import
 
-from ..nucleotide.pcr import Primer, PCR, load_primer_list_file
+from ..nucleotide.pcr import PCR
+from ..nucleotide.primer import Primer
 from ..util.namedlist import NamedList
-
-class PrimersHolder(object):
-    def __init__(self):
-        self.primers = NamedList()
-
-    def __len__(self):
-        return len(self.primers)
-
-    def __iter__(self):
-        return iter(self.primers)
-
-    def load(self, filename):
-        with open(filename,'r') as f:
-            for i in load_primer_list_file(f):
-                self.primers.append(i)
-
-    def add(self, primer):
-        self.primers.add(primer)
-
-    def get(self, name, default_name):
-        try:
-            return self.primers[name]
-        except KeyError:
-            try:
-                return Primer(default_name, name)
-            except:
-                raise KeyError("no such primer: %s"%name)
-                
-    def get_pcr_pair(self, fw_primer, rv_primer, pcr_name):
-        fw = self.get(fw_primer, 'PCR-FW(%s)'%pcr_name)
-        rv = self.get(rv_primer, 'PCR-RV(%s)'%pcr_name)
-        return fw, rv
 
 class PcrsHolder(object):
     def __init__(self, template, primers):
@@ -48,7 +17,8 @@ class PcrsHolder(object):
         return iter(self.pcrs)
 
     def _get(self, name, fw_primer, rv_primer):
-        fw, rv = self.primers.get_pcr_pair(fw_primer, rv_primer, name)
+        fw = self.primers.get_default(fw_primer, 'PCR-FW(%s)'%name)
+        rv = self.primers.get_default(rv_primer, 'PCR-RV(%s)'%name)
         return PCR(name, self.template.seq, fw, rv)
 
     def add(self, name, fw_primer, rv_primer):

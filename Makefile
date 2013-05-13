@@ -9,14 +9,27 @@ build:
 bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
 	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
 
+examples:
+	bin/seqview example/actb.seqv
+	bin/seqview example/b2m.seqv
+	bin/seqview example/btg3.seqv
+
+
 clean:
 	rm -f **/*~
 	rm -f #*
 	rm -f **/*.pyc
 	rm example/*.html
 
+cleanall: clean
+	rm -rf develop-egg parts *.egg-info dist
+
 test:
 	bin/nosetests
+
+dbload:
+	cd database; make
+	bin/database_load --chrom_tab_file=database/chrom.tab --ucsc_tab_file=database/ucsc.tab --hgnc_tab_file=database/hgnc.tab
 
 pdf: source.pdf
 source.pdf: seqtool/*.py seqtool/**/*.py
@@ -24,5 +37,5 @@ source.pdf: seqtool/*.py seqtool/**/*.py
 	pstopdf source.ps -o source.pdf
 	rm source.ps
 
-.PHONY: test all build clean
+.PHONY: test all build clean examples cleanall dbload
 

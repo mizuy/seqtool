@@ -1,6 +1,6 @@
->general
-genbank: b2m.gb
-primers: primers.txt
+general:
+    gene: B2M
+    primers: primers.txt
 
->rt_pcr
-B2M: B2M-common-F,B2M-R3
+rt_pcr:
+    B2M: B2M-common-F,B2M-R3
