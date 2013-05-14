@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 import re
 
@@ -55,43 +55,43 @@ def annealing_score(p,q,end_annealing=False,getindex=False):
     av = (-1, None)
     if n<=m:
         assert m-n >= 0
-        for k in xrange(-(n-1),m-1 +1):
+        for k in range(-(n-1),m-1 +1):
             if k<=0:
                 # 5'- w[0]....w[-k]....w[n-1] -3'
                 #         3'- v[0].....v[n+k-1]....v[m-1] -5'
-                ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
+                ss = [sv(w[-k+i],v[i]) for i in range(n+k)]
                 av = max_(av, (sum(ss),(k,ss)))
                 eav = max_(eav,(ea_lr(ss),(k,ss)))
             elif k<=m-n:
                 #         w[0]....w[n-1]
                 # v[0]....v[k]....v[k+n-1].....v[m-1]
-                ss = [sv(w[0+i],v[k+i]) for i in xrange(n)]
+                ss = [sv(w[0+i],v[k+i]) for i in range(n)]
                 av = max_(av, (sum(ss),(k,ss)))
                 eav = max_(eav,(ea_r(ss),(k,ss)))
             else:
                 #        w[0]...w[m-k-1]....w[n-1]
                 # v[0]...v[k]...v[m-1]
-                ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
+                ss = [sv(w[i],v[k+i]) for i in range(m-k)]
                 av = max_(av, (sum(ss),(k,ss)))
     else:
         assert m-n <= 0
-        for k in xrange(-(n-1),m-1 +1):
+        for k in range(-(n-1),m-1 +1):
             if k<=m-n:
                 # w[0]....w[-k]....w[n-1]
                 #         v[0].....v[n+k-1]....v[m-1]
-                ss = [sv(w[-k+i],v[i]) for i in xrange(n+k)]
+                ss = [sv(w[-k+i],v[i]) for i in range(n+k)]
                 av = max_(av, (sum(ss),(k,ss)))
                 eav = max_(eav,(ea_lr(ss),(k,ss)))
             elif k<=0:
                 # w[0]....w[k]....w[m-k-1].....w[n-1]
                 #         v[0]....v[m-1]
-                ss = [sv(w[k+i],v[0+i]) for i in xrange(m)]
+                ss = [sv(w[k+i],v[0+i]) for i in range(m)]
                 av = max_(av, (sum(ss),(k,ss)))
                 eav = max_(eav,(ea_l(ss),(k,ss)))
             else:
                 #        w[0]...w[m-k-1]....w[n-1]
                 # v[0]...v[k]...v[m-1]
-                ss = [sv(w[i],v[k+i]) for i in xrange(m-k)]
+                ss = [sv(w[i],v[k+i]) for i in range(m-k)]
                 av = max_(av, (sum(ss),(k,ss)))
 
     if not end_annealing:
@@ -265,11 +265,11 @@ class Primer(object):
         return pp,pc
 
     def debugprint(self):
-        print "%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % self.get_table_row()
-        print 'sa=%s, index=%s'%(self.sa.score, self.sa.index)
-        print '\n'.join(self.sa.get_bar())
-        print 'sea=%s, index=%s'%(self.sea.score, self.sea.index)
-        print '\n'.join(self.sea.get_bar())
+        print("%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % self.get_table_row())
+        print('sa=%s, index=%s'%(self.sa.score, self.sa.index))
+        print('\n'.join(self.sa.get_bar()))
+        print('sea=%s, index=%s'%(self.sea.score, self.sea.index))
+        print('\n'.join(self.sea.get_bar()))
 
 
     @classmethod
@@ -310,7 +310,7 @@ class Primer(object):
             anneal_temp = self.melting_temperature()
             
         l = len(s)
-        for i in xrange(2,l):
+        for i in range(2,l):
             f = melt_temp.complex_fraction(s[l-i:-1], anneal_temp, pcr_mix)
             if f>0.01:
                 break
@@ -346,16 +346,16 @@ class PrimerPair(object):
         return pcond.BISULFITE_PCR.score_primerpair(self)
 
     def debugprint(self):
-        print 'score=', self.score
-        print 'bisulfite score=', self.score_bisulfite
+        print('score=', self.score)
+        print('bisulfite score=', self.score_bisulfite)
         for r in [self.fw, self.rv]:
             r.debugprint()
         pa = self.pair_annealing()
-        print 'pa=%s, index=%s'%(pa.score,pa.index)
-        print '\n'.join(pa.get_bar())
+        print('pa=%s, index=%s'%(pa.score,pa.index))
+        print('\n'.join(pa.get_bar()))
         pea = self.pair_end_annealing()
-        print 'pea=%s, index=%s'%(pea.score,pea.index)
-        print '\n'.join(pea.get_bar())
+        print('pea=%s, index=%s'%(pea.score,pea.index))
+        print('\n'.join(pea.get_bar()))
 
 
     def write_html(self, w):
@@ -389,7 +389,7 @@ class Primers(NamedList):
             parser = TreekvParser()
             tree = parser.readfp(f, filename)
 
-            for kv in tree.items():
+            for kv in list(tree.items()):
                 self.append(Primer(kv.key, kv.value))
 
 

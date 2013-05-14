@@ -1,5 +1,5 @@
 # encoding: utf-8
-from __future__ import absolute_import
+
 
 from Bio import Seq
 from Bio.Alphabet import IUPAC
@@ -12,14 +12,14 @@ def main():
     args = parser.parse_args()
 
     s = Seq.Seq(args.sequence[0],IUPAC.unambiguous_dna)
-    print '+0',s.translate()
-    print '+1',s[1:].translate()
-    print '+2',s[2:].translate()
+    print('+0',s.translate())
+    print('+1',s[1:].translate())
+    print('+2',s[2:].translate())
 
     s = s.reverse_complement()
-    print '+0',s.translate()
-    print '+1',s[1:].translate()
-    print '+2',s[2:].translate()
+    print('+0',s.translate())
+    print('+1',s[1:].translate())
+    print('+2',s[2:].translate())
 
 
 if __name__=='__main__':

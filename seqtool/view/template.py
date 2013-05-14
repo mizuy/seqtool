@@ -1,7 +1,7 @@
-from __future__ import absolute_import
+
 
 from Bio import SeqIO
-from cStringIO import StringIO
+from io import StringIO
 from ..util.memoize import memoize
 from ..nucleotide.cpg import bisulfite
 

@@ -1,6 +1,6 @@
-from __future__ import absolute_import
 
-import cPickle as pickle
+
+import pickle as pickle
 
 from collections import defaultdict, OrderedDict
 from ..util.namedlist import NamedList
@@ -73,7 +73,7 @@ class SortedLocVal(object):
         #l_lower = self.locs.bisect.bisect_left(tlocs, lower)
         #l_higher   = bisect.bisect_right(tlocs, higher)
 
-        for i in xrange(l_lower, l_higher):
+        for i in range(l_lower, l_higher):
             yield self.locs[i], self.vals[i]
 
 class DoubleStrand(object):
@@ -111,7 +111,7 @@ class Dbtss(object):
                 self.tissues = pickle.load(open(default_cache_file,'rb'))
                 #print "done."
             except pickle.PickleError:
-                print "pickle error: %s"%default_cache_file
+                print("pickle error: %s"%default_cache_file)
                 self.tissues = None
 
         if not self.tissues:
@@ -128,7 +128,7 @@ class Dbtss(object):
                 locs = defaultdict(lambda : defaultdict(list))
                 vals = defaultdict(lambda : defaultdict(list))
 
-                print 'loading bed...: %s'%bed_file
+                print('loading bed...: %s'%bed_file)
                 for l in fileobj:
                     ll = l.split()
                     chromosome = ll[0]
@@ -139,7 +139,7 @@ class Dbtss(object):
                     locs[chromosome][strand].append(location)
                     vals[chromosome][strand].append(value)
 
-                for ch in locs.keys():
+                for ch in list(locs.keys()):
                     sense =     SortedLocVal(numpy.array(locs[ch][0]),
                                              numpy.array(vals[ch][0]))
                     antisense = SortedLocVal(numpy.array(locs[ch][1]),

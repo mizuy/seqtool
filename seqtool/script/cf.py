@@ -15,7 +15,7 @@ def main():
     gravity = args.gravity[0]
     radius = args.radius or 7.1
 
-    print '{} rpm. where gravity is {}, radius is {}cm'.format(rpm(gravity, radius/100.), gravity, radius)
+    print('{} rpm. where gravity is {}, radius is {}cm'.format(rpm(gravity, radius/100.), gravity, radius))
 
 if __name__=='__main__':
     main()

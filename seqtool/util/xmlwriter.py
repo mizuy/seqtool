@@ -42,7 +42,7 @@ class XmlWriter(object):
         return attrv
 
     def _starttag(self, tag, **attrs):
-        return ' '.join([str(tag)]+['%s=%s'%(escape(self.attr_hook(str(k))),quoteattr(str(v))) for k,v in attrs.items() if k])
+        return ' '.join([str(tag)]+['%s=%s'%(escape(self.attr_hook(str(k))),quoteattr(str(v))) for k,v in list(attrs.items()) if k])
 
     def _stag(self, tag, **attrs):
         self._write('<%s>'%self._starttag(tag,**attrs))

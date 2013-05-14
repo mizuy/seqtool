@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from Bio import Entrez
 import os
@@ -19,7 +19,7 @@ class CachedEntrez(object):
         self.cache_dir = default_cache
 
     def cache_file(self, **args):
-        return os.path.join(self.cache_dir,'&'.join(["%s=%s"%(k,v) for k,v in args.items()])+'.cache')
+        return os.path.join(self.cache_dir,'&'.join(["%s=%s"%(k,v) for k,v in list(args.items())])+'.cache')
         
     def efetch(self, **args):
         fname = self.cache_file(**args)
@@ -27,13 +27,13 @@ class CachedEntrez(object):
             with open(fname,'r') as f:
                 return f.read()
         try:
-            print "Entrez.efetch..: %s"%(args)
+            print("Entrez.efetch..: %s"%(args))
             handle = Entrez.efetch(**args)
             ret = handle.read()
         except:
             raise EntrezEfetchError(args)
         finally:
-            print "..efetch finished."
+            print("..efetch finished.")
         
         with open(fname, 'w') as f:
             f.write(ret)

@@ -12,7 +12,7 @@ class DbtssBlock(block.BaseBlock):
     
     def set_tissueset(self, tissues):
         if not self.template.locus:
-            print "No Locus Defined."
+            print("No Locus Defined.")
             return False
         self.tsl = TissuesetLocus(tissues, self.template.locus)
         return True

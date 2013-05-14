@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from .nucleotide.primer import Primer, PrimerPair, PrimerCondition
 
@@ -11,9 +11,9 @@ from threading import Lock, Thread
 __all__ = ['PrimerSearchOptions', 'dynamic_primer_search', 'adhoc_primer_search']
 
 def irange(from_,to):
-    return xrange(from_,to+1)
+    return range(from_,to+1)
 def irange_r(from_,to):
-    return xrange(to,from_-1,-1)
+    return range(to,from_-1,-1)
 
 class MeltingTemperature(object):
     def __init__(self, na_conc=33.*10**-3, mg_conc=(2+4.5)*10**-3, primer_conc=0.5*10**-6):
@@ -26,7 +26,7 @@ class MeltingTemperature(object):
 
         def ddict_to_table(ddict):
             ret = empty((4*4),float)
-            for k in ddict.keys():
+            for k in list(ddict.keys()):
                 i0 = {'A':0, 'T':1, 'G':2, 'C':3}[k[0]]
                 i1 = {'A':0, 'T':1, 'G':2, 'C':3}[k[1]]
                 i = i0 + i1 * 4
@@ -111,7 +111,7 @@ class TargetSequence(object):
         self.tm_dg = empty((len(self.seqint)),float)
         self.tm_dh_u = empty((len(self.seqint)),float)
         self.tm_dg_u = empty((len(self.seqint)),float)
-        for i in xrange(len(self.seqint)-1):
+        for i in range(len(self.seqint)-1):
             i0 = self.seqint[i]
             i1 = self.seqint[i+1]
             self.tm_dh[i] = self.tm_calc.nn_enthalpy(i0,i1)
@@ -195,29 +195,29 @@ class PrimerPairResult(object):
         self.primers = PrimerPair(self.fw, self.rv)
 
     def debug(self):
-        print 'score=%s, i,j:%s,%s j,m:%s,%s, pa=%s, pa_k=%s pea=%s pea_k=%s'%(self.score,self.i,self.n,self.j,self.m,self.pa,self.pa_k,self.pea,self.pea_k)
-        print self.primerp.desc_pos(self.i,self.n)
-        print self.primerp.desc_neg(self.j,self.m)
+        print('score=%s, i,j:%s,%s j,m:%s,%s, pa=%s, pa_k=%s pea=%s pea_k=%s'%(self.score,self.i,self.n,self.j,self.m,self.pa,self.pa_k,self.pea,self.pea_k))
+        print(self.primerp.desc_pos(self.i,self.n))
+        print(self.primerp.desc_neg(self.j,self.m))
         if self.pa_k is not None:
-            print 'pa=%s'%self.pa
+            print('pa=%s'%self.pa)
             if self.pa_k > 0:
-                print ' '*abs(self.pa_k)+"5'-%s-3'"%self.fw
-                print "3'-%s-5'"%self.rv.reverse()
+                print(' '*abs(self.pa_k)+"5'-%s-3'"%self.fw)
+                print("3'-%s-5'"%self.rv.reverse())
             else:
-                print "5'-%s-3'"%self.fw
-                print ' '*abs(self.pa_k)+"3'-%s-5'"%self.rv.reverse()
-            print ''
+                print("5'-%s-3'"%self.fw)
+                print(' '*abs(self.pa_k)+"3'-%s-5'"%self.rv.reverse())
+            print('')
         if self.pea_k is not None:
-            print 'pea=%s'%self.pea
+            print('pea=%s'%self.pea)
             if self.pea_k > 0:
-                print ' '*abs(self.pea_k)+"5'-%s-3'"%self.fw
-                print "3'-%s-5'"%self.rv.reverse()
+                print(' '*abs(self.pea_k)+"5'-%s-3'"%self.fw)
+                print("3'-%s-5'"%self.rv.reverse())
             else:
-                print "5'-%s-3'"%self.fw
-                print ' '*abs(self.pea_k)+"3'-%s-5'"%self.rv.reverse()
-            print ''
+                print("5'-%s-3'"%self.fw)
+                print(' '*abs(self.pea_k)+"3'-%s-5'"%self.rv.reverse())
+            print('')
         self.primers.debugprint()
-        print 'validation....'
+        print('validation....')
         self. validate()
 
     def validate(self):
@@ -308,16 +308,16 @@ class Results(object):
             self.add(ppr)
     def debug(self):
         if len(self.pl)==0:
-            print 'no result.'
+            print('no result.')
         for s,ppr in self.pl[::-1]:
-            print '-'*100
+            print('-'*100)
             ppr.debug()
     def write_seqviewfile(self, fileobj):
         c = 0
         primers_fw = {}
         for i,(s,pg) in enumerate(self.pl):
             k = (pg.best.i, pg.best.n)
-            if not primers_fw.has_key(k):
+            if k not in primers_fw:
                 pg.best.fw.name = 'bi-%03d-FW'%c
                 primers_fw[k] = pg.best.fw
                 c += 1
@@ -325,15 +325,15 @@ class Results(object):
         primers_rv = {}
         for i,(s,pg) in enumerate(self.pl):
             k = (pg.best.j, pg.best.m)
-            if not primers_rv.has_key(k):
+            if k not in primers_rv:
                 pg.best.rv.name = 'bi-%03d-RV'%c
                 primers_rv[k] = pg.best.rv
                 c += 1
 
         fileobj.write('>primer\n')
-        for p in primers_fw.values():
+        for p in list(primers_fw.values()):
             fileobj.write('%s: %s\n'%(p.name,str(p.seq)))
-        for p in primers_rv.values():
+        for p in list(primers_rv.values()):
             fileobj.write('%s: %s\n'%(p.name,str(p.seq)))
         fileobj.write('>pcr\n')
         if self.mode_bsp:
@@ -364,7 +364,7 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     target = TargetSequence(str(target_seq),tm_calculator)
     seq_length = len(target)
     primer_length = option.primer_cond.primer_length.maximum
-    print 'sequence length=',seq_length
+    print('sequence length=',seq_length)
 
     mode_bsp = True if option.mode == PrimerSearchOptions.MODE_BISULFITE_SEQUENCE else False
 
@@ -423,8 +423,8 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     primerp = PrimerProperties(seq_length,primer_length)
     
     # Tm, length, GC calculation
-    print 'calculating Tm, length, GC...'
-    for i in xrange(seq_length):
+    print('calculating Tm, length, GC...')
+    for i in range(seq_length):
         c_cpg = target.is_cpg(i)
         c_gc = target.is_gc(i)
         dh = 0.
@@ -484,10 +484,10 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     # sa_0(i...i+n-1) = n=1 | score_c(i,i)
     #                   n=2 | 2*score_c(i,i+1)
     #                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
-    print 'calculating self annealing...'
+    print('calculating self annealing...')
     sa_0 = empty((seq_length,primer_length+1),dtype=int)
     sa_0[:] = -1
-    for end in xrange(seq_length):
+    for end in range(seq_length):
         for n in irange(1,min(end+1,primer_length)):
             i = end-n+1
             assert i+n <= seq_length
@@ -501,7 +501,7 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
                 assert sa_0[startend(i+1,end-1)]>=0, 'from %s to %s, n=%s'%(i,end,n)
                 sa_0[i,n] = sa_0[startend(i+1,end-1)] + 2*target.s_c(i,end)
     # sa second step, 
-    for i in xrange(seq_length):
+    for i in range(seq_length):
         for n in irange(1,min(seq_length-i,primer_length)):
             assert i+n <= seq_length
             if not primerp.is_valid(i,n):
@@ -518,12 +518,12 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     # sea_0(i...i+n-1) = n=1 | score_c(i,i)
     #                    n=2 | 2*score_c(i,i+1)
     #                    n=n | 
-    print 'calculating self end annealing...'
+    print('calculating self end annealing...')
     sea_0 = empty((seq_length,primer_length+1),dtype=int)
     sea_0[:] = -1
     sea_0_full = empty((seq_length,primer_length+1),dtype=bool)
     sea_0_full[:] = None
-    for end in xrange(seq_length):
+    for end in range(seq_length):
         for n in irange(1,min(end+1,primer_length)):
             i = end-n+1
             assert 0 <= i <= end
@@ -550,7 +550,7 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
                 #print "1st: i=%d, %d=sea_0[%s,%s], %s, full=%s, base=%s, s=%s"%(i,v,i,n,target.seqstr[i:i+n],full,base,s)
                     
     # sea second step, 
-    for i in xrange(seq_length):
+    for i in range(seq_length):
         for n in irange(1,min(seq_length-i,primer_length)):
             assert i+n <= seq_length
             if not primerp.is_valid(i,n):
@@ -565,7 +565,7 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
                 primerp.set_invalid(i,n)
 
 
-    for i in xrange(seq_length):
+    for i in range(seq_length):
         for n in irange(2,min(seq_length-i,primer_length)):
             assert i+n <= seq_length
             c = option.primer_cond.primer_length.score(n) + option.cond_gc().score(primerp.gc[i,n]) + option.primer_cond.sa.score(primerp.sa[i,n]) + option.primer_cond.tm.score(primerp.tm[i,n])
@@ -590,12 +590,12 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
     # pa(w,v) = max{k from -(n-1) to m-1} 
     #                 pa_0[1,1,n+k] if k<0, n+k<m
     # lazy calculation of pa0
-    print 'calculating pair annealing...'
+    print('calculating pair annealing...')
 
     lock_pa = Lock()
     lock_pea = Lock()
 
-    result = [Results(None, mode_bsp) for i in xrange(thread_num)]
+    result = [Results(None, mode_bsp) for i in range(thread_num)]
 
     def multithread_division_problem(problem, threadno, threadsnum):
         block = problem/threadsnum
@@ -642,7 +642,7 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
 
         starti, endi = multithread_division_problem(seq_length, threadno, threadsnum)
 
-        for i in xrange(starti, endi):
+        for i in range(starti, endi):
             for n in irange(2,min(seq_length-i,primer_length)):
                 assert i+n <= seq_length
                 if not primerp.is_valid(i,n):
@@ -703,14 +703,14 @@ def dynamic_primer_search(target_seq, option=PrimerSearchOptions(), thread_num=1
 
     if thread_num>1:
         threads = []
-        for threadno in xrange(thread_num):
+        for threadno in range(thread_num):
             th = Thread(target=pair_calc, args=(threadno,thread_num))
             threads.append(th)
             th.start()
         for t in threads:
-            print 'join...',t
+            print('join...',t)
             t.join()
-            print 'end',t
+            print('end',t)
         for i in result[1:]:
             result[0].add_result(i)
     else:
@@ -735,10 +735,10 @@ def gen_primer_pairs(target,length_min=10,length_max=30):
     [target[i,j] for all i,j where length_min <= len(target[i,j]) <= length_max]
     '''
     l = len(target)
-    for p in xrange(l):
-        for q in xrange(p+length_min,min(p+length_max,l)):
-            for r in xrange(l):
-                for s in xrange(r+length_min,min(r+length_max,l)):
+    for p in range(l):
+        for q in range(p+length_min,min(p+length_max,l)):
+            for r in range(l):
+                for s in range(r+length_min,min(r+length_max,l)):
                     yield target[p:q],target[r:s]
 
 

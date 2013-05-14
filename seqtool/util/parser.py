@@ -5,7 +5,7 @@ class Logger(object):
         pass
 
     def write(self, message):
-        print message
+        print(message)
 
 class KeyValue(object):
     def __init__(self, key, value=None, lineinfo=None, logger=Logger()):
@@ -241,7 +241,7 @@ pcr: Genomic-PCR
 """
 
 if __name__=='__main__':
-    import StringIO
+    import io
     parser = TreekvParser()
-    kv = parser.readfp(StringIO.StringIO(sample))
-    print kv.text()
+    kv = parser.readfp(io.StringIO(sample))
+    print(kv.text())

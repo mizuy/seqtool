@@ -1,7 +1,7 @@
 
 def remove_space(d):
     ret = {}
-    for k,v in d.items():
+    for k,v in list(d.items()):
         ret[k] = v.replace(' ','')
     return ret
 

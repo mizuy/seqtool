@@ -1,5 +1,5 @@
 # encoding: utf-8
-from __future__ import absolute_import
+
 
 from Bio import Seq
 from Bio.Alphabet import IUPAC
@@ -28,18 +28,18 @@ def main():
     sense = bisulfite(s, True)
     asense = bisulfite(s.reverse_complement(), True)
 
-    print 'Fw = ',positive(s)
-    print 'Rv = ',positive(s.reverse_complement())
-    print ""
+    print('Fw = ',positive(s))
+    print('Rv = ',positive(s.reverse_complement()))
+    print("")
 
-    print negative(sense.reverse_complement())
-    print positive(sense)
-    print "↑"
-    print positive(s)
-    print negative(s.reverse_complement())
-    print "↓"
-    print negative(asense)
-    print positive(asense.reverse_complement())
+    print(negative(sense.reverse_complement()))
+    print(positive(sense))
+    print("↑")
+    print(positive(s))
+    print(negative(s.reverse_complement()))
+    print("↓")
+    print(negative(asense))
+    print(positive(asense.reverse_complement()))
 
 
 if __name__=='__main__':

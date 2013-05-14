@@ -29,10 +29,10 @@ class NamedList(object):
             return None
 
     def __iter__(self):
-        return self._dict.itervalues()
+        return iter(self._dict.values())
 
     def items(self):
-        return self._dict.iteritems()
+        return iter(self._dict.items())
 
 class DefaultNamedList(NamedList):
     def __init__(self, default, get_name=lambda x:x.name):

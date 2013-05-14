@@ -138,8 +138,8 @@ def clear_all():
 
     trans = con.begin() 
 
-    for name, table in Base.metadata.tables.items(): 
-        print table.delete() 
+    for name, table in list(Base.metadata.tables.items()): 
+        print(table.delete()) 
         con.execute(table.delete()) 
 
     trans.commit() 
@@ -154,12 +154,12 @@ def database_load():
 
     clear_all()
     session = Session()
-    print "loading Chromosome..."
+    print("loading Chromosome...")
     Chromosome.load(args.chrom_tab_file)
-    print "loading GeneTable..."
+    print("loading GeneTable...")
     GeneTable.load(args.hgnc_tab_file)
-    print "loading UcscTable..."
+    print("loading UcscTable...")
     UcscTable.load(args.ucsc_tab_file)
-    print '...done.'
+    print('...done.')
     session.commit()
 

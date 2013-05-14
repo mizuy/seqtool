@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from Bio.SeqUtils import GC
 
@@ -63,7 +63,7 @@ def seq_cpg_analysis(seq, window):
     obs = []
 
     sr = cpgisland_searcher(l,window)
-    for i in xrange(0,l):
+    for i in range(0,l):
         p = max(0,i-h)
         q = min(i+h,l)
         n = q-p
@@ -93,7 +93,7 @@ def seq_gc_percent(seq, window):
     l = len(seq)
     h = int(window/2)
     ret = []
-    for i in xrange(0,l):
+    for i in range(0,l):
         p = max(0,i-h)
         q = min(i+h,l)
         n = q-p
@@ -113,7 +113,7 @@ def seq_cpg_obs_per_exp(seq, window, step):
     l = len(seq)
     h = int(window/2)
     ret = []
-    for i in xrange(0,l,step):
+    for i in range(0,l,step):
         p = max(0,i-h)
         q = min(i+h,l)
         n = q-p

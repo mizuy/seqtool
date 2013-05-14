@@ -1,8 +1,9 @@
-from __future__ import absolute_import
+
 
 from ..util import xmlwriter
 import itertools
-from StringIO import StringIO
+from io import StringIO
+from functools import reduce
 
 DEBUG = False
 
@@ -26,7 +27,7 @@ class Rectangle(object):
     def __repr__(self):
         return 'Rectangle(%f,%f,%f,%f)' % (self.x0, self.x1, self.y0, self.y1)
 
-    def __nonzero__(self):
+    def __bool__(self):
         return self.valid
 
     def __mul__(self, rhs):
@@ -83,7 +84,7 @@ class SvgBase(object):
     def _style(self, kwargs):
         ret = {}
         ret['stroke'] = 'black'
-        for key, value in kwargs.items():
+        for key, value in list(kwargs.items()):
             if key=='color':
                 ret['stroke'] = value
                 ret['style'] = 'fill:%s;'%value
@@ -238,7 +239,7 @@ class SvgItemsVStack(SvgItems):
 def grouper(n, iterable, fillvalue=None):
     "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
+    return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 class SvgItemsVFree(SvgItems):
     """
@@ -455,7 +456,7 @@ class SvgGraphline(SvgItemsFixedHeight):
         super(SvgGraphline,self).__init__(height)
 
         step = max(1, int(1./scalex)) # for smaller file size.
-        self.points = [(i*scalex,height*(1.-values[i])) for i in xrange(0, len(values), step)]
+        self.points = [(i*scalex,height*(1.-values[i])) for i in range(0, len(values), step)]
         self.bars = bars
         self.kwargs = self._style(kwargs)
         self.width = width or len(values)

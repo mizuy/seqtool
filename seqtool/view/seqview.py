@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from Bio import Restriction
 from Bio import Seq
@@ -65,8 +65,8 @@ class SeqviewEntity(object):
 
         def ignore_child(kv):
             if kv.has_items():
-                print 'Ignoring unkown child items'
-                print kv.lineinfo.error_msg()
+                print('Ignoring unkown child items')
+                print(kv.lineinfo.error_msg())
 
         with open(filename,'r') as fileobj:
             bn = os.path.basename(filename)
@@ -89,10 +89,10 @@ class SeqviewEntity(object):
                         try:
                             gene_id, gene_symbol = db.get_gene_from_text(kv.value)
                             e = cls.create_gene(gene_symbol, gene_id)
-                        except db.NoSuchGene,e:
-                            print 'gene entry: No such Gene %s'%kv.value
+                        except db.NoSuchGene as e:
+                            print('gene entry: No such Gene %s'%kv.value)
             if not e:
-                print 'unkown sequence. exit.'
+                print('unkown sequence. exit.')
                 return None
 
             kv = tree.get_one('general/primers')
@@ -107,7 +107,7 @@ class SeqviewEntity(object):
             if kv:
                 for v in kv.value_list():
                     if v not in Restriction.AllEnzymes:
-                        print 'No such Restriction Enzyme: {0}'.format(v)
+                        print('No such Restriction Enzyme: {0}'.format(v))
                         continue
                     e.restrictions.append(v)
 
@@ -118,7 +118,7 @@ class SeqviewEntity(object):
                 elif kv.value in ['False','0','false','f','F']:
                     e.set_show_bisulfite(False)
                 else:
-                    print 'Unkown Boolean value: {0}. must be True or False'.format(kv.value)
+                    print('Unkown Boolean value: {0}. must be True or False'.format(kv.value))
 
             kv = tree.get_one('general/bsa')
             kv = tree.get_one('general/bsa/result')
@@ -132,18 +132,18 @@ class SeqviewEntity(object):
                 e.bsa.set_celllines(kv.value_list())
 
             for kv in tree.get_one('general').get_unused():
-                print kv.lineinfo.error_msg('Ignored.')
+                print(kv.lineinfo.error_msg('Ignored.'))
 
             kv = tree.get_one('primers')
             if kv:
-                for kv in kv.items():
+                for kv in list(kv.items()):
                     e.primers.append(Primer(kv.key, kv.value))
 
             def pcr_line(kv):
                 name = kv.key.split(',')[0].strip()
                 ls = kv.value.split(',')
                 if len(ls)!=2:
-                    print 'you must specify 2 primer names separated by "," for each pcr: %s'%name
+                    print('you must specify 2 primer names separated by "," for each pcr: %s'%name)
                     return None, None, None
                 fw = ls[0].strip()
                 rv = ls[1].strip()
@@ -151,7 +151,7 @@ class SeqviewEntity(object):
 
             pp = tree.get_one('pcr')
             if pp:
-                for kv in pp.items():
+                for kv in list(pp.items()):
                     name, fw, rv = pcr_line(kv)
                     if not name:
                         continue
@@ -159,7 +159,7 @@ class SeqviewEntity(object):
 
             pp = tree.get_one('rt_pcr')
             if pp:
-                for kv in pp.items():
+                for kv in list(pp.items()):
                     name, fw, rv = pcr_line(kv)
                     if not name:
                         continue
@@ -167,7 +167,7 @@ class SeqviewEntity(object):
 
             pp = tree.get_one('bs_pcr')
             if pp:
-                for kv in pp.items():
+                for kv in list(pp.items()):
                     name, fw, rv = pcr_line(kv)
                     if not name:
                         continue
@@ -328,7 +328,7 @@ class TssvFile(Seqviews):
 
             kv = tree.get_one('genes')
             if kv:
-                for kv in kv.items():
+                for kv in list(kv.items()):
                     name = kv.key
                     lq = kv.value_list()
                     gene = lq[0]
@@ -342,7 +342,7 @@ class TssvFile(Seqviews):
                     else:
                         genes[gene].append((name,start,stop))
 
-            for gene in genes.keys():
+            for gene in list(genes.keys()):
                 gene_id, symbol = db.get_gene_from_text(gene)
 
                 e = SeqviewEntity.create_gene(symbol, gene_id)

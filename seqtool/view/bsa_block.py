@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from ..util.namedlist import DefaultNamedList
 from ..util.parser import TreekvParser
@@ -46,7 +46,7 @@ class BsaCombined(object):
                     results[n] += e.result[i]
 
         bsa_map = []
-        for index, result in results.items():
+        for index, result in list(results.items()):
             if all(r in 'M' for r in result):
                 c = 'M'
             elif all(r in 'U' for r in result):
@@ -87,16 +87,16 @@ class BsaBlock(block.BaseBlock):
         parser = TreekvParser()
         tree = parser.readfp(fileobj, filename)
 
-        for kv in tree.items():
+        for kv in list(tree.items()):
             n = [n.strip() for n in kv.key.split(',')]
             if not len(n)>=2:
-                print 'each bsa must have at least 2 key; cell line name and pcr name'
+                print('each bsa must have at least 2 key; cell line name and pcr name')
                 continue
             pcrname = n[0].strip()
             cellline = n[1].strip().upper()
             #annotations = n[2:]
             if not pcrname or not cellline:
-                print 'empty pcr or cellline name: %s, %s'%(pcrname,cellline)
+                print('empty pcr or cellline name: %s, %s'%(pcrname,cellline))
                 continue
 
             self.add(cellline, pcrname, kv.value.strip().upper())
@@ -107,6 +107,6 @@ class BsaBlock(block.BaseBlock):
                 bsa_map, start, end = self.bsas[name].get_map()
                 t.add_bsa_track(name, bsa_map, start, end)
         else:
-            for name, bsa in self.bsas.items():
+            for name, bsa in list(self.bsas.items()):
                 bsa_map, start, end = bsa.get_map()
                 t.add_bsa_track(name, bsa_map, start, end)

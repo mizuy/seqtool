@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 import sys, os, glob
 import traceback
@@ -23,11 +23,11 @@ def report_exceptions():
         yield
     except Exception:
         e, m, tb = sys.exc_info()
-        print 'exception traceback:'.ljust( 80, '=' )
+        print('exception traceback:'.ljust( 80, '=' ))
         for tbi in traceback.format_tb( tb ):
-            print tbi
-        print '  %s' % str( m )
-        print ''.rjust( 80, '=' )
+            print(tbi)
+        print('  %s' % str( m ))
+        print(''.rjust( 80, '=' ))
         pdb.post_mortem(tb)
 
 def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
@@ -59,7 +59,7 @@ def get_output_path(input, output, multiple_inputs, ext='.html'):
         if os.path.isdir(output):
             return Filepath(os.path.join(output, default_output) )
         else:
-            print "If you set multiple input files, output option must be existing directroy OR ignored."
+            print("If you set multiple input files, output option must be existing directroy OR ignored.")
             return Filepath(input).change_ext(ext)
 
 def seqview():
@@ -76,7 +76,7 @@ def seqview():
         with report_exceptions():
             inputp = Filepath(input)
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
-            print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
+            print("processing input: {0}, output:{1}".format(inputp.path, outputp.path))
 
             p = seqv.Seqviews()
             p.load_seqv(inputp.path)
@@ -101,7 +101,7 @@ def tssview():
         with report_exceptions():
             inputp = Filepath(input)
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
-            print "processing input: {0}, output:{1}".format(inputp.path, outputp.path)
+            print("processing input: {0}, output:{1}".format(inputp.path, outputp.path))
 
             sv = seqv.TssvFile()
             sv.load_tssv(inputp.path)
@@ -166,7 +166,7 @@ def sequencing():
         outputp = Filepath(os.path.join(args.input, 'sequencing_analysis.html') )
 
     for sf in glob.glob(os.path.join(args.input,'*.seq')):
-        print ' processing:',sf
+        print(' processing:',sf)
         p.load_seqfile(sf)
     
     p.write_html(outputp)
@@ -185,9 +185,9 @@ def get_genbank():
     genbank = get_genomic_context_genbank(args.gene)
 
     if not genbank:
-        print "GenBank retrieve error: ", args.gene
+        print("GenBank retrieve error: ", args.gene)
         return
-    print >>args.output, genbank
+    print(genbank, file=args.output)
 
 def primers():
     parser = ArgumentParser(prog='primers', description='Print primer properties')
