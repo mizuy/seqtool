@@ -10,14 +10,15 @@
 #include <iostream>
 #include <sstream>
 #include <set>
-\
+
 #include "melt_temp.h"
 #include "container.h"
 #include "bisearch.h"
 #include "nucleotide.h"
+#include "primer.h"
 
 const bool debug = false;
-const bool new_pa = true;
+const bool new_pa = false;
 
 using namespace std;
 using namespace nucleotide;
@@ -571,15 +572,15 @@ void bisearch(const char* input, ostream& output,
             // rank in check
   
             //const int g = j-i;
-            const int gfrom = (j+m)-(i); // j-i +m == g+m
-            const int gto   = (j)-(i+n); // j-i -n == g-n
+            const int g_f = (j+m)-(i); // j-i +m == g+m
+            const int g_t = (j)-(i+n); // j-i -n == g-n
     
             AnnealStore pa;
             AnnealStore pea;
-            for(int gg=gto; gg<gfrom; gg++){
+            for(int gg=g_t; gg<g_f; gg++){
               const int ii_f = max(i,j-gg);
               const int ii_t = min(i+n, j+m-gg);
-              const int k = (n>=m) ? gg+gfrom-(-m) : gg+gfrom-(-n); //????
+              const int k = (n>=m) ? gg+g_f-(-m) : gg+g_f-(-n); //????
               
               int pav = 0;
               for(int ii=ii_f; ii<ii_t; ii++){
@@ -827,6 +828,19 @@ void bisearch(const char* input, ostream& output,
      -> pa(i+k, j, nn)
     */
     
+
+    array2<unsigned char> pag(length, length);
+    // fill pa0
+    for(int i=0; i<length; i++){
+      for(int g=0; g<length; g++){
+          const int j = i+g;
+          if(!(j<length))
+              continue;
+  
+          pag.get(i,g) = seqint.s_c_c(i, j);
+      }
+    }
+
     output << "// PA 2st step" << endl;
     for(int i=0; i<length; i++){
       for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
@@ -871,13 +885,9 @@ void bisearch(const char* input, ostream& output,
               for(; k<0; k++)
                 pa.store( pa_0.get(i, j-k, n), k);
               for(; k<n-1; k++ )
-                pa.store( pa_0.get(i+k, j, n-k), k);            
+                pa.store( pa_0.get(i+k, j, n-k), k);
             }
-  
-            if(! primer_cond.pa.within(pa.value) )
-              continue;
-            score += primer_cond.pa.score(pa.value);
-  
+    
             AnnealStore pea;
             if(n>=m){
               int k=0;
@@ -897,7 +907,78 @@ void bisearch(const char* input, ostream& output,
                 pea.store( pea_0_l.get(i+k, j, n-k), k);
               }
             }
-  
+
+            //const int g = j-i;
+            const int g_f = (j+m)-(i); // j-i +m == g+m
+            const int g_t = (j)-(i+n); // j-i -n == g-n
+    
+            AnnealStore pa__;
+            AnnealStore pea__;
+            {
+            for(int gg=g_t; gg<g_f; gg++){
+              const int ii_f = max(i,j-gg);
+              const int ii_t = min(i+n, j+m-gg);
+              const int k = (n>=m) ? gg-g_t-(m) : gg-g_t-(n); //????
+              
+              int pav = 0;
+              for(int ii=ii_f; ii<ii_t; ii++){
+                pav += pag.get(ii,gg);
+              }
+              pa__.store(pav, k);
+        
+              // left pair end anneal
+              int peav_l = 0;
+              for(int ii=ii_f; ii<ii_t; ii++){
+                int v = pag.get(ii,gg);
+                // replace if to and??
+                if(v){
+                  peav_l += v;
+                }
+                else{
+                    break;
+                }
+              }
+              pea__.store(peav_l, k);
+    
+              // right pair end anneal
+              int peav_r = 0;
+              for(int ii=ii_t-1; ii>=ii_f; ii--){
+                int v = pag.get(ii,gg);
+                // replace if to and??
+                if(v>0){
+                  peav_r += v;
+                }
+                else{
+                    break;
+                }
+              }
+              pea__.store(peav_r, k);
+            }}
+
+            if(pa.value != pa__.value){
+                string fw_str = seq.substr(i,n);
+                string rv_str = reverse_complement(seq.substr(j,m));
+
+                auto pa_ = annealing_score(fw_str,rv_str);
+                auto pea_ = end_annealing_score(fw_str,rv_str);
+
+                cout << "//old: " << pa.value << "," << pea.value << endl;
+                print_primer_bar(fw_str,rv_str, pa.index);
+                print_primer_bar(fw_str,rv_str, pea.index);
+                cout << "//new: " << pa__.value << "," <<pea__.value << endl;
+                print_primer_bar(fw_str,rv_str, pa__.index);
+                print_primer_bar(fw_str,rv_str, pa__.index);
+
+                cout << "//ref: " << get<0>(pa_) << "," << get<0>(pea_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pa_));
+                print_primer_bar(fw_str,rv_str, get<1>(pea_));
+            }
+
+
+            if(! primer_cond.pa.within(pa.value) )
+              continue;
+            score += primer_cond.pa.score(pa.value);
+
             if(! primer_cond.pea.within(pea.value) )
               continue;
             score += primer_cond.pea.score(pea.value);
