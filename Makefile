@@ -6,8 +6,8 @@ all: build
 build:
 	cd input; make build
 
-bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
-	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
+bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp c/primer.cpp
+	$(CPP) $(CFLAGS) -O2 -lboost_program_options c/bisearch.cpp c/main.cpp c/primer.cpp -o bin/bisearch
 
 examples:
 	bin/seqview example/actb.seqv

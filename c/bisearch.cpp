@@ -17,8 +17,7 @@
 #include "nucleotide.h"
 #include "primer.h"
 
-const bool debug = false;
-const bool new_pa = false;
+const bool debug = true;
 
 using namespace std;
 using namespace nucleotide;
@@ -290,7 +289,7 @@ void bisearch(const char* input, ostream& output,
   // TODO: I dont need a field for primer_len_max<minimum. DROP IT OUT.
   array2<Value> cs(length, primer_len_max);
   
-  output << "# Tm, length, GC calculation" << endl;
+  output << "// Tm, length, GC calculation" << endl;
 
   // TM of fw primer and rv primer is identical.
   // TODO. dynamic programming for TM calculation.
@@ -530,462 +529,139 @@ void bisearch(const char* input, ostream& output,
   // TODO: max_results
   Results results(length, length/100, 5);
 
-  if(new_pa){
-    output << "// PA' 1st step" << endl;
-    array2<unsigned char> pag(length, length);
-    // fill pa0
-    for(int i=0; i<length; i++){
-      for(int g=0; g<length; g++){
-          const int j = i+g;
-          if(!(j<length))
-              continue;
+  output << "// PA' 1st step" << endl;
+  array2<int> pag(length, length);
+  // fill pa0
+  /*
+      i     i+n
+      |------>
+      <---------|
+      j        j+m
   
-          pag.get(i,g) = seqint.s_c_c(i, j);
-      }
+      seq[i,k] means seq.substr(i,k), [seq[x] for x in i <= x < i+k]
+      */
+  for(int i=0; i<length; i++){
+    for(int g=0; g<length; g++){
+        const int j = i+g;
+        if(!(j<length))
+            continue;
+
+        pag.get(i,g) = seqint.s_c_c(i, j);
     }
+  }
+
+  output << "// PA' 2nd step" << endl;  
+  for(int i=0; i<length; i++){
+    for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
+      assert( i+n <= length );
+      Value& fw = cs.get(i,n);
+      if(!fw.valid) continue;
+
+      for(int j=i+product_len_min; j<min(i+product_len_max,length-1); j++){
+        for(int m=primer_len_min; m<=min(length-j,primer_len_max); m++){
+          const int product_len = j+m-i+1;
+          if( !product_cond.within(product_len) )
+            continue;
+
+          // rv primer is reverse_complement(seq[j:j+m])
+          Value& rv = cs.get(j,m);
+
+          if(!rv.valid) continue;
+          if(abs(fw.tm_m-rv.tm_m) > max_tm_diff) continue;
+
+          float score = fw.s_pos + rv.s_neg;
+          if( score > score_threshold ) continue;
+
+          const int position = (i+j+m)/2;
+          if(results.lowest(position) < score ) continue;
+          //if( score > results.lowest()) continue;
+          // rank in check
+
+          /*
+            g_u 1
+                11
+            g_1 111
+                111
+                111
+            g_0 111
+                 11
+            g_d   1
+          */
+
+          const int g_u = (j+m)-(i);   // j-i +m == g+m
+          const int g_1 = (j+m)-(i+n);
+          const int g_0 = j-i;
+          const int g_d = (j)-(i+n-1); // j-i -(n+1) == g-n
+          //const int g_min = min(g_0,g_1);
+          //const int g_max = max(g_0,g_1);
   
-    output << "// PA' 2nd step" << endl;  
-    for(int i=0; i<length; i++){
-      for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
-        assert( i+n <= length );
-        Value& fw = cs.get(i,n);
-        if(!fw.valid) continue;
-  
-        for(int j=i+product_len_min; j<min(i+product_len_max,length-1); j++){
-          for(int m=primer_len_min; m<=min(length-j,primer_len_max); m++){
-            const int product_len = j+m-i+1;
-            if( !product_cond.within(product_len) )
-              continue;
-  
-            // rv primer is reverse_complement(seq[j:j+m])
-            Value& rv = cs.get(j,m);
-  
-            if(!rv.valid) continue;
-            if(abs(fw.tm_m-rv.tm_m) > max_tm_diff) continue;
-  
-            float score = fw.s_pos + rv.s_neg;
-            if( score > score_threshold ) continue;
-  
-            const int position = (i+j+m)/2;
-            if(results.lowest(position) < score ) continue;
-            //if( score > results.lowest()) continue;
-            // rank in check
-  
-            //const int g = j-i;
-            const int g_f = (j+m)-(i); // j-i +m == g+m
-            const int g_t = (j)-(i+n); // j-i -n == g-n
-    
-            AnnealStore pa;
-            AnnealStore pea;
-            for(int gg=g_t; gg<g_f; gg++){
-              const int ii_f = max(i,j-gg);
-              const int ii_t = min(i+n, j+m-gg);
-              const int k = (n>=m) ? gg+g_f-(-m) : gg+g_f-(-n); //????
-              
-              int pav = 0;
-              for(int ii=ii_f; ii<ii_t; ii++){
-                pav += pag.get(ii,gg);
-              }
-              pa.store(pav, k);
-        
-              // left pair end anneal
+          AnnealStore pa;
+          AnnealStore pea;
+          for(int gg=g_d; gg<g_u; gg++){
+            const int ii_l = max(i,j-gg);
+            const int ii_r = min(i+n, j+m-gg);
+            assert(ii_l<ii_r);
+            const int k = gg-g_0;
+            
+            int pav = 0;
+            for(int ii=ii_l; ii<ii_r; ii++){
+              pav += pag.get(ii,gg);
+            }
+            pa.store(pav, k);
+
+            if(gg<=g_0){
               int peav_l = 0;
-              for(int ii=ii_f; ii<ii_t; ii++){
+              for(int ii=ii_l; ii<ii_r; ii++){
                 int v = pag.get(ii,gg);
-                // replace if to and??
-                if(v){
-                  peav_l += v;
-                }
-                else{
-                    break;
-                }
+                if(v==0) break;
+                peav_l += v;
               }
               pea.store(peav_l, k);
-    
-              // right pair end anneal
+            }
+            if(gg<=g_1){
               int peav_r = 0;
-              for(int ii=ii_t-1; ii>=ii_f; ii--){
+              for(int ii=ii_r-1; ii_l<=ii; ii--){
                 int v = pag.get(ii,gg);
-                // replace if to and??
-                if(v>0){
-                  peav_r += v;
-                }
-                else{
-                    break;
-                }
+                if(v==0) break;
+                peav_r += v;
               }
               pea.store(peav_r, k);
             }
-  
-            if(! primer_cond.pa.within(pa.value) )
-              continue;
-            score += primer_cond.pa.score(pa.value);
-
-            if(! primer_cond.pea.within(pea.value) )
-              continue;
-            score += primer_cond.pea.score(pea.value);
-  
-            // cs.get(i,n), cs.get(j,m) for sa, sea
-            results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
-  
           }
-        }
-      }
-    }
-  }
-  else{
-    // Pair Annealing
-    output << "// PA 1st step" << endl;
-  
-    array3<int> pa_0(length, length, primer_len_max+1, -1);
-    array3<int> pea_0_l(length, length, primer_len_max+1, -1);
-    array3<int> pea_0_r(length, length, primer_len_max+1, -1);
-    array3<int> pea_0_l_full(length, length, primer_len_max+1, 1);
-  
-    /*
-      pa0(i,j,k) means, anneal score of seq[i,k] and reverse_complement(seq[j,k])
-  
-      i         i+k-1          j       j+k-1
-      |----------->------------<---------|
-      <-----k----->            <----k---->
-  
-      seq[i,k] means seq.substr(i,k), [seq[x] for x in i <= x < i+k]
-  
-      k=1
-       seq[j,1]     |
-       seq[i,1]     |
-  
-      1 < k <= primer_len_max
-       seq[j,k]   <----|-|
-       seq[i,k]   |---->->
-  
-       seq[j,k-1] <----|
-       seq[i,k-1] |---->
-  
-    
-      pea0_l means, end score of 5' side of seq[i,i+k], termed left side.
-      pea0_r means, end score of 5' side of reverse_complement(seq[j,j+k])), termed right side.
-  
-       seq[j,k]   <-------------|-|
-       seq[i,k]   |------------->->
-       seq[j,k-1] <-------------|
-       seq[i,k-1] |------------->
-  
-       if s>0
-        rt              |------|-|
-       else
-        rt                       |
-  
-       if full(i,j,k-1)
-        lt       |-------------|-|
-       else
-        lt       |---------|      
-    */
-  
-    // fill pa0
-    for(int i=0; i<length; i++){
-      for(int j=i; j<length; j++){
-        const int primer_len = min(length-j+1, primer_len_max);
-        
-        // fill pa_0
-        pa_0.get(i,j,1) = seqint.s_c_c(i,j);
-        for(int k=2; k<=primer_len; k++){
-            pa_0.get(i,j,k) = pa_0.get(i,j,k-1) + seqint.s_c_c(i+k-1, j+k-1);
-        }
-  
-        // fill pea
-        // k=1
-        int s = seqint.s_c_c(i,j);
-        pea_0_l_full.get(i,j,1) = static_cast<int>(s>0);
-        pea_0_l.get(i,j,1) = s;
-        pea_0_r.get(i,j,1) = s;
-        assert(s>=0);
-  
-        for(int k=2; k<=primer_len; k++){
-          int lt = pea_0_l.get(i,j,k-1);
-          int rt = pea_0_r.get(i,j,k-1);
-          
-          //cout << lt << " " << rt << " " << i << " " << j << " " << k << " " << endl;;
-          assert( lt>=0 && rt>=0 );
-  
-          bool full = pea_0_l_full.get(i,j,k-1);
-          int s = seqint.s_c_c(i+k-1, j+k-1);
-  
-          // for left side, add s if full.
-          pea_0_l_full.get(i,j,k) = static_cast<int>(full && (s>0));
-          pea_0_l.get(i,j,k) = lt + (full ? s : 0);
-  
-          // for right side, reset if s==0
-          pea_0_r.get(i,j,k) = (s==0)? 0 : rt+s;       
-        }
-  
-      }
-    }
-  
-    // Pair End Annealing
-  
-    /*
-     pair annealing values for each pair 
-  
-     fw = seq.substr(i,n)
-     rv = reverse_complement(seq.substr(j,m)
-  
-     n >= m
-  
-    (k=-(m-1)) nn=1
-     rv <------|
-     fw        |---------->
-    
-    (A) nn=m-k
-     rv   <------|
-     fw        |---------->
-    
-    (k=0) nn=m
-     rv        <------|
-     fw        |---------->
-  
-    (B) nn=m
-     rv          <------|
-     fw        |---------->
-  
-    (k=n-m) nn=m
-     rv            <------|
-     fw        |---------->
-  
-    (C) nn=n-k
-     rv               <------|
-     fw        |---------->
-  
-    (k=n-1) nn=1
-     rv                   <------|
-     fw        |---------->
-  
-    (A) -(m-1) < k < 0
-     nn=m-k
-     seq[j,m]  <------|
-     seq[i,n]       |---------->
-     -> pa(i, j-k, nn)
-  
-    (B) 0 < k < n-m
-     nn=m
-     seq[j,m]         <------|
-     seq[i,n]       |---------->
-     -> pa(i+k, j, nn)
-  
-    (C) n-m < k < n-1
-     nn=n-k
-     seq[j,m]              <------|
-     seq[i,n]       |---------->
-     -> pa(i+k, j, nn)
-  
-  
-    n <= m
-  
-    (k=-(m-1)) nn=1
-     rv <----------|
-     fw            |------>
-    
-    (A) nn=m-k
-     rv   <----------|
-     fw            |------>
-    
-    (k=n-m) nn=n
-     rv        <----------|
-     fw            |------>
-  
-    (B) nn=n
-     rv          <----------|
-     fw            |------>
-  
-    (k=0) nn=n
-     rv            <----------|
-     fw            |------>
-  
-    (C) nn=n-k
-     rv                <----------|
-     fw            |------>
-  
-    (k=n-1) nn=1
-     rv                   <----------|
-     fw            |------>
-  
-    (A) -(m-1) < k < n-m
-     nn=m-k
-     seq[j,m]   <----------|
-     seq[i,n]            |------>
-     -> pa(i, j-k, nn)
-  
-    (B) n-m < k < 0
-     nn=n
-     seq[j,m]        <----------|
-     seq[i,n]          |------>
-     -> pa(i, j-k, nn)
-  
-    (C) 0 < k < n-1
-     nn=n-k
-     seq[j,m]            <----------|
-     seq[i,n]       |------>
-     -> pa(i+k, j, nn)
-    */
-    
 
-    array2<unsigned char> pag(length, length);
-    // fill pa0
-    for(int i=0; i<length; i++){
-      for(int g=0; g<length; g++){
-          const int j = i+g;
-          if(!(j<length))
-              continue;
-  
-          pag.get(i,g) = seqint.s_c_c(i, j);
-      }
-    }
+          if(debug){
+            string fw_str = seq.substr(i,n);
+            string rv_str = reverse_complement(seq.substr(j,m));
+            auto pa_ = annealing_score(fw_str,rv_str);
+            auto pea_ = end_annealing_score(fw_str,rv_str);
 
-    output << "// PA 2st step" << endl;
-    for(int i=0; i<length; i++){
-      for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
-        assert( i+n <= length );
-        Value& fw = cs.get(i,n);
-        if(!fw.valid) continue;
-  
-        for(int j=i+product_len_min; j<min(i+product_len_max,length-1); j++){
-          for(int m=primer_len_min; m<=min(length-j,primer_len_max); m++){
-            const int product_len = j+m-i+1;
-            if( !product_cond.within(product_len) )
-              continue;
-  
-            // rv primer is reverse_complement(seq[j:j+m])
-            Value& rv = cs.get(j,m);
-  
-            if(!rv.valid) continue;
-            if(abs(fw.tm_m-rv.tm_m) > max_tm_diff) continue;
-  
-            float score = fw.s_pos + rv.s_neg;
-            if( score > score_threshold ) continue;
-  
-            const int position = (i+j+m)/2;
-            if(results.lowest(position) < score ) continue;
-            //if( score > results.lowest()) continue;
-            // rank in check
-                      
-            AnnealStore pa;
-            if(n>=m){
-              int k = -(m-1);
-              for(; k<0; k++)
-                pa.store( pa_0.get(i, j-k, m-k), k);
-              for(; k<n-m; k++)
-                pa.store( pa_0.get(i+k, j, m), k);
-              for(; k<n-1; k++ )
-                pa.store( pa_0.get(i+k, j, n-k), k);
-            }
-            else{
-              int k = -(m-1);
-              for(; k<n-m; k++)
-                pa.store( pa_0.get(i, j-k, m-k), k);
-              for(; k<0; k++)
-                pa.store( pa_0.get(i, j-k, n), k);
-              for(; k<n-1; k++ )
-                pa.store( pa_0.get(i+k, j, n-k), k);
-            }
-    
-            AnnealStore pea;
-            if(n>=m){
-              int k=0;
-              for(; k<n-m; k++)
-                pea.store( pea_0_l.get(i+k, j, m), k);
-              for(; k<n-1; k++ ){
-                pea.store( pea_0_l.get(i+k, j, n-k), k);
-                pea.store( pea_0_r.get(i+k, j, n-k), k);
-              }
-            }
-            else{
-              int k = n-m;
-              for(; k<0; k++)
-                pea.store( pea_0_r.get(i, j-k, n), k);
-              for(; k<n-1; k++ ){
-                pea.store( pea_0_r.get(i+k, j, n-k), k);
-                pea.store( pea_0_l.get(i+k, j, n-k), k);
-              }
-            }
-
-            //const int g = j-i;
-            const int g_f = (j+m)-(i); // j-i +m == g+m
-            const int g_t = (j)-(i+n); // j-i -n == g-n
-    
-            AnnealStore pa__;
-            AnnealStore pea__;
-            {
-            for(int gg=g_t; gg<g_f; gg++){
-              const int ii_f = max(i,j-gg);
-              const int ii_t = min(i+n, j+m-gg);
-              const int k = (n>=m) ? gg-g_t-(m) : gg-g_t-(n); //????
-              
-              int pav = 0;
-              for(int ii=ii_f; ii<ii_t; ii++){
-                pav += pag.get(ii,gg);
-              }
-              pa__.store(pav, k);
-        
-              // left pair end anneal
-              int peav_l = 0;
-              for(int ii=ii_f; ii<ii_t; ii++){
-                int v = pag.get(ii,gg);
-                // replace if to and??
-                if(v){
-                  peav_l += v;
-                }
-                else{
-                    break;
-                }
-              }
-              pea__.store(peav_l, k);
-    
-              // right pair end anneal
-              int peav_r = 0;
-              for(int ii=ii_t-1; ii>=ii_f; ii--){
-                int v = pag.get(ii,gg);
-                // replace if to and??
-                if(v>0){
-                  peav_r += v;
-                }
-                else{
-                    break;
-                }
-              }
-              pea__.store(peav_r, k);
-            }}
-
-            if(pa.value != pa__.value){
-                string fw_str = seq.substr(i,n);
-                string rv_str = reverse_complement(seq.substr(j,m));
-
-                auto pa_ = annealing_score(fw_str,rv_str);
-                auto pea_ = end_annealing_score(fw_str,rv_str);
-
-                cout << "//old: " << pa.value << "," << pea.value << endl;
-                print_primer_bar(fw_str,rv_str, pa.index);
-                print_primer_bar(fw_str,rv_str, pea.index);
-                cout << "//new: " << pa__.value << "," <<pea__.value << endl;
-                print_primer_bar(fw_str,rv_str, pa__.index);
-                print_primer_bar(fw_str,rv_str, pa__.index);
-
-                cout << "//ref: " << get<0>(pa_) << "," << get<0>(pea_) << endl;
+            if(pa.value != get<0>(pa_)){
+                cout << "//pa mismatch" << endl;
+                cout << "//ref: " << get<0>(pa_) << endl;
                 print_primer_bar(fw_str,rv_str, get<1>(pa_));
-                print_primer_bar(fw_str,rv_str, get<1>(pea_));
+                cout << "//now: " << pa.value << endl;
+                print_primer_bar(fw_str,rv_str, pa.index);
             }
-
-
-            if(! primer_cond.pa.within(pa.value) )
-              continue;
-            score += primer_cond.pa.score(pa.value);
-
-            if(! primer_cond.pea.within(pea.value) )
-              continue;
-            score += primer_cond.pea.score(pea.value);
-  
-            // cs.get(i,n), cs.get(j,m) for sa, sea
-            results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+            if(pea.value != get<0>(pea_)){
+                cout << "//pea mismatch" << endl;
+                cout << "//ref: " << get<0>(pea_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pea_));
+                cout << "//now: " << pea.value << endl;
+                print_primer_bar(fw_str,rv_str, pea.index);
+            }
           }
+
+          if(! primer_cond.pa.within(pa.value) )
+            continue;
+          score += primer_cond.pa.score(pa.value);
+
+          if(! primer_cond.pea.within(pea.value) )
+            continue;
+          score += primer_cond.pea.score(pea.value);
+
+          // cs.get(i,n), cs.get(j,m) for sa, sea
+          results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+
         }
       }
     }

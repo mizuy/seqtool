@@ -86,7 +86,7 @@ tuple<int,int> annealing_score_(const string& fw, const string& rv, bool end_ann
                 // v[0]....v[k]....v[k+n-1].....v[m-1]
                 vector<int> vv;
                 for(int i=0; i<n; i++){
-                    vv.push_back(anneals(w[0+i],v[k+i]));
+                    vv.push_back(anneals(w[i],v[k+i]));
                 }
                 av.store(anneal_value(vv),k);
                 eav.store(end_anneal_value_r(vv),k);
@@ -105,6 +105,7 @@ tuple<int,int> annealing_score_(const string& fw, const string& rv, bool end_ann
     else{
         for(int k=-(n-1); k<=m-1; k++){
             if(k<=m-n){
+                //assert(m-n < 0);
                 // w[0]....w[-k]....w[n-1]
                 //         v[0].....v[n+k-1]....v[m-1]
                 vector<int> vv;
@@ -116,11 +117,11 @@ tuple<int,int> annealing_score_(const string& fw, const string& rv, bool end_ann
 
             }
             else if(k<=0){
-                // w[0]....w[k]....w[m-k-1].....w[n-1]
+                // w[0]....w[-k]...w[m-1-k].....w[n-1]
                 //         v[0]....v[m-1]
                 vector<int> vv;
                 for(int i=0; i<m; i++){
-                    vv.push_back(anneals(w[k+i],v[0+i]));
+                    vv.push_back(anneals(w[i-k],v[i]));
                 }
                 av.store(anneal_value(vv),k);
                 eav.store(end_anneal_value_l(vv),k);
