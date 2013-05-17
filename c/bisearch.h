@@ -20,7 +20,7 @@ struct PCRCondition{
 const PCRCondition myPCRCondition(0.033, 0.050, 0.0065, 0.0000005);
 */
 
-void bisearch(const char* input, std::ostream& output,
+void bisearch(const char* input, std::ostream& output, std::ostream& logging,
                   int product_len_min=100, int product_len_max=600,
                   int primer_len_min=20, int primer_len_max=35,
                   PCRCondition cond=PCRCondition(),

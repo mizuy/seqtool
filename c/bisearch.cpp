@@ -264,7 +264,7 @@ public:
   int index;
 };
 
-void bisearch(const char* input, ostream& output,
+void bisearch(const char* input, ostream& output, std::ostream& logging,
                   int product_len_min, int product_len_max,
                   int primer_len_min, int primer_len_max,
                   PCRCondition cond,
@@ -285,12 +285,12 @@ void bisearch(const char* input, ostream& output,
   const int length = seq.length();
   Seqint seqint(seq);
 
-  output << "// bisearch length=" << length << " primer_len=" << primer_len_max << endl;
+  logging << "// bisearch length=" << length << " primer_len=" << primer_len_max << endl;
 
   // TODO: I dont need a field for primer_len_max<minimum. DROP IT OUT.
   array2<Value> cs(length, primer_len_max);
   
-  output << "// Tm, length, GC calculation" << endl;
+  logging << "// Tm, length, GC calculation" << endl;
 
   // TM of fw primer and rv primer is identical.
   // TODO. dynamic programming for TM calculation.
@@ -382,7 +382,7 @@ void bisearch(const char* input, ostream& output,
   //                   n=2 | 2*score_c(i,i+1)
   //                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
 
-  output << "// SA first step" << endl;
+  logging << "// SA first step" << endl;
   // SA first step
   array_sa sa_0(length, primer_len_max+1, -1);
   for(int end=0; end<length; end++){
@@ -405,7 +405,7 @@ void bisearch(const char* input, ostream& output,
     }
   }
   // SA second step
-  output << "// SA 2nd step" << endl;
+  logging << "// SA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -434,7 +434,7 @@ void bisearch(const char* input, ostream& output,
   //                    n=n | 
 
   // SEA first step
-  output << "// SEA 1st step" << endl;
+  logging << "// SEA 1st step" << endl;
   array_sa sea_0(length, primer_len_max+1, -1);
   array_sa sea_0_full(length, primer_len_max+1, 0);
 
@@ -472,7 +472,7 @@ void bisearch(const char* input, ostream& output,
   }
 
   // SEA second step
-  output << "// SEA 2nd step" << endl;
+  logging << "// SEA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -519,18 +519,18 @@ void bisearch(const char* input, ostream& output,
       for(int n=primer_len_min; n<min(length-i, primer_len_max); n++){
         Value& v = cs.get(i,n);
         if(v.valid){
-          output << seq.substr(i,n) << " " << v.to_str() << endl;
+          logging << seq.substr(i,n) << " " << v.to_str() << endl;
       
           c++;}
       }
     }
-    output << "// Valid Primers: " << c << endl;
+    logging << "// Valid Primers: " << c << endl;
   }
 
   // TODO: max_results
   Results results(length, length/100, 5);
 
-  output << "// PA" << endl;
+  logging << "// PA" << endl;
   array2<char> pag(length, length);
   /*
       i     i+n
@@ -689,16 +689,17 @@ void bisearch(const char* input, ostream& output,
     replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
     replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
 
-    output << "    Bi-" << right << setfill('0') << setw(3) << count
+    output << "    Bi-" << right << setfill('0') << setw(3) << count;
     output << ": " << fw_str << ", " << rv_str << endl;
-    output << "        // rank=" << count << " score=" << ppr.score_;
-    output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
-    output << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
-    output << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
-    output << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
-    output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
+
+    logging << "// rank=" << count << " score=" << ppr.score_;
+    logging << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
+    logging << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
+    logging << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
+    logging << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
+    logging << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
   }
-  output << "// Total: " << count << " Results." << endl;
+  logging << "// Total: " << count << " Results." << endl;
 }
 
 
