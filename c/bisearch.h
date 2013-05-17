@@ -26,6 +26,7 @@ void bisearch(const char* input, std::ostream& output,
                   PCRCondition cond=PCRCondition(),
                   float max_tm_diff=8.0f,
                   float max_met_tm_diff = 2.5f,
+                  int max_cpg_in_primer=1,
                   float score_threshold=100.0f,
                   int max_results=200);
 

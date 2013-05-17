@@ -17,7 +17,7 @@
 #include "nucleotide.h"
 #include "primer.h"
 
-const bool debug = true;
+const bool debug = false;
 
 using namespace std;
 using namespace nucleotide;
@@ -270,6 +270,7 @@ void bisearch(const char* input, ostream& output,
                   PCRCondition cond,
                   float max_tm_diff,
                   float max_met_tm_diff,
+                  int max_cpg_in_primer,
                   float score_threshold,
                   int max_results)
 {
@@ -338,7 +339,7 @@ void bisearch(const char* input, ostream& output,
       // num of CpG in primer
       v.gc = 100.0*gc/n;
       v.cpg = cpg;
-      if(cpg>1){
+      if(cpg>max_cpg_in_primer){
         v.valid = false;
         continue;
       }
@@ -529,16 +530,14 @@ void bisearch(const char* input, ostream& output,
   // TODO: max_results
   Results results(length, length/100, 5);
 
-  output << "// PA' 1st step" << endl;
-  array2<int> pag(length, length);
-  // fill pa0
+  output << "// PA" << endl;
+  array2<char> pag(length, length);
   /*
       i     i+n
       |------>
       <---------|
       j        j+m
   
-      seq[i,k] means seq.substr(i,k), [seq[x] for x in i <= x < i+k]
       */
   for(int i=0; i<length; i++){
     for(int g=0; g<length; g++){
@@ -550,7 +549,6 @@ void bisearch(const char* input, ostream& output,
     }
   }
 
-  output << "// PA' 2nd step" << endl;  
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -691,7 +689,8 @@ void bisearch(const char* input, ostream& output,
     replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
     replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
 
-    output << "    Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
+    output << "    Bi-" << right << setfill('0') << setw(3) << count
+    output << ": " << fw_str << ", " << rv_str << endl;
     output << "        // rank=" << count << " score=" << ppr.score_;
     output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
     output << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");

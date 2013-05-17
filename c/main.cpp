@@ -24,6 +24,7 @@ int main(int argc, char* argv[]){
     float max_tm_diff=4.0f;
     //float max_tm_diff=8.0f;
 	float max_met_tm_diff = 2.5f;
+    int max_cpg_in_primer=1;
 	int score_threshold=100;
 	int max_results=200;
 
@@ -31,14 +32,15 @@ int main(int argc, char* argv[]){
 
 		po::options_description desc("Options");
 		desc.add_options()
-		("input", po::value<string>(&inputfile)->required(),"input file name")
+		("input", po::value<string>(&inputfile)->required(),"input file name (fasta)")
 		("help,h", "help message")
 		("product_len_min", po::value<int>(&product_len_min), "minimum pcr product size")
 		("product_len_max", po::value<int>(&product_len_max), "maximum pcr product size")
 		("primer_len_min", po::value<int>(&primer_len_min), "minimum primer length")
 		("primer_len_max", po::value<int>(&primer_len_max), "maximum primer length")
 		("max_tm_diff", po::value<float>(&max_tm_diff), "maximum Tm differences between fw and rv primer")
-		("max_met_tm_diff", po::value<float>(&max_met_tm_diff), "maximum Tm differences between methyl and unmethyl version.")
+        ("max_met_tm_diff", po::value<float>(&max_met_tm_diff), "maximum Tm differences between methyl and unmethyl version.")
+        ("max_cpg_in_primer", po::value<int>(&max_cpg_in_primer), "maximum number of CpG allowed within the primer.")
 		("score_threshold", po::value<int>(&score_threshold), "threshold value for primer pair score.")
 		("max_results", po::value<int>(&max_results), "maximum number of results");
 
@@ -91,7 +93,7 @@ int main(int argc, char* argv[]){
 	try{
 		bisearch(seq.c_str(), cout, 
 			product_len_min, product_len_max, primer_len_min, primer_len_max,
-			cond, max_tm_diff, max_met_tm_diff, score_threshold, max_results);
+			cond, max_tm_diff, max_met_tm_diff, max_cpg_in_primer, score_threshold, max_results);
 	}
 	catch(std::exception& e) 
 	{ 
