@@ -7,8 +7,8 @@ all: build
 dbload:
 	cd database; make
 
-bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp c/primer.cpp
-	$(CPP) $(CFLAGS) -O2 -lboost_program_options c/bisearch.cpp c/main.cpp c/primer.cpp -o bin/bisearch
+bisearch:
+	cd c; make
 
 clean:
 	rm -f **/*~
@@ -25,7 +25,7 @@ test:
 examples:
 	cd example; make
 
-build:
+build: bisearch
 	cd input; make build
 
 pdf: source.pdf
@@ -34,5 +34,5 @@ source.pdf: seqtool/*.py seqtool/**/*.py
 	pstopdf source.ps -o source.pdf
 	rm source.ps
 
-.PHONY: test all build clean examples cleanall dbload
+.PHONY: test all build clean examples cleanall dbload bsearch
 
