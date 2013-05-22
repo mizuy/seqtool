@@ -11,9 +11,7 @@ bisearch:
 	cd c; make
 
 clean:
-	rm -f **/*~
-	rm -f #*
-	rm example/*.html
+	find . -name '*~' -delete
 	find . -name '*.pyc' -delete
 	find . -name '__pycache__' -delete
 

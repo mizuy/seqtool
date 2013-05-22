@@ -1,5 +1,3 @@
-
-
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 

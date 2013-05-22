@@ -1,5 +1,3 @@
-
-
 import re
 
 from . import to_seq, melt_temp, tm_gc
@@ -9,7 +7,7 @@ from ..util.parser import TreekvParser
 from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
-from ..design import pcond
+from . import primer_cond as pcond
 
 __all__ = ['Primer', 'PrimerPair']
 
@@ -265,7 +263,7 @@ class Primer(object):
         return pp,pc
 
     def debugprint(self):
-        print("%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % self.get_table_row())
+        #print("%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % (**self.get_table_row()))
         print('sa=%s, index=%s'%(self.sa.score, self.sa.index))
         print('\n'.join(self.sa.get_bar()))
         print('sea=%s, index=%s'%(self.sea.score, self.sea.index))
@@ -350,10 +348,10 @@ class PrimerPair(object):
         print('bisulfite score=', self.score_bisulfite)
         for r in [self.fw, self.rv]:
             r.debugprint()
-        pa = self.pair_annealing()
+        pa = self.pair_annealing
         print('pa=%s, index=%s'%(pa.score,pa.index))
         print('\n'.join(pa.get_bar()))
-        pea = self.pair_end_annealing()
+        pea = self.pair_end_annealing
         print('pea=%s, index=%s'%(pea.score,pea.index))
         print('\n'.join(pea.get_bar()))
 
@@ -427,3 +425,7 @@ class Primers(NamedList):
             r = Primer(default_name, name)
             self.append(r)
             return r
+
+def test_pp(a,b):
+    PrimerPair(Primer('fw',a),Primer('rv',b)).debugprint()
+

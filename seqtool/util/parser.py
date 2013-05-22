@@ -187,7 +187,7 @@ class TreekvParser(object):
             key,sep,value = l.partition(':')
             item = KeyValue(key.strip(), value.strip(), li, self.logger)
 
-            level = tab / self.tab_size
+            level = int(tab / self.tab_size)
             current_level = len(tab_stops) - 1
             current_parent = tab_stops[-1]
 

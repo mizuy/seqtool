@@ -34,6 +34,11 @@ class NamedList(object):
     def items(self):
         return iter(self._dict.items())
 
+    def keys(self):
+        return iter(self._dict.keys())
+    def values(self):
+        return iter(self._dict.values())
+
 class DefaultNamedList(NamedList):
     def __init__(self, default, get_name=lambda x:x.name):
         """

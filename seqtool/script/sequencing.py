@@ -2,7 +2,7 @@ from Bio import SeqIO
 
 import os
 from seqtool.nucleotide import to_seq
-from seqtool.nucleotide.cpg import bisulfite_conversion_ambiguous, c2t_conversion
+from seqtool.nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from seqtool.nucleotide import sw
 #from Bio import SeqIO
 from seqtool.view.baseseq_renderer import BaseseqRenderer
@@ -29,8 +29,8 @@ class TemplateCandidate(object):
 
     def add_bisulfite_template(self, name, seq):
         self.add_template(name, seq)
-        self.add_template(name+' BS+', bisulfite_conversion_ambiguous(seq, True))
-        self.add_template(name+' BS-', bisulfite_conversion_ambiguous(seq, False))
+        self.add_template(name+' BS+', bisulfite_conversion(seq, True))
+        self.add_template(name+' BS-', bisulfite_conversion(seq, False))
 
     def add_c2t_template(self, name, seq):
         self.add_template(name, seq)
