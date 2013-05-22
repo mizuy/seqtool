@@ -4,6 +4,7 @@ from collections import defaultdict
 import subprocess
 import sys, os, time
 import tempfile
+from ..util.prompt import prompt
 
 class PrimerAlign(object):
     def __init__(self, template, seq, mismatch, offset):

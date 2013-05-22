@@ -10,7 +10,7 @@ from Cython.Build import cythonize
 #from distutils.extension import Extension
 #from Cython.Distutils import build_ext
 
-version = '0.2.2'
+version = '0.3.0'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'
@@ -27,21 +27,20 @@ Operating System :: Unix
 
 entry_points = """
 [console_scripts]
-seqview = seqtool.command:seqview
-get_genbank = seqtool.command:get_genbank
-geneview = seqtool.command:geneview
-tssview = seqtool.command:tssview
-primers = seqtool.command:primers
-seqvcmd = seqtool.seqvcmd:main
+seqview = seqtool.frontend.command:seqview
+get_genbank = seqtool.frontend.command:get_genbank
+geneview = seqtool.frontend.command:geneview
+tssview = seqtool.frontend.command:tssview
+primers = seqtool.frontend.command:primers
+sequencing = seqtool.frontend.command:sequencing
+seqdb = seqtool.frontend.command:seqdb_command
 convert_bs = seqtool.bowtie.convert_bs:main
 virtualpcr = seqtool.bowtie.virtualpcr:main
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
 align = seqtool.script.align:main
 translate = seqtool.script.translate:main
-sequencing = seqtool.command:sequencing
 server = seqtool.server.server:main
-seqdb = seqtool.db.sql:database_command
 """
 setup(
     name='seqtool',
@@ -54,9 +53,9 @@ setup(
     url='http://github.com/mizuy/seqtool',
     license='MIT',
     packages=find_packages(),
-    install_requires=['biopython','numpy', 'sqlalchemy', 'cython'],
+    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs'],
     test_suite='nose.collector',
-    ext_modules = cythonize('seqtool/nucleotide/sw_c.pyx'),
+    ext_modules = cythonize('seqtool/seqtool/nucleotide/sw_c.pyx'),
     include_dirs = [numpy.get_include()],
     entry_points=entry_points
 )

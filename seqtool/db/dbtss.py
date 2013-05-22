@@ -1,54 +1,11 @@
-
-
 import pickle as pickle
 
 from collections import defaultdict, OrderedDict
 from ..util.namedlist import NamedList
 import numpy
-import os
+import os, glob
 
-directory = os.path.dirname(os.path.abspath(__file__))
-
-database_dir = os.path.join(directory,'../../_db/dbtss/')
-default_cache_file = os.path.join(directory,'../../_cache/bed.cache')
-
-def settings(text, sp=','):
-    return [[x.strip() for x in c.split(sp)] for c in text.strip().split('\n')]
-
-"""
-bed/
-# Definition of each column (tab limited):
--chromosome
--TSStag_start
--tag_end
--strand
--Number of tags
-"""
-
-
-t_dbtss = """
-Brain1: adult-tissue/ambion_brain.bed
-Brain2: adult-tissue/ambion_brain2.bed
-C-Brain: adult-tissue/clontech_brain.bed
-Heart: adult-tissue/ambion_heart.bed
-C-Heart: adult-tissue/clontech_heart.bed
-Lung: adult-tissue/ambion_lung.bed
-Breast: adult-tissue/ambion_breast.bed
-Kidney: adult-tissue/ambion_kidney.bed
-C-Kidney: adult-tissue/clontech_kidney.bed
-Liver: adult-tissue/ambion_liver.bed
-Colon: adult-tissue/ambion_colon.bed
-Lymph: adult-tissue/ambion_lymph.bed
-Adipose: adult-tissue/ambion_adipose.bed
-Muscle: adult-tissue/ambion_muscle.bed
-Thyroid: adult-tissue/ambion_thyroid.bed
-Adrenal: adult-tissue/ambion_adrenal.bed
-Ovary: adult-tissue/ambion_ovary.bed
-Prostate: adult-tissue/ambion_prostate.bed
-Testis: adult-tissue/ambion_testis.bed
-"""
-l_dbtss = settings(t_dbtss, ':')
-tissues = [k for k,v in l_dbtss]
+__all__ = ['Dbtss']
 
 """
 db = Dbtss()
@@ -56,6 +13,12 @@ db.load()
 for tissue in db.get_tissues():
     for loc, value in tissue.search('chrX', '+', 3045, 3145):
         print loc, value
+"""
+
+"""
+GenomeLocus = Genome * Locus
+Genome = Doublestrand * chrom
+Doublestrand = 2* SortedLocVal
 """
 
 class SortedLocVal(object):
@@ -70,14 +33,13 @@ class SortedLocVal(object):
         l_lower = self.locs.searchsorted(lower, side='left')
         l_higher = self.locs.searchsorted(higher, side='right')
 
-        #l_lower = self.locs.bisect.bisect_left(tlocs, lower)
-        #l_higher   = bisect.bisect_right(tlocs, higher)
-
         for i in range(l_lower, l_higher):
             yield self.locs[i], self.vals[i]
 
 class DoubleStrand(object):
     def __init__(self, sense, antisense):
+        assert(isinstance(sense, SortedLocVal))
+        assert(isinstance(antisense, SortedLocVal))
         self.sense = sense
         self.antisense = antisense
 
@@ -86,9 +48,7 @@ class DoubleStrand(object):
 
     def search(self, sense, lower, higher):
         assert(lower <= higher)
-        strand = self.get_strand(sense)
-        
-        return strand.search(lower,higher)
+        return self.get_strand(sense).search(lower,higher)
 
     def search_pos(self, pos):
         return self.search(pos.sense, pos.lower, pos.higher)
@@ -100,115 +60,148 @@ class DoubleStrand(object):
             p,q = q,p
         return self.search(pos.sense, p, q)
 
-
-class Dbtss(object):
+class Genome(object):
     def __init__(self):
-        self.tissues = None
+        self.chroms = {}
 
-        if os.path.exists(default_cache_file):
-            try:
-                #print "loading cache %s"%default_cache_file
-                self.tissues = pickle.load(open(default_cache_file,'rb'))
-                #print "done."
-            except pickle.PickleError:
-                print("pickle error: %s"%default_cache_file)
-                self.tissues = None
+    def read(self, filename):
+        with open(filename,'r') as fileobj:
+            self.readfp(fileobj)
 
-        if not self.tissues:
-            self.load()
-            pickle.dump(self.tissues, open(default_cache_file,'wb'), -1)
+    def readfp(self, fileobj):
+        self.chroms = {}
 
-    def load(self):
-        self.tissues = OrderedDict()
-        for name,fname in l_dbtss:
-            self.tissues[name] = {}
+        locs = defaultdict(lambda : defaultdict(list))
+        vals = defaultdict(lambda : defaultdict(list))
 
-            bed_file = os.path.join(database_dir, fname)
-            with open(bed_file,'r') as fileobj:
-                locs = defaultdict(lambda : defaultdict(list))
-                vals = defaultdict(lambda : defaultdict(list))
+        for l in fileobj:
+            """
+            bed/
+            # Definition of each column (tab limited):
+            -chromosome
+            -TSStag_start
+            -tag_end
+            -strand
+            -Number of tags
+            """
+            ll = l.split()
+            chrom = ll[0]
+            location = int(ll[1])
+            strand = 0 if ll[3].strip()=='+' else 1
+            value = int(ll[4])
 
-                print('loading bed...: %s'%bed_file)
-                for l in fileobj:
-                    ll = l.split()
-                    chromosome = ll[0]
-                    location = int(ll[1])
-                    strand = 0 if ll[3].strip()=='+' else 1
-                    value = int(ll[4])
+            locs[chrom][strand].append(location)
+            vals[chrom][strand].append(value)
 
-                    locs[chromosome][strand].append(location)
-                    vals[chromosome][strand].append(value)
+        for ch in list(locs.keys()):
+            sense =     SortedLocVal(numpy.array(locs[ch][0]),
+                                     numpy.array(vals[ch][0]))
+            antisense = SortedLocVal(numpy.array(locs[ch][1]),
+                                     numpy.array(vals[ch][1]))
+            self.chroms[ch] = DoubleStrand(sense, antisense)
 
-                for ch in list(locs.keys()):
-                    sense =     SortedLocVal(numpy.array(locs[ch][0]),
-                                             numpy.array(vals[ch][0]))
-                    antisense = SortedLocVal(numpy.array(locs[ch][1]),
-                                             numpy.array(vals[ch][1]))
-                    self.tissues[name][ch] = DoubleStrand(sense, antisense)
+    def get_ds(self, chrom):
+        return self.chroms[chrom]
 
-    def get_strand(self, tissue, chrom):
-        return self.tissues[tissue][chrom]
-
-    def search(self, tissue, chrom, strand, lower, higher):
+    def search(self, chrom, strand, lower, higher):
         assert(lower <= higher)
-        return self.tissues[tissue][chrom].search(strand,lower,higher)
+        return self.chroms[chrom].search(strand,lower,higher)
 
-_dbtss = None
-def get_dbtss():
-    global _dbtss
-    if not _dbtss:
-        _dbtss = Dbtss()
-    return _dbtss
+    def get_locus(self, locus):
+        return GenomeLocus(locus.pos, self.get_ds(locus.chrom))
 
-
-class TissueLocus(object):
-    def __init__(self, tissue, locus):
-        self.name = tissue
-        self.locus = locus
-        self.pos = locus.pos
-        self.db = get_dbtss().get_strand(tissue, locus.chrom)
+class GenomeLocus(object):
+    def __init__(self, pos, ds):
+        self.pos = pos
+        self.ds = ds
 
         self.maxtag = 1
-        for loc, val in self.db.search_pos(locus.pos):
+        for loc, val in self.ds.search_pos(self.pos):
             self.maxtag = max(self.maxtag, val)
 
     def count_range(self, start, stop):
         if not start or not stop:
-            iterator = self.db.search_pos(self.locus.pos)
+            iterator = self.ds.search_pos(self.pos)
         else:
-            iterator = self.db.search_pos_index(self.locus.pos, start, stop)
-            
+            iterator = self.ds.search_pos_index(self.pos, start, stop)
         c = 0
         for loc,val in iterator:
             c += val
-
         return c
 
     def items(self):
-        iterator = self.db.search_pos(self.locus.pos)
+        iterator = self.ds.search_pos(self.pos)
         for k,v in iterator:
-            yield self.pos.rel_5(k),v
+            yield self.pos.rel_5(k), v
 
-class TissuesetLocus(object):
-    def __init__(self, tissue_names, locus):
-        self.tissue_names = tissue_names
-        self.tl = NamedList()
+class GenomeSetLocus(object):
+    def __init__(self, locus):
+        self.locus = locus
+        self.gl = NamedList()
         self.maxtag = 1
 
-        for tissue in tissue_names:
-            self.tl.append(TissueLocus(tissue, locus))
-
-        for r in self.tl:
-            self.maxtag = max(self.maxtag, r.maxtag)
+    def add_genome(self, name, genome):
+        r = genome.get_locus(self.locus)
+        self.gl[name] = r
+        self.maxtag = max(self.maxtag, r.maxtag)
 
     def __iter__(self):
-        return iter(self.tl)
+        return iter(self.gl)
 
-    def get_tissue(self, name):
-        return self.tl[name]
+    def get_genomelocus(self, name):
+        return self.gl[name]
 
     def count_tags_header(self):
-        return self.tissue_names
-        
+        return self.gl.keys()
+
     def count_tags(self, start, stop):
-        return [str(r.count_range(start, stop)) for r in self.tl]
+        return [str(r.count_range(start, stop)) for r in self.gl]
+
+class Dbtss(object):
+    def __init__(self):
+        self.genomeset = None
+
+    def cache_file(self, cache_dir):
+        return os.path.join(cache_dir, 'dbtss.cache')
+
+    def load_cache(self, cache_dir):
+        cache_file = self.cache_file(cache_dir)
+
+        # load from cache
+        if os.path.exists(cache_file):
+            try:
+                self.genomeset = pickle.load(open(cache_file,'rb'))
+            except pickle.PickleError:
+                print("pickle error: %s"%cache_file)
+                self.genomeset = None
+
+    def load_file(self, bed_dir, cache_dir):
+        cache_file = self.cache_file(cache_dir)
+
+        # De-novo loading
+        self.genomeset = OrderedDict()
+
+        for fname in glob.glob(os.path.join(bed_dir,'*.bed')):
+            print('loading: ',fname)
+            name = os.path.splitext(os.path.basename(fname))[0]
+            g = Genome()
+            g.read(fname)
+            self.genomeset[name] = g
+
+        # save to cache
+        pickle.dump(self.genomeset, open(cache_file,'wb'), -1)
+
+    def load(self, database_dir, cache_dir):
+        self.load_cache(cache_dir)
+
+        if not self.genomeset:
+            self.load_file(database_dir, cache_dir)
+
+    def get_genomeset_locus(self, tissues, locus):
+        gsl = GenomeSetLocus(locus)
+        for genome_name in tissues:
+            if genome_name in self.genomeset:
+                gsl.add_genome(self.genomeset[genome_name])
+            else:
+                print('unkown tissue: ', genome_name)
+        return gsl

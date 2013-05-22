@@ -1,17 +1,18 @@
-
-
 import sys, os, glob
 import traceback
 from argparse import ArgumentParser, FileType
 
-from .util.dirutils import Filepath
-from .view import seqview as seqv
-from . import db
-from .util import xmlwriter
-from .nucleotide.primer import Primers
+from ..util.dirutils import Filepath
+from ..view import seqview as seqv
+from ..util import xmlwriter
+from ..nucleotide.primer import Primers
 from contextlib import contextmanager
-from .script.sequencing import SequencingAnalysis
+from ..script.sequencing import SequencingAnalysis
 import pdb
+
+from .configuration import GeneralConfiguration
+
+from .. import db
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -30,18 +31,17 @@ def report_exceptions():
         print(''.rjust( 80, '=' ))
         pdb.post_mortem(tb)
 
-def get_genomic_context_genbank(gene_text, upstream=1000, downstream=1000):
-    gene_id, gene_symbol = db.get_gene_from_text(gene_text)
-    locus = db.get_gene_locus(gene_id).expand(upstream, downstream)
-    return db.get_locus_genbank(locus)
+def init_db():
+    gc = GeneralConfiguration()
+    db.initialize(gc.get_cache_dir(), gc.get_email())
 
 def get_output_path(input, output, multiple_inputs, ext='.html'):
     """
     input and output option policy
 
     - IF no output option specified, use input file directory as output directory.
-    - IF single input file, output option is considered as output filename.
-    - IF multiple input files, output option is considered as directory name.
+    - IF output options specified, output options are directory or filename.
+    - IF multiple input files, output option must be directory or ignored.
     - for geneview and get_genebank, which has no inputfile, use currentdirectory as default output directory.
 
     """
@@ -78,6 +78,7 @@ def seqview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print("processing input: {0}, output:{1}".format(inputp.path, outputp.path))
 
+            init_db()
             p = seqv.Seqviews()
             p.load_seqv(inputp.path)
             p.write_html(outputp)
@@ -88,6 +89,9 @@ def seqview():
         os.system('open {0}'.format(' '.join(outputs)))
 
 def tssview():
+    print('not implemented.')
+    return 
+    
     parser = ArgumentParser(prog='tssview', description='pretty HTML+SVG report of dbtss of multiple genes')
     parser.add_argument("inputs", nargs='+', metavar='tssviewfiles', help=".tssv files")
     parser.add_argument("-o", "--output", dest="output", help="output filename or directory")
@@ -103,6 +107,7 @@ def tssview():
             outputp = get_output_path(input, args.output, len(args.inputs)>1)
             print("processing input: {0}, output:{1}".format(inputp.path, outputp.path))
 
+            init_db()
             sv = seqv.TssvFile()
             sv.load_tssv(inputp.path)
             sv.write_csv(outputp.change_ext('.csv').path)
@@ -126,14 +131,15 @@ def geneview():
     for gene_symbol in args.gene_symbols:
         with report_exceptions():
             try:
-                gene_id, gene_symbol = db.get_gene_from_text(gene_symbol)
+                gene_id, gene_symbol = db.genetable.get_gene_from_text(gene_symbol)
             except db.NoSuchGene:
                 log('gene entry: No such Gene %s'%gene_symbol)
                 continue
 
+            init_db()
             sv = seqv.Seqviews()
             e = sv.load_gene(gene_symbol, gene_id)
-            e.dbtss.set_tissueset(db.get_dbtss_tissues())
+            e.dbtss.set_tissueset(db.dbtss.get_dbtss_tissues())
 
             outputp = get_output_path(gene_symbol, args.output, len(args.gene_symbols)>1)
 
@@ -182,7 +188,9 @@ def get_genbank():
                          type=FileType('w'), default=sys.stdout, help="output filename")
 
     args = parser.parse_args()
-    genbank = get_genomic_context_genbank(args.gene)
+
+    init_db()
+    genbank = db.genetable.get_genomic_context_genbank(args.gene)
 
     if not genbank:
         print("GenBank retrieve error: ", args.gene)
@@ -217,4 +225,46 @@ def primers():
                 b.h1('Primers')
                 ps.write_html(html)
 
+def seqdb_command():
+    from argparse import ArgumentParser
+    parser = ArgumentParser(prog='seqdb', description='seqtool database administration.')
+    parser.add_argument("--cache_dir", help='database directory')
+
+    subparsers = parser.add_subparsers(help='sub-command help')
+    parser_load = subparsers.add_parser('load', help='load database')
+    parser_load.add_argument("--ucsc_tab_file", default='ucsc.tab', help='see Makefile')
+    parser_load.add_argument("--hgnc_tab_file", default='hgnc.tab', help='see Makefile')
+    parser_load.add_argument("--chrom_tab_file", default='chrom.tab', help='see Makefile')
+    parser_load.set_defaults(func=seqdb_load)
+
+    parser_dbtss = subparsers.add_parser('dbtss', help='dbtss database')
+    parser_dbtss.add_argument("--bed_dir", help='bed directory')
+    parser_dbtss.set_defaults(func=seqdb_dbtss)
+
+    parser_clear = subparsers.add_parser('clear', help='clear database')
+    parser_clear.set_defaults(func=seqdb_clear)
+
+    if (len(sys.argv) < 2):
+        args = parser.parse_args(['-h'])
+    else:
+        args = parser.parse_args(sys.argv[1:])
+
+    if not args.cache_dir:
+        gc = GeneralConfiguration()
+        args.cache_dir = gc.get_cache_dir()
+
+    args.func(args)
+
+
+def seqdb_clear(args):
+    db.clear(args.cache_dir)
+    print("genetable cleared.")
+
+def seqdb_dbtss(args):
+    print("loading dbtss...")
+    db.load_dbtss(bed_dir=args.bed_dir, cache_dir=args.cache_dir)
+
+def seqdb_load(args):
+    print("loading gene tables...")
+    db.load_table(args.cache_dir, args.chrom_tab_file, args.hgnc_tab_file, args.ucsc_tab_file)
 

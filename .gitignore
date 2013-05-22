@@ -3,6 +3,7 @@ example/*.html
 _private
 _env
 _cache
+_cache2
 _db
 _output
 _tmp
