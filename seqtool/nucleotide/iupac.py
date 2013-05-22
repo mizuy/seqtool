@@ -1,9 +1,26 @@
 
 def remove_space(d):
     ret = {}
-    for k,v in d.items():
+    for k,v in list(d.items()):
         ret[k] = v.replace(' ','')
     return ret
+
+basematch_unambiguous = remove_space({
+     'A': 'A   ',
+     'T': ' T  ',
+     'G': '  G ',
+     'C': '   C',
+     'W': 'AT  ',
+     'R': 'A G ',
+     'M': 'A  C',
+     'K': ' TG ',
+     'Y': ' T C',
+     'S': '  GC',
+     'B': ' TGC',
+     'V': 'A GC',
+     'H': 'AT C',
+     'D': 'ATG ',
+     'N': 'ATGC'})
 
 basematch_partial = remove_space({
          # ATGC WRMKYS BVHD N
@@ -59,7 +76,7 @@ basematch_superset = remove_space({
      'D': 'ATG  WR K      D  ',
      'N': 'ATGC WRMKYS BVHD N'})
 
-def oligo_regex(seq, match=basematch_partial):
+def oligo_regex(seq, match=basematch_unambiguous):
     return ''.join(['[{}]'.format(match[s]) for s in str(seq).upper()])
 
 def base_match(base_i, base_j, match=basematch_partial):

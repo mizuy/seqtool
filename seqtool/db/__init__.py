@@ -1,9 +1,7 @@
-import os
-
 from .locus import Locus
-from . import sql
-from . import entrez
-from . import dbtss
+from .dbtss import Dbtss
+from .sql import GeneTable
+
 
 class NoSuchGene(Exception):
     def __init__(self, m):
@@ -11,53 +9,36 @@ class NoSuchGene(Exception):
     def __str__(self):
         return 'No Such Gene "%s"'%self.gene_text
 
-def get_gene_symbol(gene_id):
-    session = sql.Session()
-    try:
-        return session.query(sql.GeneTable).filter_by(gene_id=gene_id).one().symbol
-    except:
-        return None
 
-def get_gene_id(gene_symbol):
-    session = sql.Session()
-    try:
-        return session.query(sql.GeneTable).filter_by(symbol=gene_symbol).one().gene_id
-    except:
-        return None
+__all__ = ['initialize', 'dbtss', 'genetable', 'Locus', 'clear', 'load_dbtss', 'load_table' ,'NoSuchGene']
 
-def get_gene_from_text(text):
-    try:
-        gene_id = int(text)
-        gene_symbol = get_gene_symbol(gene_id)
-    except ValueError:
-        gene_symbol = text
-        gene_id = get_gene_id(gene_symbol)
-    return gene_id, gene_symbol
+dbtss = None
+genetable = None
 
-def get_gene_locus(gene_id):
-    symbol = get_gene_symbol(gene_id)
-    session = sql.Session()
-    # TODO: gene has multiple mRNA.
-    # TODO: gene might have even multiple loci !!
-    try:
-        f = session.query(sql.UcscTable).filter_by(symbol=symbol).first()
-        return Locus(f.chrom, f.strand=='+', f.txStart, f.txEnd)
-    except:
-        return None
-    
-def get_locus_genbank(locus):
-    session = sql.Session()
+def initialize(cache_dir, email):
+    global dbtss
+    global genetable
+    dbtss = Dbtss()
+    dbtss.load_cache(cache_dir)
+    genetable = GeneTable(cache_dir, email)
 
-    try:
-        gid_chrom = session.query(sql.Chromosome).filter_by(name=locus.chrom).one().gid
 
-        return entrez.entrez.efetch(db='nuccore',
-                             id=gid_chrom,
-                             seq_start=locus.pos.start, seq_stop=locus.pos.stop,
-                             strand=1 if locus.pos.sense else 2,
-                             rettype='gb', retmode='text')
-    except:
-        return None
-    
-def get_dbtss_tissues():
-    return dbtss.tissues
+def clear(cache_dir):
+    genetable = GeneTable(cache_dir, None)
+    genetable.clear()
+    """
+    dbtss = Dbtss()
+    dbtss.load_file(args.bed_dir, args.cache_dir)
+    dbtss.clear()
+    """
+
+def load_dbtss(cache_dir, bed_dir):
+    dbtss = Dbtss()
+    dbtss.load_file(bed_dir, cache_dir)
+
+def load_table(cache_dir, chrom_tab_file, hgnc_tab_file, ucsc_tab_file):
+    print("loading to...: ",cache_dir)
+    genetable = GeneTable(cache_dir, None)
+    genetable.load(chrom_tab_file, hgnc_tab_file, ucsc_tab_file)
+
+

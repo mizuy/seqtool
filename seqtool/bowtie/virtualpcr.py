@@ -1,9 +1,10 @@
-from __future__ import absolute_import
+
 
 from collections import defaultdict
 import subprocess
 import sys, os, time
 import tempfile
+from ..util.prompt import prompt
 
 class PrimerAlign(object):
     def __init__(self, template, seq, mismatch, offset):
@@ -30,7 +31,7 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
     stderr = tempfile.TemporaryFile()
     command = '%s %s -c %s' %(os.path.abspath(bowtie_path), template, ','.join(seqstrs))
     try:
-        print command
+        print(command)
         # note. using subprocess.PIPE with p.wait() dead locks if output is large.
         p = subprocess.Popen(command, stdout=stdout, stderr=stderr, shell=True)
         with prompt('waiting for bowtie.') as pr:
@@ -39,10 +40,10 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
                 time.sleep(1)
         retcode = p.wait()
         if retcode < 0:
-            print >>sys.stderr, 'bowtie exist with return code ', retcode, '  command:', command
+            print('bowtie exist with return code ', retcode, '  command:', command, file=sys.stderr)
             return None
-    except OSError, e:
-        print >>sys.stderr, "failed to invoke bowtie. command: ", command, ' error=', e
+    except OSError as e:
+        print("failed to invoke bowtie. command: ", command, ' error=', e, file=sys.stderr)
         return None
 
     stdout.seek(0)
@@ -81,15 +82,15 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
         else:
             matches_negative[template].append(align)
         
-    print 'primer statistics'
+    print('primer statistics')
     for i,p in enumerate(seqstrs):
-        print 'primer %s:' % p
-        print ' full match = %4d' % primer_full_count[i]
-        print ' miss match = %4d' % primer_miss_count[i]
+        print('primer %s:' % p)
+        print(' full match = %4d' % primer_full_count[i])
+        print(' miss match = %4d' % primer_miss_count[i])
 
-    for v in matches_positive.values():
+    for v in list(matches_positive.values()):
         v.sort(key=lambda x:x.offset)
-    for v in matches_negative.values():
+    for v in list(matches_negative.values()):
         v.sort(key=lambda x:x.offset)
 
     templates = set(matches_positive.keys()) & set(matches_negative.keys())
@@ -149,9 +150,9 @@ def main():
         result = virtualpcr(template, primers, bowtie_path, length)
         if result:
             for r in result:
-                print 'match at %s length=%10d %s(%s) -> %s(%s)' %(str(r.template).ljust(10), len(r), r.fw.origin,r.fw.mismatch, r.rv.origin,r.rv.mismatch)
+                print('match at %s length=%10d %s(%s) -> %s(%s)' %(str(r.template).ljust(10), len(r), r.fw.origin,r.fw.mismatch, r.rv.origin,r.rv.mismatch))
         else:
-            print 'no result'
+            print('no result')
         
                           
     length = options.length if options.length > 0 else None
@@ -159,10 +160,10 @@ def main():
     if options.template:
         s(options.template)
     elif options.bisulfite:
-        print 'METHYL'
+        print('METHYL')
         s('bs_sense_met')
         s('bs_antisense_met')
-        print 'UNMETHYL'
+        print('UNMETHYL')
         s('bs_sense_unmet')
         s('bs_antisense_unmet')
     else:

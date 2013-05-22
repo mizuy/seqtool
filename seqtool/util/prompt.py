@@ -15,11 +15,11 @@ class prompt(object):
         self.e = end_msg
 
     def __enter__(self):
-        print self.s,
+        print(self.s, end=' ')
         return self
 
     def __exit__(self, type, value, traceback):
-        print self.e
+        print(self.e)
         sys.stdout.flush()
 
     def progress(self, msg=None):

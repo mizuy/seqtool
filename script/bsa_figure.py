@@ -36,7 +36,7 @@ def main():
             figure.add(svg.SvgText(kv.key, 0, 0))
             figure.add(ff)
 
-    print svg.SvgPadding(10,10,figure).svg()
+    print(svg.SvgPadding(10,10,figure).svg())
 
 if __name__=='__main__':
     main()

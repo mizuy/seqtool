@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 
@@ -79,8 +77,8 @@ def pprint_sequence_html(w, seq, get_color):
 
 def no_stop_in_frame(seq):
     s = seq
-    stopped = all('*' in s[i:].translate() for i in xrange(3))
+    stopped = all('*' in s[i:].translate() for i in range(3))
     s = seq.reverse_complement()
-    stopped = stopped and all('*' in s[i:].translate() for i in xrange(3))
+    stopped = stopped and all('*' in s[i:].translate() for i in range(3))
     return not stopped
 

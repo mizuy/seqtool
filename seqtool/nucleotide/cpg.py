@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 from Bio.SeqUtils import GC
 
 def drop_small_region(items, length):
@@ -63,7 +61,7 @@ def seq_cpg_analysis(seq, window):
     obs = []
 
     sr = cpgisland_searcher(l,window)
-    for i in xrange(0,l):
+    for i in range(0,l):
         p = max(0,i-h)
         q = min(i+h,l)
         n = q-p
@@ -85,47 +83,6 @@ def seq_cpg_analysis(seq, window):
 
     return gc_per, obs, cpg_islands
 
-def seq_gc_percent(seq, window):
-    """
-    calculate gc percent for entire sequence.
-    """
-    seqstr = str(seq).upper()
-    l = len(seq)
-    h = int(window/2)
-    ret = []
-    for i in xrange(0,l):
-        p = max(0,i-h)
-        q = min(i+h,l)
-        n = q-p
-
-        c = seqstr.count('C',p,q)
-        g = seqstr.count('G',p,q)
-        gcp = 1.*(c+g)/n
-
-        ret.append(gcp)
-    return ret
-
-def seq_cpg_obs_per_exp(seq, window, step):
-    """
-    calculate obs/exp cpg for entire sequence.
-    """
-    seqstr = str(seq).upper()
-    l = len(seq)
-    h = int(window/2)
-    ret = []
-    for i in xrange(0,l,step):
-        p = max(0,i-h)
-        q = min(i+h,l)
-        n = q-p
-
-        c = seqstr.count('C',p,q)
-        g = seqstr.count('G',p,q)
-        cg = seqstr.count('CG',p,q)
-        oe = 1.*n*cg/(c*g) if (c*g)!=0 else 0
-
-        ret.append(oe)
-    return ret
-
 def cpg_obs_per_exp(seq):
     """
     CpG islands in vertebrate genomes {Gardiner-Garden, 1987, p02206}
@@ -133,22 +90,26 @@ def cpg_obs_per_exp(seq):
     where, N is the total number of nucleotide in the sequence being analyzed.
 
     2 >= Obs/Exp >= 0
+
+    >>> cpg_obs_per_exp('GC')
+    0.0
+    >>> cpg_obs_per_exp('CG')
+    2.0
+    >>> cpg_obs_per_exp('CGCGCGCG')
+    2.0
+    >>> cpg_obs_per_exp('CGGCCGGCCGGC')
+    1.0
     """
     n = len(seq)
-    c = 0
-    g = 0
-    cpg = 0
-    for i,b in enumerate(seq):
-        b = b.upper()
-        if b=='C': c+=1
-        if b=='G': g+=1
-        if i+1<n and b=='C' and seq[i+1]=='G':
-            cpg += 1
 
-    if c*g == 0:
-        return 0
-    return 1.*n*cpg / (c*g)
+    seqstr = str(seq)
+    n = len(seqstr)
+    c = seqstr.count('C')
+    g = seqstr.count('G')
+    cpg = seqstr.count('CG')
+    oe = 1.*n*cpg/(c*g) if (c*g)!=0 else 0
 
+    return oe
 
 #def cpg_sites(seq): return [i for i in range(0,len(seq)-1) if seq[i]=='C' and seq[i+1]=='G']
 def cpg_sites(seq, range_=(None,None)):
@@ -191,7 +152,7 @@ def is_cpg(seq,i):
     """
     if i+1>=len(seq):
         return False
-    if seq[i]=='C' and seq[i+1]=='G':
+    if seq[i:i+2]=='CG':
         return True
     return False
 
@@ -206,11 +167,31 @@ def count_cpg(seq, range_=(None,None)):
     p = p or 0
     q = q or -1
 
-    count = 0
-    for i,n in enumerate(seq[p:q]):
-        if n=='C' and seq[p+i+1]=='G':
-            count += 1
-    return count
+    return str(seq).count('CG',p,q)
+
+
+def _bisulfite_conversion(seq):
+    """
+    >>> _bisulfite_conversion_ambiguous('ATGCCGATGC')
+    Seq.Seq('ATGTYGATGT')
+    """
+    seqstr = str(seq)
+    l = len(seqstr)
+    muta = seq.tomutable()
+
+    j = 0
+    while j+1<l:
+        j = seqstr.find('C', j)
+
+        if not (0<j and j+1<l):
+            break
+        muta[j] = 'Y' if muta[j+1]=='G' else 'T'
+
+        j += 1
+    return muta.toseq()
+
+def bisulfite_conversion(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x), sense)
 
 def asymmetric_conversion(seq, conv, sense):
     if sense:
@@ -218,33 +199,13 @@ def asymmetric_conversion(seq, conv, sense):
     else:
         return conv(seq.reverse_complement()).reverse_complement()
 
-def _bisulfite_conversion(seq, methyl):
-    muta = seq.tomutable()
-    for i,c in enumerate(muta[:-1]):
-        if c=='C':
-            if not(muta[i+1]=='G' and methyl):
-                muta[i] = 'T'
-    if muta[-1]=='C':
-        muta[-1]='T'
-    return muta.toseq()
+def to_unambiguous(bsseq, methyl=True):
+    seqstr = str(bsseq)
+    trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
+    return seqstr.translate(trans)
 
-def bisulfite_conversion(seq, methyl, sense=True):
-    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x, methyl), sense)
-
-def _bisulfite_conversion_ambiguous(seq):
-    muta = seq.tomutable()
-    for i,c in enumerate(muta[:-1]):
-        if c=='C':
-            if muta[i+1]=='G':
-                muta[i] = 'Y'
-            else:
-                muta[i] = 'T'
-    if muta[-1]=='C':
-        muta[-1]='T'
-    return muta.toseq()
-
-def bisulfite_conversion_ambiguous(seq, sense=True):
-    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion_ambiguous(x), sense)
+def bisulfite_conversion_unambiguous(seq, sense, methyl):
+    return to_unambiguous(bisulfite_conversion(seq, sense), methyl)
 
 def bisulfite(seq, methyl, sense=True):
     """
@@ -257,7 +218,7 @@ def bisulfite(seq, methyl, sense=True):
     key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
 
     if not hasattr(seq, key):
-        ret = bisulfite_conversion(seq, methyl, sense)
+        ret = bisulfite_conversion_unambiguous(seq, methyl, sense)
         setattr(seq, key, ret)
 
     return getattr(seq, key)

@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from math import ceil
 
@@ -167,7 +167,7 @@ class OutlineRenderer(NamedTracks):
         h = t.height
         vh = 1.*min(500,maxtag)
         t.add(self.gen.hline( 0, w, h, color='gray'))
-        for x,v in rt.items():
+        for x,v in list(rt.items()):
             v = h*v/vh
             if v <= h:
                 t.add(self.gen.vline(x, h-v, h, color='red'))

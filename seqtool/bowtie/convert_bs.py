@@ -1,12 +1,12 @@
 #!/usr/bin/env python 
-import commands
+import subprocess
 
 from Bio import SeqIO, Seq
 from Bio.SeqRecord import SeqRecord
 
 def bisulfite(seq, methyl):
     muta = seq.tomutable()
-    for i in xrange(len(muta)-1):
+    for i in range(len(muta)-1):
         if muta[i].upper()=='C' and not (methyl and muta[i+1].upper()=='G'):
             muta[i] = 'T'
     if muta[-1].upper()=='C':
@@ -35,23 +35,23 @@ def main():
     inputfiles = args
     
     for i in inputfiles:
-        print i
+        print(i)
         records = list(rec.upper() for rec in SeqIO.parse(open(i,'r'), "fasta"))
 
         b = os.path.splitext(i)[0]
 
-        print 'met+'
+        print('met+')
         out = open(b+'_bs_sense_met.fa', 'w')
         convert_fasta(records, out, lambda x:bisulfite(x, True), 'bs_sense_met', '; with bisulfite converseion (sense methyl)')
 
-        print 'unmet+'
+        print('unmet+')
         out = open(b+'_bs_sense_unmet.fa', 'w')
         convert_fasta(records, out, lambda x:bisulfite(x, False), 'bs_sense_unmet', '; with bisulfite converseion (sense unmethyl)')
 
-        print 'met-'
+        print('met-')
         out = open(b+'_bs_antisense_met.fa', 'w')
         convert_fasta(records, out, lambda x:bisulfite(reverse(x), True), 'bs_antisense_met', '; with bisulfite converseion (antisense methyl)')
 
-        print 'unmet-'
+        print('unmet-')
         out = open(b+'_bs_antisense_unmet.fa', 'w')
         convert_fasta(records, out, lambda x:bisulfite(reverse(x), False), 'bs_antisense_unmet', '; with bisulfite converseion (antisense unmethyl)')

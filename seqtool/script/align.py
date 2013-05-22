@@ -34,10 +34,10 @@ def load_fasta(filename):
 
 
 def print_result(target, seqs):
-    print 'target length = ',len(target)
+    print('target length = ',len(target))
 
     for (name,s) in seqs:
-        print name
+        print(name)
 
         results = []
 
@@ -55,7 +55,7 @@ def print_result(target, seqs):
                                         al.aseq0.location(),al.aseq1.location())
             pp = '{}\n{}\n{}\n\n'.format(pc, loc, al.text_local())
 
-            print pc
+            print(pc)
             results.append((al.score, pp))
 
         mscore = 0
@@ -66,14 +66,14 @@ def print_result(target, seqs):
                 mpp = [pp]
             elif score == mscore:
                 mpp.append(pp)
-        print ' maximum score: ',mscore
+        print(' maximum score: ',mscore)
         for m in mpp:
-            print m
+            print(m)
 
 def clear_screen():
     #os.system('clear')
     #sys.stderr.write("\x1b[2J\x1b[H")
-    print chr(27) + "[2J"
+    print(chr(27) + "[2J")
 
 def main():
     from argparse import ArgumentParser
@@ -85,7 +85,7 @@ def main():
     seqs = load_fasta(args.fasta[0])
 
     while True:
-        s = raw_input('> ')
+        s = input('> ')
         if not s:
             continue
 
@@ -93,7 +93,7 @@ def main():
             target = s.upper()
             print_result(target, seqs)
         except:
-            print traceback.format_exc()
+            print(traceback.format_exc())
 #            print sys.exc_info()[0]
 #            print 'error. try again.'
             continue

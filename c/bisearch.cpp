@@ -10,11 +10,12 @@
 #include <iostream>
 #include <sstream>
 #include <set>
-\
+
 #include "melt_temp.h"
 #include "container.h"
 #include "bisearch.h"
 #include "nucleotide.h"
+#include "primer.h"
 
 const bool debug = false;
 
@@ -263,12 +264,13 @@ public:
   int index;
 };
 
-void bisearch(const char* input, ostream& output,
+void bisearch(const char* input, ostream& output, std::ostream& logging,
                   int product_len_min, int product_len_max,
                   int primer_len_min, int primer_len_max,
                   PCRCondition cond,
                   float max_tm_diff,
                   float max_met_tm_diff,
+                  int max_cpg_in_primer,
                   float score_threshold,
                   int max_results)
 {
@@ -283,12 +285,12 @@ void bisearch(const char* input, ostream& output,
   const int length = seq.length();
   Seqint seqint(seq);
 
-  //output << "# bisearch length=" << length << " primer_len=" << primer_len_max << endl;
+  logging << "// bisearch length=" << length << " primer_len=" << primer_len_max << endl;
 
   // TODO: I dont need a field for primer_len_max<minimum. DROP IT OUT.
   array2<Value> cs(length, primer_len_max);
   
-  //output << "# Tm, length, GC calculation" << endl;
+  logging << "// Tm, length, GC calculation" << endl;
 
   // TM of fw primer and rv primer is identical.
   // TODO. dynamic programming for TM calculation.
@@ -337,7 +339,7 @@ void bisearch(const char* input, ostream& output,
       // num of CpG in primer
       v.gc = 100.0*gc/n;
       v.cpg = cpg;
-      if(cpg>1){
+      if(cpg>max_cpg_in_primer){
         v.valid = false;
         continue;
       }
@@ -380,7 +382,7 @@ void bisearch(const char* input, ostream& output,
   //                   n=2 | 2*score_c(i,i+1)
   //                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
 
-  //output << "# SA first step" << endl;
+  logging << "// SA first step" << endl;
   // SA first step
   array_sa sa_0(length, primer_len_max+1, -1);
   for(int end=0; end<length; end++){
@@ -403,7 +405,7 @@ void bisearch(const char* input, ostream& output,
     }
   }
   // SA second step
-  //output << "# SA 2nd step" << endl;
+  logging << "// SA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -432,7 +434,7 @@ void bisearch(const char* input, ostream& output,
   //                    n=n | 
 
   // SEA first step
-  //output << "# SEA 1st step" << endl;
+  logging << "// SEA 1st step" << endl;
   array_sa sea_0(length, primer_len_max+1, -1);
   array_sa sea_0_full(length, primer_len_max+1, 0);
 
@@ -470,7 +472,7 @@ void bisearch(const char* input, ostream& output,
   }
 
   // SEA second step
-  //output << "# SEA 2nd step" << endl;
+  logging << "// SEA 2nd step" << endl;
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -517,212 +519,36 @@ void bisearch(const char* input, ostream& output,
       for(int n=primer_len_min; n<min(length-i, primer_len_max); n++){
         Value& v = cs.get(i,n);
         if(v.valid){
-          output << seq.substr(i,n) << " " << v.to_str() << endl;
+          logging << seq.substr(i,n) << " " << v.to_str() << endl;
       
           c++;}
       }
     }
-    //output << "# Valid Primers: " << c << endl;
+    logging << "// Valid Primers: " << c << endl;
   }
-
-  // Pair Annealing
-  //output << "# PA 1st step" << endl;
-
-  array3<int> pa_0(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_l(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_r(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_l_full(length, length, primer_len_max+1, 1);
-
-  /*
-    pa0(i,j,k) means, anneal score of seq[i,k] and reverse_complement(seq[j,k])
-
-    i         i+k-1          j       j+k-1
-    |----------->------------<---------|
-    <-----k----->            <----k---->
-
-    seq[i,k] means seq.substr(i,k), [seq[x] for x in i <= x < i+k]
-
-    k=1
-     seq[j,1]     |
-     seq[i,1]     |
-
-    1 < k <= primer_len_max
-     seq[j,k]   <----|-|
-     seq[i,k]   |---->->
-
-     seq[j,k-1] <----|
-     seq[i,k-1] |---->
-
-  
-    pea0_l means, end score of 5' side of seq[i,i+k], termed left side.
-    pea0_r means, end score of 5' side of reverse_complement(seq[j,j+k])), termed right side.
-
-     seq[j,k]   <-------------|-|
-     seq[i,k]   |------------->->
-     seq[j,k-1] <-------------|
-     seq[i,k-1] |------------->
-
-     if s>0
-      rt              |------|-|
-     else
-      rt                       |
-
-     if full(i,j,k-1)
-      lt       |-------------|-|
-     else
-      lt       |---------|      
-  */
-
-  // fill pa0
-  for(int i=0; i<length; i++){
-    for(int j=i; j<length; j++){
-      const int primer_len = min(length-j+1, primer_len_max);
-      
-      // fill pa_0
-      pa_0.get(i,j,1) = seqint.s_c_c(i,j);
-      for(int k=2; k<=primer_len; k++){
-          pa_0.get(i,j,k) = pa_0.get(i,j,k-1) + seqint.s_c_c(i+k-1, j+k-1);
-      }
-
-      // fill pea
-      // k=1
-      int s = seqint.s_c_c(i,j);
-      pea_0_l_full.get(i,j,1) = static_cast<int>(s>0);
-      pea_0_l.get(i,j,1) = s;
-      pea_0_r.get(i,j,1) = s;
-      assert(s>=0);
-
-      for(int k=2; k<=primer_len; k++){
-        int lt = pea_0_l.get(i,j,k-1);
-        int rt = pea_0_r.get(i,j,k-1);
-        
-        //cout << lt << " " << rt << " " << i << " " << j << " " << k << " " << endl;;
-        assert( lt>=0 && rt>=0 );
-
-        bool full = pea_0_l_full.get(i,j,k-1);
-        int s = seqint.s_c_c(i+k-1, j+k-1);
-
-        // for left side, add s if full.
-        pea_0_l_full.get(i,j,k) = static_cast<int>(full && (s>0));
-        pea_0_l.get(i,j,k) = lt + (full ? s : 0);
-
-        // for right side, reset if s==0
-        pea_0_r.get(i,j,k) = (s==0)? 0 : rt+s;       
-      }
-
-    }
-  }
-
-  // Pair End Annealing
-
-  /*
-   pair annealing values for each pair 
-
-   fw = seq.substr(i,n)
-   rv = reverse_complement(seq.substr(j,m)
-
-   n >= m
-
-  (k=-(m-1)) nn=1
-   rv <------|
-   fw        |---------->
-  
-  (A) nn=m-k
-   rv   <------|
-   fw        |---------->
-  
-  (k=0) nn=m
-   rv        <------|
-   fw        |---------->
-
-  (B) nn=m
-   rv          <------|
-   fw        |---------->
-
-  (k=n-m) nn=m
-   rv            <------|
-   fw        |---------->
-
-  (C) nn=n-k
-   rv               <------|
-   fw        |---------->
-
-  (k=n-1) nn=1
-   rv                   <------|
-   fw        |---------->
-
-  (A) -(m-1) < k < 0
-   nn=m-k
-   seq[j,m]  <------|
-   seq[i,n]       |---------->
-   -> pa(i, j-k, nn)
-
-  (B) 0 < k < n-m
-   nn=m
-   seq[j,m]         <------|
-   seq[i,n]       |---------->
-   -> pa(i+k, j, nn)
-
-  (C) n-m < k < n-1
-   nn=n-k
-   seq[j,m]              <------|
-   seq[i,n]       |---------->
-   -> pa(i+k, j, nn)
-
-
-  n <= m
-
-  (k=-(m-1)) nn=1
-   rv <----------|
-   fw            |------>
-  
-  (A) nn=m-k
-   rv   <----------|
-   fw            |------>
-  
-  (k=n-m) nn=n
-   rv        <----------|
-   fw            |------>
-
-  (B) nn=n
-   rv          <----------|
-   fw            |------>
-
-  (k=0) nn=n
-   rv            <----------|
-   fw            |------>
-
-  (C) nn=n-k
-   rv                <----------|
-   fw            |------>
-
-  (k=n-1) nn=1
-   rv                   <----------|
-   fw            |------>
-
-  (A) -(m-1) < k < n-m
-   nn=m-k
-   seq[j,m]   <----------|
-   seq[i,n]            |------>
-   -> pa(i, j-k, nn)
-
-  (B) n-m < k < 0
-   nn=n
-   seq[j,m]        <----------|
-   seq[i,n]          |------>
-   -> pa(i, j-k, nn)
-
-  (C) 0 < k < n-1
-   nn=n-k
-   seq[j,m]            <----------|
-   seq[i,n]       |------>
-   -> pa(i+k, j, nn)
-  */
 
   // TODO: max_results
   Results results(length, length/100, 5);
 
-  //output << "# PA 2st step" << endl;
+  logging << "// PA" << endl;
+  array2<char> pag(length, length);
+  /*
+      i     i+n
+      |------>
+      <---------|
+      j        j+m
+  
+      */
+  for(int i=0; i<length; i++){
+    for(int g=0; g<length; g++){
+        const int j = i+g;
+        if(!(j<length))
+            continue;
+
+        pag.get(i,g) = seqint.s_c_c(i, j);
+    }
+  }
+
   for(int i=0; i<length; i++){
     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
       assert( i+n <= length );
@@ -748,50 +574,84 @@ void bisearch(const char* input, ostream& output,
           if(results.lowest(position) < score ) continue;
           //if( score > results.lowest()) continue;
           // rank in check
-                    
+
+          /*
+            g_u 1
+                11
+            g_1 111
+                111
+                111
+            g_0 111
+                 11
+            g_d   1
+          */
+
+          const int g_u = (j+m)-(i);   // j-i +m == g+m
+          const int g_1 = (j+m)-(i+n);
+          const int g_0 = j-i;
+          const int g_d = (j)-(i+n-1); // j-i -(n+1) == g-n
+          //const int g_min = min(g_0,g_1);
+          //const int g_max = max(g_0,g_1);
+  
           AnnealStore pa;
-          if(n>=m){
-            int k = -(m-1);
-            for(; k<0; k++)
-              pa.store( pa_0.get(i, j-k, m-k), k);
-            for(; k<n-m; k++)
-              pa.store( pa_0.get(i+k, j, m), k);
-            for(; k<n-1; k++ )
-              pa.store( pa_0.get(i+k, j, n-k), k);
+          AnnealStore pea;
+          for(int gg=g_d; gg<g_u; gg++){
+            const int ii_l = max(i,j-gg);
+            const int ii_r = min(i+n, j+m-gg);
+            assert(ii_l<ii_r);
+            const int k = gg-g_0;
+            
+            int pav = 0;
+            for(int ii=ii_l; ii<ii_r; ii++){
+              pav += pag.get(ii,gg);
+            }
+            pa.store(pav, k);
+
+            if(gg<=g_0){
+              int peav_l = 0;
+              for(int ii=ii_l; ii<ii_r; ii++){
+                int v = pag.get(ii,gg);
+                if(v==0) break;
+                peav_l += v;
+              }
+              pea.store(peav_l, k);
+            }
+            if(gg<=g_1){
+              int peav_r = 0;
+              for(int ii=ii_r-1; ii_l<=ii; ii--){
+                int v = pag.get(ii,gg);
+                if(v==0) break;
+                peav_r += v;
+              }
+              pea.store(peav_r, k);
+            }
           }
-          else{
-            int k = -(m-1);
-            for(; k<n-m; k++)
-              pa.store( pa_0.get(i, j-k, m-k), k);
-            for(; k<0; k++)
-              pa.store( pa_0.get(i, j-k, n), k);
-            for(; k<n-1; k++ )
-              pa.store( pa_0.get(i+k, j, n-k), k);            
+
+          if(debug){
+            string fw_str = seq.substr(i,n);
+            string rv_str = reverse_complement(seq.substr(j,m));
+            auto pa_ = annealing_score(fw_str,rv_str);
+            auto pea_ = end_annealing_score(fw_str,rv_str);
+
+            if(pa.value != get<0>(pa_)){
+                cout << "//pa mismatch" << endl;
+                cout << "//ref: " << get<0>(pa_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pa_));
+                cout << "//now: " << pa.value << endl;
+                print_primer_bar(fw_str,rv_str, pa.index);
+            }
+            if(pea.value != get<0>(pea_)){
+                cout << "//pea mismatch" << endl;
+                cout << "//ref: " << get<0>(pea_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pea_));
+                cout << "//now: " << pea.value << endl;
+                print_primer_bar(fw_str,rv_str, pea.index);
+            }
           }
 
           if(! primer_cond.pa.within(pa.value) )
             continue;
           score += primer_cond.pa.score(pa.value);
-
-          AnnealStore pea;
-          if(n>=m){
-            int k=0;
-            for(; k<n-m; k++)
-              pea.store( pea_0_l.get(i+k, j, m), k);
-            for(; k<n-1; k++ ){
-              pea.store( pea_0_l.get(i+k, j, n-k), k);
-              pea.store( pea_0_r.get(i+k, j, n-k), k);
-            }
-          }
-          else{
-            int k = n-m;
-            for(; k<0; k++)
-              pea.store( pea_0_r.get(i, j-k, n), k);
-            for(; k<n-1; k++ ){
-              pea.store( pea_0_r.get(i+k, j, n-k), k);            
-              pea.store( pea_0_l.get(i+k, j, n-k), k);            
-            }
-          }
 
           if(! primer_cond.pea.within(pea.value) )
             continue;
@@ -799,14 +659,15 @@ void bisearch(const char* input, ostream& output,
 
           // cs.get(i,n), cs.get(j,m) for sa, sea
           results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+
         }
       }
     }
   }
-  
 
   output << "general:" << endl;
   output << "    sequence: " << genomic << endl;
+  output << "    show_bisulfite: True" << endl;
   output << endl;
   output << "bs_pcr:" << endl;
 
@@ -828,15 +689,17 @@ void bisearch(const char* input, ostream& output,
     replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
     replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
 
-    output << "    // rank=" << count << " score=" << ppr.score_;
-    output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
-    output << "    //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
-    output << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
-    output << "    //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
-    output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
-    output << "    Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
+    output << "    Bi-" << right << setfill('0') << setw(3) << count;
+    output << ": " << fw_str << ", " << rv_str << endl;
+
+    logging << "// rank=" << count << " score=" << ppr.score_;
+    logging << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
+    logging << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
+    logging << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
+    logging << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
+    logging << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
   }
-  output << "// Total: " << count << " Results." << endl;
+  logging << "// Total: " << count << " Results." << endl;
 }
 
 

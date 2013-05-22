@@ -1,12 +1,7 @@
-from __future__ import absolute_import
+
 
 from Bio import Entrez
 import os
-
-directory = os.path.dirname(os.path.abspath(__file__))
-default_cache = os.path.join(directory,'../../_cache/')
-
-Entrez.email = 'mizugy@gmail.com'
 
 class EntrezEfetchError(Exception):
     def __init__(self, m):
@@ -15,11 +10,12 @@ class EntrezEfetchError(Exception):
         return 'Entrez.efetch Error: %s"'%self.m
 
 class CachedEntrez(object):
-    def __init__(self, cache_dir=default_cache):
-        self.cache_dir = default_cache
+    def __init__(self, cache_dir, email):
+        self.cache_dir = cache_dir
+        Entrez.email = 'mizugy@gmail.com'
 
     def cache_file(self, **args):
-        return os.path.join(self.cache_dir,'&'.join(["%s=%s"%(k,v) for k,v in args.items()])+'.cache')
+        return os.path.join(self.cache_dir,'&'.join(["%s=%s"%(k,v) for k,v in sorted(args.items())])+'.cache')
         
     def efetch(self, **args):
         fname = self.cache_file(**args)
@@ -27,19 +23,25 @@ class CachedEntrez(object):
             with open(fname,'r') as f:
                 return f.read()
         try:
-            print "Entrez.efetch..: %s"%(args)
+            print("Entrez.efetch..: %s"%(args))
             handle = Entrez.efetch(**args)
             ret = handle.read()
         except:
             raise EntrezEfetchError(args)
         finally:
-            print "..efetch finished."
+            print("..efetch finished.")
         
         with open(fname, 'w') as f:
             f.write(ret)
 
         return ret
 
-entrez = CachedEntrez()
-
-
+    def get_genbank(self, chrom_gid, locus):
+        try:
+            return self.efetch(db='nuccore',
+                                 id=chrom_gid,
+                                 seq_start=locus.pos.start, seq_stop=locus.pos.stop,
+                                 strand=1 if locus.pos.sense else 2,
+                                 rettype='gb', retmode='text')
+        except:
+            return None

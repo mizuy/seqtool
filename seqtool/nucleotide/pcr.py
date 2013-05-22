@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from Bio import Seq
 from collections import defaultdict
@@ -208,11 +208,11 @@ class PCR(object):
         return list(ret.values())
 
     def debugprint(self):
-        print '%s: score=%.2f'%(self.name, self.primer_score())
+        print('%s: score=%.2f'%(self.name, self.primer_score()))
         self.primers.debugprint()
         for c in self.products:
-            print 'product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg())
-            print c.seq
+            print('product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg()))
+            print(c.seq)
 
     def write_html(self, w):
         b = xmlwriter.builder(w)

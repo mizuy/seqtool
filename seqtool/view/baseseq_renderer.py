@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from ..nucleotide.cpg import bisulfite_conversion
 from . import svg
@@ -168,7 +168,7 @@ class BaseseqRenderer(object):
 
     def add_restriction_batch(self, restriction_batch):
         for name, ds in self.dss:
-            for enzyme, locs in restriction_batch.search(ds.seq).items():
+            for enzyme, locs in list(restriction_batch.search(ds.seq).items()):
                 #if len(locs)>1:
                 #    continue
                 for l in locs:

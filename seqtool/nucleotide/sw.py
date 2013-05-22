@@ -51,7 +51,7 @@ def does_match(i,j):
 
 def match_bar(s0, s1):
     assert(len(s0)==len(s1))
-    return ''.join('| : '[does_match(s0[i],s1[i])] for i in xrange(len(s0)))
+    return ''.join('| : '[does_match(s0[i],s1[i])] for i in range(len(s0)))
 
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
@@ -157,5 +157,5 @@ class Alignment(object):
         return '{} = {:.2f} * {}'.format(self.score, self.score_density(), self.length())
 
 if __name__=='__main__':
-    print Alignment('ACACACTA','AGCACACA').text_local()
-    print Alignment('GCCCTAGCG', 'GCGCAATG').text_local()
+    print(Alignment('ACACACTA','AGCACACA').text_local())
+    print(Alignment('GCCCTAGCG', 'GCGCAATG').text_local())
