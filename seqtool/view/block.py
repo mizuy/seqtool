@@ -1,8 +1,6 @@
-
-
 from ..nucleotide.pcr import PCR
-from ..nucleotide.primer import Primer
 from ..util.namedlist import NamedList
+from ..util import report
 
 class PcrsHolder(object):
     def __init__(self, template, primers):
@@ -37,8 +35,10 @@ class PcrsHolder(object):
                 ret.add(p.rv)
         return ret
 
-
 class BaseBlock(object):
+    def __init__(self, title):
+        self.title = title
+
     def svg_genome(self, t):
         pass
 
@@ -48,12 +48,11 @@ class BaseBlock(object):
     def write_html(self, b, subfs):
         pass
 
-
 class PcrsBlock(BaseBlock):
-    def __init__(self, template, primers):
-        self.kind = 'Genome PCR'
+    def __init__(self, template, primers, title='Genome PCR'):
         self.pcrs = PcrsHolder(template, primers)
         self.template = template
+        super().__init__(title)
 
     def __iter__(self):
         return iter(self.pcrs)
@@ -62,27 +61,25 @@ class PcrsBlock(BaseBlock):
         self.pcrs.add(name, fw, rv)
 
     def svg_genome(self, t):
-        t.add_pcrs_track(self.kind, self.pcrs.pcrs)
+        t.add_pcrs_track(self.title, self.pcrs.pcrs)
 
     def svg_transcripts(self, t, transcript):
         pass
 
     def write_products(self, b, products):
         if len(products) > 0:
-            for c in products:
-                c.write_html(b.get_writer())
+            with b.div(klass='products'):
+                for c in products:
+                    c.write_html(b.get_writer())
         else:
             b.p('no products')
 
-    def write_html(self, b, subfs):
-        for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (%s)"%self.kind)
-                pcr.primers.write_html(b.get_writer())
 
-                b.h4('products')
-                with b.div(**{'class':'products'}):
-                    self.write_products(b, pcr.products)
+    def html_content(self, b, toc, subfs):
+        for pcr in self.pcrs:
+            with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
+                pcr.primers.write_html(b.get_writer())
+                self.write_products(b, pcr.products)
 
 class BsPcrsBlock(PcrsBlock):
     """
@@ -90,20 +87,18 @@ class BsPcrsBlock(PcrsBlock):
     so, targets  are bisulite-methyl-DNA, unmethyl-DNA and Genomic DNA.
     """
     def __init__(self, template, primers):
-        super(BsPcrsBlock,self).__init__(template, primers)
-        self.kind = 'Bisulfite PCR'
+        super().__init__(template, primers, 'Bisulfite PCR')
 
     def svg_genome(self, t):
-        t.add_bs_pcrs_track(self.kind, self.pcrs.pcrs)
+        t.add_bs_pcrs_track(self.title, self.pcrs.pcrs)
 
-    def write_html(self, b, subfs):
+    def html_content(self, b, toc, subfs):
         for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (%s)"%self.kind)
+            with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
                 pcr.primers.write_html(b.get_writer())
 
                 b.h4('products')
-                with b.div(**{'class':'products'}):
+                with b.div(klass='products'):
                     b.h5('template = Bisulfite-Treated Sense Strand (CpG Methylated)')
                     self.write_products(b, pcr.bs_products(methyl=True,sense=True))
                     b.h5('template = Bisulfite-Treated Sense Strand (CpG Unmethylated)')
@@ -121,24 +116,22 @@ class RtPcrsBlock(PcrsBlock):
     so, targets of RT-PCR are all transcripts and Genomic DNA.
     """
     def __init__(self, template, primers):
-        super(RtPcrsBlock,self).__init__(template, primers)
-        self.kind = 'RT-PCR'
+        super().__init__(template, primers, 'RT-PCR')
 
     def svg_genome(self, t):
-        t.add_pcrs_track(self.kind, self.pcrs.pcrs)
+        t.add_pcrs_track(self.title, self.pcrs.pcrs)
 
     def svg_transcript(self, t, transcript):
         pcrs = [PCR(pcr.name, transcript.seq, pcr.fw, pcr.rv) for pcr in self.pcrs.pcrs]
         t.add_pcrs_track('RT-PCR', pcrs)
 
-    def write_html(self, b, subfs):
+    def html_content(self, b, toc, subfs):
         for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (RT PCR)")
+            with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
                 pcr.primers.write_html(b.get_writer())
 
                 b.h4('products')
-                with b.div(**{'class':'products'}):
+                with b.div(klass='products'):
                     for transcript in self.template.transcripts:
                         b.h5('template = transcripts: %s'%transcript.name)
                         self.write_products(b, PCR(pcr.name, transcript.seq, pcr.fw, pcr.rv).products)
