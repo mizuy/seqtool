@@ -5,11 +5,13 @@ from collections import defaultdict
 
 from ..util import xmlwriter
 
+seqfilter = str.maketrans({' ':None, '-':None})
+
 def to_seq(s):
     if isinstance(s, Seq.Seq):
         return s
 
-    t = str(s).upper()
+    t = str(s).upper().translate(seqfilter)
     if all(n in IUPAC.unambiguous_dna.letters for n in t):
         return Seq.Seq(t,IUPAC.unambiguous_dna)
     elif all(n in IUPAC.ambiguous_dna.letters for n in t):
