@@ -93,6 +93,9 @@ class XmlWriter(object):
         self._etag(tag)
         self._nl()
 
+    def get_builder(self):
+        return builder(self)
+
 class builder(object):
     def __init__(self, writer):
         self.w = writer

@@ -12,7 +12,7 @@ class BsaResult(object):
         self.pcr = pcr
         self.result = result
 
-        p = pcr.bs_products(True, True)
+        p = list(pcr.get_bs_products())
         if not len(p)==1:
             raise ValueError('number of pcr products of %s must be 1 but %s'%(pcr.name,len(p)))
         self.product = p[0]
@@ -21,7 +21,7 @@ class BsaResult(object):
 
         self.cpg_sites = self.product.cpg_sites()
 
-        self.num_cpg = self.product.num_cpg()
+        self.num_cpg = len(list(self.cpg_sites))
         if len(result)!=self.num_cpg:
             raise ValueError('%s has %s detectable CpG sites, but result gives %s'%(pcr.name,self.num_cpg,len(result)))
 
@@ -73,7 +73,7 @@ class BsaBlock(block.BaseBlock):
         assert isinstance(pcr_name,str)
         assert isinstance(result,str)
 
-        pcr = self.bs_pcrs.pcrs.get(pcr_name)
+        pcr = self.bs_pcrs.pcrsholder.get(pcr_name)
         if not pcr:
             raise ValueError('no such pcr: %s'%pcr_name)
 
