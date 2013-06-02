@@ -5,6 +5,19 @@ def remove_space(d):
         ret[k] = v.replace(' ','')
     return ret
 
+'''
+primer=unambiguous or ambiguous(any), template=unambiguous
+ basematch_unambiguous
+
+primer=unambiguous, template=ambiguous(any)
+
+primer=ambiguous(any), template=ambiguous(any)
+ basematch_partial
+
+primer=ambiguous(all), template=ambiguous(any)
+'''
+
+
 basematch_unambiguous = remove_space({
      'A': 'A   ',
      'T': ' T  ',

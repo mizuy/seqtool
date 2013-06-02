@@ -46,7 +46,6 @@ def write_html(outputp, title, html_content):
             b.title(title)
     with b.body:
         # table of contents
-        b.h1(title)
         b.h2('Table Of Contents')
         with b.div(klass='toc'):
             with b.ul:

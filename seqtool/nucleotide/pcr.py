@@ -2,7 +2,7 @@
 
 from Bio import Seq
 from collections import defaultdict
-from . import ColorMap, pprint_sequence_html, no_stop_in_frame
+from . import PPrintSequence, no_stop_in_frame
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from .cpg import bisulfite, cpg_sites, count_cpg
@@ -11,8 +11,19 @@ from .primer import PrimerPair
 
 __all__ = ['PCR']
 
-class PCRProduct(object):
+class PCRProduct:
     def __init__(self, i, j):
+        """
+
+        template:
+                     i.left  i.right       j.left j.right   
+                         |     |             |    |         
+                    |---------->                            
+                         |------------------------|         
+                                             <----------|
+        seq:        0   v[0]  v[1]          v[2] v[3]  v[4]
+
+        """
         assert(i.template == j.template)
         assert(i <= j)
 
@@ -35,7 +46,16 @@ class PCRProduct(object):
         self.rv_3 = self.rv.seq.reverse_complement()[:self.j.length]
         self.tail = self.rv.seq.reverse_complement()[self.j.length:]
 
-        self.seq = self.head + self.template[self.start:self.end] + self.tail
+        self.parts = [self.head, self.fw_3, self.middle, self.rv_3, self.tail]
+        self.seq = self.head + self.fw_3 + self.middle + self.rv_3 + self.tail
+        #self.seq = self.head + self.template[self.start:self.end] + self.tail
+        v = []
+        k = 0
+        for part in self.parts:
+            k += len(part)
+            v.append(k)
+        self.v = v
+        self.partsv = [(0,v[0]), (v[0],v[1]), (v[1],v[2]), (v[2],v[3]), (v[3],v[4])]
 
     def num_cpg(self):
         return len(self.cpg_sites())
@@ -56,39 +76,49 @@ class PCRProduct(object):
         b = xmlwriter.builder(w)
 
         with b.div:
-            cm = ColorMap()
+            seq = self.seq
+            cm = PPrintSequence(seq)
 
-            parts = [(self.head, 200, 0, 0),
-                     (self.fw_3, 0, 200, 0),
-                     (self.middle, 0, 0, 0),
-                     (self.rv_3, 0, 0, 200),
-                     (self.tail, 200, 0, 0) ]
+            parts = [(100,100,100),
+                     (255, 0, 0),
+                     (0, 0, 0),
+                     (0, 0, 255),
+                     (100,100,100) ]
 
-            allseq = Seq.Seq('')
-            k = 0
-            for seq, rr, gg, bb in parts:
-                l = len(seq)
-                for i in range(k, k+l):
+            for i, (rr, gg, bb) in enumerate(parts):
+                p,q = self.partsv[i]
+                for i in range(p,q):
                     cm.add_color(i, rr,gg,bb)
-                k += l
-                allseq += seq
 
-            for i in cpg_sites(allseq):
-                cm.add_color(i, 255, 0, 0)
-                cm.add_color(i+1, 255, 0, 0)
+            for i in cpg_sites(seq, self.partsv[2]):
+                cm.add_underbar(i)
+                cm.add_underbar(i+1)
 
-            assert( len(allseq) == len(self.seq) )
-
-            pprint_sequence_html(w, allseq, cm.get_color)
+            cm.write_html(w)
             with b.span(**{'class':'length'}):
-                b.text('length=%d, CpG=%d, no stop=%s'%(len(allseq), count_cpg(allseq), no_stop_in_frame(allseq)))
+                b.text('length=%d, CpG=%d, no stop=%s'%(len(seq), count_cpg(self.middle), no_stop_in_frame(seq)))
 
             #with b.textarea(cols='10', rows='1', cls='copybox'):
             #    w.write(str(self.seq))
 
+class PCRProducts:
+    def __init__(self, products):
+        self.products = list(products)
 
+    def write_html(self, w):
+        b = xmlwriter.builder(w)
+        if len(self.products) > 0:
+            with b.div(klass='products'):
+                for c in self.products:
+                    c.write_html(b.get_writer())
+        else:
+            with b.div(klass='products'):
+                b.p('no products')
 
-class PCRBand(object):
+    def __iter__(self):
+        yield from self.products
+
+class PCRBand:
     def __init__(self, pcr):
         self.pcr = pcr
         self.bs_pos_met = None
@@ -132,7 +162,7 @@ class PCRBand(object):
             r += "G"
         return r
 
-class PCR(object):
+class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
         self.name = name
         self.template = template
@@ -163,10 +193,10 @@ class PCR(object):
     @property
     @memoize
     def products(self):
-        return list(self._search(self.template))
+        return PCRProducts(self._search(self.template))
 
     def bs_products(self, methyl, sense):
-        return list(self._search(bisulfite(self.template, methyl=methyl, sense=sense)))
+        return PCRProducts(self._search(bisulfite(self.template, methyl=methyl, sense=sense)))
 
     def _search(self, template):
         fpp,fpc = self.fw.search(template)
@@ -215,12 +245,5 @@ class PCR(object):
             print(c.seq)
 
     def write_html(self, w):
-        b = xmlwriter.builder(w)
-        with b.div:
-            b.h2(self.name)
-
-            self.primers.write_html(w)
-            #self.pair_annealing().write_html(w)
-            #self.pair_end_annealing().write_html(w)
-            for c in self.products:
-                c.write_html(w)
+        self.primers.write_html(w)
+        self.write_products(w)

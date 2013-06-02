@@ -247,17 +247,18 @@ class Seqview(object):
                 link = subfs.get_link_path(filename)
 
                 with toc.section(name):
-                    with b.a(href=link):
-                        if show:
-                            #b.write_raw(svg.svg_node())
-                            b.img(src=link, width='1000px')
-                        else:
-                            with b.a(href=link):
-                                b.text(filename)
+                    with b.div:
+                        b.h2(name)
+                        with b.a(href=link):
+                            if show:
+                                #b.write_raw(svg.svg_node())
+                                b.img(src=link, width='1000px')
+                            else:
+                                b.a(filename, href=link)
 
             for block in self.blocks:
                 if 'html_content' in dir(block):
                     block.html_content(b, toc, subfs)
 
     def write_html(self, outputp):
-        report.write_html(outputp, 'seqview', self.html_content)
+        report.write_html(outputp, self.name, self.html_content)

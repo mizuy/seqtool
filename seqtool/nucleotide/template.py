@@ -1,4 +1,10 @@
 
+class Template(object):
+    def __init__(self, seq):
+        pass
+        
+
+
 class Templates(object):
     def __init__(self):
         self._list = NamedList()

@@ -122,7 +122,7 @@ class PrimerAnnealing(object):
 
     def write_html(self, w):
         w.push('div',style='annealing')
-        w.push('p','score=%s, index=%s'%(self.score,self.index))
+        w.insert('p','score=%s, index=%s'%(self.score,self.index))
         w.push('pre')
         w.text('\n'.join(self.get_bar()))
         w.pop()
@@ -227,7 +227,7 @@ class Primer(object):
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template, min_length=15):
+    def search(self, template, template_ambiguous=False, min_length=10):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)
@@ -362,7 +362,7 @@ class PrimerPair(object):
         with b.div(cls='primerpair'):
             with b.table(cls='primerpairtable', border=1):
                 with b.tr:
-                    for p in (Primer.get_table_head() + ['pa.', 'pea.', 'score', 'bisulfite score']):
+                    for p in (Primer.get_table_head() + ['pa.', 'pea.', 'score', 'bs score']):
                         b.th(p)
 
                 with b.tr:
@@ -375,6 +375,8 @@ class PrimerPair(object):
                         b.td(str(v))
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
+            self.pair_annealing.write_html(w)
+            self.pair_end_annealing.write_html(w)
 
 
 class Primers(NamedList):
@@ -416,7 +418,6 @@ class Primers(NamedList):
                             b.td(str(v))
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
-
 
     def get_default(self, name, default_name):
         try:
