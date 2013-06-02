@@ -2,7 +2,7 @@ from ..nucleotide.pcr import PCR
 from ..util.namedlist import NamedList
 from ..util import report
 
-class PcrsHolder(object):
+class PcrsHolder:
     def __init__(self, template, primers):
         self.pcrs = NamedList()
         self.primers = primers
@@ -35,7 +35,7 @@ class PcrsHolder(object):
                 ret.add(p.rv)
         return ret
 
-class BaseBlock(object):
+class BaseBlock:
     def __init__(self, title):
         self.title = title
 

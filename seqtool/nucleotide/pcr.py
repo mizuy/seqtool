@@ -7,7 +7,7 @@ from ..util.memoize import memoize
 from ..util import xmlwriter
 from .cpg import bisulfite, cpg_sites, count_cpg
 
-from .primer import PrimerPair
+from .primer import PrimerPair, Primer
 
 __all__ = ['PCR']
 
@@ -46,6 +46,20 @@ class PCRProduct:
         self.rv_3 = self.rv.seq.reverse_complement()[:self.j.length]
         self.tail = self.rv.seq.reverse_complement()[self.j.length:]
 
+        if self.head:
+            self.fw = Primer('{}({}-mer)'.format(i.primer.name, len(self.fw_3)),self.fw_3)
+        else:
+            self.fw = self.i.primer
+
+        if self.tail:
+            self.rv = Primer('{}({}-mer)'.format(j.primer.name, len(self.rv_3)),self.rv_3)
+        else:
+            self.rv = self.j.primer
+
+        self.partial_match = not not (self.head or self.tail)
+
+        self.primerpair = PrimerPair(self.fw, self.rv)
+
         self.parts = [self.head, self.fw_3, self.middle, self.rv_3, self.tail]
         self.seq = self.head + self.fw_3 + self.middle + self.rv_3 + self.tail
         #self.seq = self.head + self.template[self.start:self.end] + self.tail
@@ -76,7 +90,11 @@ class PCRProduct:
         b = xmlwriter.builder(w)
 
         with b.div:
+            if self.partial_match:
+                self.primerpair.write_html(w, pair_values=False, annealings=False)
+
             seq = self.seq
+
             cm = PPrintSequence(seq)
 
             parts = [(100,100,100),
@@ -164,26 +182,18 @@ class PCRBand:
 
 class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
+        assert(isinstance(template, Seq.Seq))
+        assert(isinstance(name, str))
+        assert(isinstance(primer_fw, Primer))
+        assert(isinstance(primer_rv, Primer))
         self.name = name
         self.template = template
         self.primers = PrimerPair(primer_fw, primer_rv)
 
-    @property
-    def fw(self):
-        return self.primers.fw
-    @property
-    def rv(self):
-        return self.primers.rv
-
-    @property
-    @memoize
-    def pair_annealing(self):
-        return self.primers.pair_annealing
-
-    @property
-    @memoize
-    def pair_end_annealing(self):
-        return self.primers.pair_end_annealing
+        self.fw = self.primers.fw
+        self.rv = self.primers.rv
+        self.pair_annealing = self.primers.pair_annealing
+        self.pair_end_annealing = self.primers.pair_end_annealing
 
     @property
     @memoize
@@ -219,7 +229,7 @@ class PCR:
 
     @property
     @memoize
-    def bisulfite_products(self):
+    def bisulfite_bands(self):
         """
         return list of the tuple: (met_product, unmet_product, genome_product)
         products in the same position are in the same tuple.

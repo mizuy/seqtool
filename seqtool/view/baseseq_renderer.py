@@ -149,7 +149,7 @@ class BaseseqRenderer(object):
                          ("", self.seq),
                          ("BS(-)", self.bs_neg)]
         else:
-            self.dss = [    ("", self.seq)]
+            self.dss = [("", self.seq)]
 
         self.bisulfite = bisulfite
 
@@ -183,6 +183,7 @@ class BaseseqRenderer(object):
         self.regions.append((name,p,q))
 
     def track(self, width=160):
+        width = width or self.length
 
         t = AnnotatedSeqTrack()
 

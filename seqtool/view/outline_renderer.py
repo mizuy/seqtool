@@ -251,7 +251,7 @@ class OutlineRenderer(NamedTracks):
     def add_bs_pcrs_track(self, name, pcrs):
         def d():
             for pcr in pcrs:
-                for band in pcr.bisulfite_products:
+                for band in pcr.bisulfite_bands:
                     p = band.get_product()
                     r = band.match_str()
                     yield pcr.name+' [%s]'%r, p
