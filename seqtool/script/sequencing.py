@@ -8,8 +8,8 @@ from seqtool.nucleotide import sw
 from seqtool.view.baseseq_renderer import BaseseqRenderer
 from ..util.subfs import SubFileSystem
 from ..util import xmlwriter
-from ..view.css import seqview_css
 from ..nucleotide.primer import Primer
+from ..util import report
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -131,26 +131,19 @@ class SequencingAnalysis(object):
         self._seqfiles.append(SeqFile(os.path.basename(seqfile), seqfile, self.tc))
 
     def write_html(self, outputp):
-        with SubFileSystem(outputp.dir, outputp.prefix) as subfs:
+        report.write_html(outputp, self.name, self.html_content)
 
-            with open(outputp.path,'w') as output:
-                html = xmlwriter.XmlWriter(output)
-                b = xmlwriter.builder(html)
-                with b.html:
-                    with b.head:
-                        with b.style(type='text/css'):
-                            b.text(seqview_css)
-                with b.body:
-                    b.h2('Sequencing Analysis:')
-                    b.h3('Alignment View')
-                    for sf in self._seqfiles:
-                        filename = sf.name+'.svg'
-                        subfs.write(filename, sf.svg())
-                        link = subfs.get_link_path(filename)
+    def html_content(self, b, toc, subfs):
+        b.h2('Sequencing Analysis:')
+        b.h3('Alignment View')
+        for sf in self._seqfiles:
+            filename = sf.name+'.svg'
+            subfs.write(filename, sf.svg())
+            link = subfs.get_link_path(filename)
 
-                        b.h3(sf.name)
-                        with b.div(cls='products'):
-                            with b.a(href=link):
-                                b.img(src=link, width='1000px')
-                            sf.html(b)
+            b.h3(sf.name)
+            with b.div(cls='products'):
+                with b.a(href=link):
+                    b.img(src=link, width='1000px')
+                sf.html(b)
 

@@ -106,7 +106,8 @@ class Seqview(object):
             kv = tree.get_one('general/restriction')
             if kv:
                 for v in kv.value_list():
-                    if v not in Restriction.AllEnzymes:
+                    # AllEnzymes is not RestrictionBatch, but set....
+                    if v not in Restriction.CommOnly.elements():
                         print('No such Restriction Enzyme: {0}'.format(v))
                         continue
                     e.restrictions.append(v)
@@ -120,15 +121,17 @@ class Seqview(object):
                 else:
                     print('Unkown Boolean value: {0}. must be True or False'.format(kv.value))
 
-            kv = tree.get_one('general/bsa/result')
+            kv = tree.get_one('general/bsa')
             if kv:
-                bsa_file = relative_path(kv.value)
-                def lazy():
-                    e.bsa.read(relative_path(bsa_file))
-                post_processing.append(lazy)
-            kv = tree.get_one('general/bsa/celllines')
-            if kv:
-                e.bsa.set_celllines(kv.value_list())
+                kv = tree.get_one('general/bsa/result')
+                if kv:
+                    bsa_file = relative_path(kv.value)
+                    def lazy():
+                        e.bsa.read(relative_path(bsa_file))
+                    post_processing.append(lazy)
+                kv = tree.get_one('general/bsa/celllines')
+                if kv:
+                    e.bsa.set_celllines(kv.value_list())
 
             for kv in tree.get_one('general').get_unused():
                 print(kv.lineinfo.error_msg('Ignored.'))

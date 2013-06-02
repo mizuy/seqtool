@@ -1,7 +1,6 @@
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 
-from collections import defaultdict
 
 from ..util import xmlwriter
 
