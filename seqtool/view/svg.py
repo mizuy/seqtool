@@ -13,12 +13,23 @@ SVG_HEADER = '''<?xml version="1.0" standalone="no"?>
 '''
 
 SVG_CSS = '''
-<![CDATA[
+line{
+    stroke: black;
+    stroke-width: 1;
+}
+path{
+    stroke: black;
+    stroke-width: 1;
+}
 text{
     fill: black;
     font: 10pt Monaco;
 }
-]]>
+.graphline{
+    stroke: red;
+    stroke-width:0.5;
+    stroke-dasharray:30,10;
+}
 '''
 
 def ffmt(x):
@@ -98,13 +109,11 @@ class SvgBase(object):
 
     def _style(self, kwargs):
         ret = {}
-        ret['stroke'] = 'black'
+        #ret['stroke'] = 'black'
         for key, value in list(kwargs.items()):
             if key=='color':
                 ret['stroke'] = value
                 ret['style'] = 'fill:%s;'%value
-            elif key=='width':
-                ret['stroke-width'] = value
             else:
                 ret[key] = value
         return ret
@@ -116,19 +125,25 @@ class SvgBase(object):
         height = height or h
 
         buff = StringIO()
-        b = xmlwriter.builder(xmlwriter.XmlWriter(buff))
+        writer = xmlwriter.XmlWriter(buff)
+        b = xmlwriter.builder(writer)
         with b.svg(xmlns="http://www.w3.org/2000/svg",
                    width=ffmt(width), height=ffmt(height),
 #                   viewBox="0 0 %d %d"%(w, h),
                    preserveAspectRatio='none',
                    **{"xmlns:xlink":"http://www.w3.org/1999/xlink"}):
             with b.style(type='text/css'):
-                b.get_writer().write(SVG_CSS)
+                writer.write('<![CDATA[')
+                writer.write(self.svg_css())
+                writer.write(']]>')
             self.draw(b)
         return buff.getvalue()
 
     def svg(self, width=None, height=None):
         return SVG_HEADER + self.svg_node(width,height)
+
+    def svg_css(self):
+        return SVG_CSS
 
 class SvgNone(SvgBase):
     def __init__(self):
@@ -539,7 +554,8 @@ class SvgGraphline(SvgItemsFixedHeight):
         b.polyline(points=p, **self.kwargs)
         for bar in self.bars:
             t = self.height * (1.-bar)
-            b.line(x1=0, x2=ffmt(self.width), y1=ffmt(t), y2=ffmt(t), stroke='red', **{'stroke-width':0.5,'stroke-dasharray':'30,10'})
+            b.line(x1=0, x2=ffmt(self.width), y1=ffmt(t), y2=ffmt(t), klass='graphline')
+
 
 class SvgItemGenerator(object):
     def __init__(self, scalex, scaley):
@@ -586,7 +602,7 @@ class SvgItemGenerator(object):
     def text(self, text, x=0, y=0, fontsize=DEFAULT_FONTSIZE, anchor='start'):
         x /= self.sx
         y /= self.sy
-        return SvgText(text, x, y, fontsize)
+        return SvgText(text, x, y, fontsize=fontsize, anchor=anchor)
 
     def graphline(self, height, values, bars=[], width=None, **kwargs):
         height /= self.sy
