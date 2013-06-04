@@ -69,29 +69,37 @@ class OutlineRenderer(NamedTracks):
         t = svg.SvgItemsFixedHeight(20)
         for i in range(ss, start + length, step):
             x = i - start
-            t.add(self.gen.text(str(i), x=x, y=10, color='black', anchor='middle'))
+            t.add(self.gen.text(str(i), x=x, y=10, anchor='middle'))
         self.add(t)
 
     def add_measure_bar_track(self, length, start=0, step=100, substep=None, subsubstep=None):
         ss = step * int(ceil(1.0*start/step))
 
         t = svg.SvgItemsFixedHeight(20)
+        
         t.add(self.gen.hline(0, length, 20, color='black'))
+
+        lines = []
         for i in range(ss, start + length, step):
             x = i - start
-            t.add(self.gen.vline(x, 10, 20, color='black'))
+            lines.append((x,10,x,20))
+            #t.add(self.gen.vline(x, 10, 20, color='black'))
 
         if substep:
             ss = substep * int(ceil(1.0*start/substep))
             for i in range(ss, start + length, substep):
                 x = i - start
-                t.add(self.gen.vline(x, 13, 20, color='black'))
+                lines.append((x,13,x,20))
+                #t.add(self.gen.vline(x, 13, 20, color='black'))
 
         if subsubstep:
             ss = subsubstep * int(ceil(1.0*start/subsubstep))
             for i in range(ss, start + length, subsubstep):
                 x = i - start
-                t.add(self.gen.vline(x, 18, 20, color='black'))
+                lines.append((x,18,x,20))
+                #t.add(self.gen.vline(x, 18, 20, color='black'))
+        if lines:
+            t.add(self.gen.lines(lines))
 
         self.add(t)
 
@@ -185,8 +193,12 @@ class OutlineRenderer(NamedTracks):
         cpg = cpg_sites(seq)
 
         t.add(self.gen.hline(0, length, height/2, color='black'))
+        lines = []
         for i in cpg:
-            t.add(self.gen.vline(i, 0, height, color='black'))
+            lines.append((i,0,i,height))
+            #t.add(self.gen.vline(i, 0, height, color='black'))
+        if lines:
+            t.add(self.gen.lines(lines))
 
         self.add_named('CpG', t)
 
@@ -236,7 +248,7 @@ class OutlineRenderer(NamedTracks):
             named.add(bar)
 
             m = (p.start+p.end)/2.
-            named.add(self.gen.text(name, x=m, y=0, color='black', anchor='middle'))
+            named.add(self.gen.text(name, x=m, y=0, anchor='middle'))
 
             t.add(named)
         return t
@@ -268,7 +280,7 @@ class OutlineRenderer(NamedTracks):
         for name, start, end, forward in primers:
             named = svg.SvgItemsVStack()
             named.add(self.gen.hbar(start, end, 1.5, 3, color = '#f00' if forward else '#00f'))
-            named.add(self.gen.text(name, x=(start+end)/2., y=0, color='black', anchor='middle'))
+            named.add(self.gen.text(name, x=(start+end)/2., y=0, anchor='middle'))
             t.add(named)
         self.add_named("Primers", t)
 

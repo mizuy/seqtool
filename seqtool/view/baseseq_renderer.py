@@ -108,13 +108,13 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
 
             if not a.sequences:
                 b = svg.SvgItemsFixedHeight(h)
-                b.add(svg.SvgText(a.name, lt, 0, color='black'))
+                b.add(svg.SvgText(a.name, lt, 0))
                 b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;'))
             else:
                 t = svg.SvgItemsVStack()
-                t.add(svg.SvgText(a.name, lt, 0, color='black'))
+                t.add(svg.SvgText(a.name, lt, 0))
                 for s in a.sequences:
-                    t.add(svg.SvgText(s, lt, 0, color='black'))
+                    t.add(svg.SvgText(s, lt, 0))
 
                 b = svg.SvgItemsFixedHeight(t.rect.height)
                 b.add(t)
@@ -187,7 +187,7 @@ class BaseseqRenderer(object):
 
         t = AnnotatedSeqTrack()
 
-        t.add_hline(width*svg.font_width(), color='black', **{'stroke-width':'3'})
+        t.add_hline(width*svg.font_width(), **{'stroke-width':'3'})
 
         for p,q in iter_step(width, 0, self.length):
 
@@ -203,7 +203,7 @@ class BaseseqRenderer(object):
                 t.add_annotation(ds.neg_anno.cut_range(p, q))
                 t.add_padding(8)
 
-            t.add_hline(width*svg.font_width(), color='black', **{'stroke-width':'3'})
+            t.add_hline(width*svg.font_width(), **{'stroke-width':'3'})
 
         return t
 

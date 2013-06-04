@@ -12,6 +12,18 @@ SVG_HEADER = '''<?xml version="1.0" standalone="no"?>
          "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 '''
 
+SVG_CSS = '''
+<![CDATA[
+text{
+    fill: black;
+    font: 10pt Monaco;
+}
+]]>
+'''
+
+def ffmt(x):
+    return '{:.2f}'.format(x) if x%1 else '{}'.format(int(x))
+
 ### Rectangle
 
 class Rectangle(object):
@@ -35,6 +47,9 @@ class Rectangle(object):
 
     def __add__(self, rhs):
         return self.add(rhs)
+
+    def include_point(self, x, y):
+        return Rectangle( min(self.x0, x),max(self.x1, x),min(self.y0, y),max(self.y1, y) )
 
     def add(self, rhs):
         return Rectangle(
@@ -102,10 +117,13 @@ class SvgBase(object):
 
         buff = StringIO()
         b = xmlwriter.builder(xmlwriter.XmlWriter(buff))
-        with b.svg(xmlns="http://www.w3.org/2000/svg", 
-                   width=width, height=height,
+        with b.svg(xmlns="http://www.w3.org/2000/svg",
+                   width=ffmt(width), height=ffmt(height),
 #                   viewBox="0 0 %d %d"%(w, h),
-                   preserveAspectRatio='none'):
+                   preserveAspectRatio='none',
+                   **{"xmlns:xlink":"http://www.w3.org/1999/xlink"}):
+            with b.style(type='text/css'):
+                b.get_writer().write(SVG_CSS)
             self.draw(b)
         return buff.getvalue()
 
@@ -377,15 +395,15 @@ class SvgLine(SvgBase):
         self._rect = Rectangle(x0, x1, y0, y1)
 
     def draw(self, b):
-        b.line(x1=self.x0, x2=self.x1, y1=self.y0, y2=self.y1, **self.kwargs)
+        b.line(x1=ffmt(self.x0), x2=ffmt(self.x1), y1=ffmt(self.y0), y2=ffmt(self.y1), **self.kwargs)
 
 class SvgVline(SvgLine):
     def __init__(self, x, y0, y1, **kwargs):
-        super(SvgVline, self).__init__(x,x,y0,y1,**kwargs)
+        super().__init__(x,x,y0,y1,**kwargs)
 
 class SvgHline(SvgLine):
     def __init__(self, x0, x1, y, **kwargs):
-        super(SvgHline, self).__init__(x0,x1,y,y,**kwargs)
+        super().__init__(x0,x1,y,y,**kwargs)
 
 class SvgRect(SvgBase):
     def __init__(self, x, y, width, height, **kwargs):
@@ -397,7 +415,61 @@ class SvgRect(SvgBase):
         self._rect = Rectangle(x, x+width, y, y+height)
 
     def draw(self,b):
-        b.rect(x=self.x, y=self.y, width=self.width, height=self.height, **self.kwargs)
+        b.rect(x=ffmt(self.x), y=ffmt(self.y), width=ffmt(self.width), height=ffmt(self.height), **self.kwargs)
+
+class SvgLines(SvgBase):
+    def __init__(self, lines, **kwargs):
+        self.lines = lines
+        self.kwargs = self._style(kwargs)
+
+        x0,y0,x1,y1 = self.lines[0]
+        for xx0,yy0,xx1,yy1 in self.lines[1:]:
+            x0 = min(x0, xx0, xx1)
+            y0 = min(y0, yy0, yy1)
+            x1 = max(x1, xx0, xx1)
+            y1 = max(y1, yy0, yy1)
+        self._rect = Rectangle(x0, x1, y0, y1)
+
+    def draw(self, b):
+        d = " ".join("M{} {} l{} {}".format(ffmt(x0),ffmt(y0),ffmt(x1-x0),ffmt(y1-y0)) for x0,y0,x1,y1 in self.lines)
+        b.path(d=d, **self.kwargs)
+
+"""
+class SvgPath(SvgBase):
+    def __init__(self, x, y, **kwargs):
+        self.d = []
+        self.kwargs = self._style(kwargs)
+        self._rect = Rectangle(x, x, y, y)
+        self.add_p("M", x,y)
+
+    def add_p(self, i, x, y):
+        self.d.append((i, [x,y]))
+        self._rect = self._rect.include_point(x,y)
+
+    def m(self, x, y):
+        self.add_p('m',x,y)
+    def M(self, x, y):
+        self.add_p('M',x,y)
+    def L(self, x, y):
+        self.add_p('L',x,y)
+    def l(self, x, y):
+        self.add_p('l',x,y)
+
+    def z(self):
+        self.d.append(('z', []))
+
+    # TODO other instruction supports
+
+    def draw(self,b):
+        d = " ".join("{} {}".format(i, ' '.join(v)) for i, v in self.d)
+        b.path(d=d, **self.kwargs)
+
+    def scale(self, sx, sy):
+        ret = SvgPath()
+        for i, (x,y) in self.d:
+            ret.add_p(i, x/sx, y/sy)
+        return ret
+"""
 
 class SvgCircle(SvgBase):
     def __init__(self, x, y, radius, **kwargs):
@@ -408,19 +480,21 @@ class SvgCircle(SvgBase):
         self._rect = Rectangle(x-radius, x+radius, y-radius, y+radius)
 
     def draw(self,b):
-        b.circle(cx=self.x, cy=self.y, r=self.radius, **self.kwargs)
+        b.circle(cx=ffmt(self.x), cy=ffmt(self.y), r=ffmt(self.radius), **self.kwargs)
 
 class SvgHbar(SvgRect):
     def __init__(self, start, end, y, thick, **kwargs):
-        super(SvgHbar,self).__init__(start, y-thick/2, end-start, thick, **kwargs)
+        super().__init__(start, y-thick/2, end-start, thick, **kwargs)
 
-def font_width(fontsize=12):
+DEFAULT_FONTSIZE = 12
+
+def font_width(fontsize=DEFAULT_FONTSIZE):
     return fontsize*0.6
-def font_height(fontsize=12):
+def font_height(fontsize=DEFAULT_FONTSIZE):
     return fontsize*1.1
 
 class SvgText(SvgBase):
-    def __init__(self, text, x, y, fontsize=12, font='Monaco', color='black', anchor='start'):
+    def __init__(self, text, x, y, anchor='start', fontsize=DEFAULT_FONTSIZE):
         self.text = text
 
         self.w = font_width(fontsize) * len(text)
@@ -430,26 +504,23 @@ class SvgText(SvgBase):
         if anchor == 'middle':
             x -= self.w/2.
 
-        # Chrome: You need to tell all the location of each characters respectively.
-        self.x = ' '.join(str(x+i*font_width(fontsize)) for i in range(len(text)))
+        # Firefox dont support textLength. so you need to tell all the location of each characters respectively.
+        # self.x = ' '.join(str(x+i*font_width(fontsize)) for i in range(len(text)))
+        self.x = x
         self.y = y
-        self.style =   {'font-size':fontsize,
-                        'font-family':font,
-                        'text-anchor':'start',
-                        'style':'fill:%s;'%color}
+        self.textLength = self.w
+
+        self.style = {}
+        if fontsize != DEFAULT_FONTSIZE:
+            self.style['fontsize'] = fontsize
 
         self._rect = Rectangle(x, x+self.w, y, y+self.h)
-        #if anchor=='start':
-        #    self._rect = Rectangle(x, x+self.w, y, y+self.h)
-        #elif anchor=='middle':
-        #    m = (self.w)/2
-        #    self._rect = Rectangle(x-m, x+m, y, y+self.h)
 
     def draw(self,b):
-        with b['text'](x=self.x, y=self.y+self.h,**self.style):
+        with b['text'](x=ffmt(self.x), y=ffmt(self.y+self.h), textLength=ffmt(self.textLength), **self.style):
             b.text(self.text)
         if DEBUG:
-            b.rect(x=self.rect.x0, y=self.rect.y0, width=self.rect.width, height=self.rect.height, stroke='red', style='fill:none;')
+            b.rect(x=ffmt(self.rect.x0), y=ffmt(self.rect.y0), width=ffmt(self.rect.width), height=ffmt(self.rect.height), stroke='red', style='fill:none;')
 
 class SvgGraphline(SvgItemsFixedHeight):
     def __init__(self, height, values, bars=[], scalex=1., width=None, **kwargs):
@@ -468,7 +539,7 @@ class SvgGraphline(SvgItemsFixedHeight):
         b.polyline(points=p, **self.kwargs)
         for bar in self.bars:
             t = self.height * (1.-bar)
-            b.line(x1=0, x2=self.width, y1=t, y2=t, stroke='red', **{'stroke-width':0.5,'stroke-dasharray':'30,10'})
+            b.line(x1=0, x2=ffmt(self.width), y1=ffmt(t), y2=ffmt(t), stroke='red', **{'stroke-width':0.5,'stroke-dasharray':'30,10'})
 
 class SvgItemGenerator(object):
     def __init__(self, scalex, scaley):
@@ -481,6 +552,10 @@ class SvgItemGenerator(object):
         y0 /= self.sy
         y1 /= self.sy
         return SvgLine(x0, x1, y0, y1, **kwargs)
+
+    def lines(self, lines, **kwargs):
+        lines = [(x0/self.sx, y0/self.sy, x1/self.sx, y1/self.sy) for x0,y0,x1,y1 in lines]
+        return SvgLines(lines, **kwargs)
 
     def vline(self, x, y0, y1, **kwargs):
         x /= self.sx
@@ -508,10 +583,10 @@ class SvgItemGenerator(object):
         thick /= self.sy
         return SvgHbar(start, end, y, thick, **kwargs)
 
-    def text(self, text, x=0, y=0, fontsize=12, font='Monaco', color='black', anchor='start'):
+    def text(self, text, x=0, y=0, fontsize=DEFAULT_FONTSIZE, anchor='start'):
         x /= self.sx
         y /= self.sy
-        return SvgText(text, x, y, fontsize, font, color, anchor)
+        return SvgText(text, x, y, fontsize)
 
     def graphline(self, height, values, bars=[], width=None, **kwargs):
         height /= self.sy
