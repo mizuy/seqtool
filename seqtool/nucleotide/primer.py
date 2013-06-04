@@ -193,7 +193,7 @@ class PrimerTemplateAnnealing:
         return 1.*count/(self.right-self.left)
 
     def tm(self):
-        return melt_temp.melting_temperature_unambiguous(self.template[self.left:self.right])
+        return melt_temp.melting_temperature_unmethyl(self.template[self.left:self.right])
 
 
 class Primer:
