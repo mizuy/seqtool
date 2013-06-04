@@ -1,6 +1,4 @@
 BIN = env/bin
-CPP = clang++
-CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
 
 all: build
 

@@ -1,4 +1,5 @@
 from xml.sax.saxutils import quoteattr,escape
+import io
 
 __author__ = "MIZUGUCHi Yasuhiko"
 __copyright__ = "Copyright (C) 2010 MIZUGUCHI Yasuhiko"
@@ -37,7 +38,7 @@ class XmlWriter(object):
         self.writel(escape(str(t)))
 
     def attr_hook(self, attrv):
-        if attrv=='cls':
+        if attrv=='cls' or attrv=='klass':
             return 'class'
         return attrv
 
@@ -92,6 +93,9 @@ class XmlWriter(object):
         self._etag(tag)
         self._nl()
 
+    def get_builder(self):
+        return builder(self)
+
 class builder(object):
     def __init__(self, writer):
         self.w = writer
@@ -144,6 +148,12 @@ class ListWriter:
     def __init__(self, writer):
         self.w = writer
         self.deep = 0
+
+    def push(self):
+        self.move(self.deep+1)
+    def pop(self):
+        self.move(self.deep-1)
+
     def move(self,level):
         assert level > 0
         if self.deep == level:
@@ -171,7 +181,7 @@ class OUListWriter:
         self.w = writer
         self.deep = 0
         self.olstack = {}
-        
+
     def move(self,level,ol=False):
         assert level > 0
 
@@ -213,4 +223,84 @@ class OUListWriter:
             for i in range(self.deep):
                 self.w.pop()
                 self.w.pop()
+
+class toc_builder(object):
+    """
+    toc = toc_builder('toc','toc')
+    with toc.section('chapter 1'):
+        with toc.section('section 1'):
+            brabra
+        with toc.section('section 4'):
+            bra
+            with toc.section('subsection 1'):
+                pass
+    toc.write(w)
+
+    <ul>
+        <li>chapter 1</li>
+        <li>chapter 1</li>
+        <ul>
+            <li>chapter 1</li>
+        </ul>
+    </ul>
+    """
+    def __init__(self, title, anchor=None):
+        self.top = toc_element(title, anchor, self)
+        self.stack = [self.top]
+
+    def write(self, w):
+        w.push('ul')
+        self.top.html(w)
+        w.pop()
+
+    def section(self, title, anchor=None):
+        e = toc_element(title, anchor, self)
+        self.stack[-1].add(e)
+        return e
+
+    def push(self, e):
+        self.stack.append(e)
+
+    def pop(self):
+        self.stack = self.stack[:-1]
+    
+class toc_element(object):
+    def __init__(self, name, anchor, parent):
+        self.name = name
+        self.anchor = anchor or name
+        self.parent = parent
+        self.children = []
+
+    def add(self, child):
+        self.children.append(child)
+
+    def __enter__(self):
+        self.parent.push(self)
+
+    def __exit__(self, type, value, tb):
+        self.parent.pop()
+
+    def html(self, w):
+        w.push('li')
+        w.insert('a', self.name, href='#'+self.anchor)
+        w.pop()
+        if self.children:
+            w.push('ul')
+            for child in self.children:
+                child.html(w)
+            w.pop()
+
+class switchable_output(object):
+    def __init__(self):
+        self._l = [io.StringIO()]
+
+    def insert(self, output):
+        self._l.append(output)
+        self._l.append(io.StringIO())
+
+    def write(self, text):
+        self._l[-1].write(text)
+
+    def getvalue(self):
+        return ''.join(v.getvalue() for v in self._l)
 

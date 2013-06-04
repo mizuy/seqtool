@@ -79,8 +79,7 @@ def seqview():
             print("processing input: {0}, output:{1}".format(inputp.path, outputp.path))
 
             init_db()
-            p = seqv.Seqviews()
-            p.load_seqv(inputp.path)
+            p = seqv.Seqview.load_seqv(inputp.path)
             p.write_html(outputp)
 
             outputs.append(outputp.path)
@@ -137,9 +136,8 @@ def geneview():
                 continue
 
             init_db()
-            sv = seqv.Seqviews()
-            e = sv.load_gene(gene_symbol, gene_id)
-            e.dbtss.set_tissueset(db.dbtss.get_dbtss_tissues())
+            sv = seqv.Seqview.create_gene(gene_symbol, gene_id)
+            sv.add_dbtss(db.dbtss.get_dbtss_tissues())
 
             outputp = get_output_path(gene_symbol, args.output, len(args.gene_symbols)>1)
 

@@ -1,15 +1,16 @@
 from Bio import Seq
 from Bio.Alphabet import IUPAC
 
-from collections import defaultdict
 
 from ..util import xmlwriter
+
+seqfilter = str.maketrans({' ':None, '-':None})
 
 def to_seq(s):
     if isinstance(s, Seq.Seq):
         return s
 
-    t = str(s).upper()
+    t = str(s).upper().translate(seqfilter)
     if all(n in IUPAC.unambiguous_dna.letters for n in t):
         return Seq.Seq(t,IUPAC.unambiguous_dna)
     elif all(n in IUPAC.ambiguous_dna.letters for n in t):
@@ -43,37 +44,64 @@ def is_repeat(seq,i,repeatno=8):
     return tail+head+1 >= repeatno
 
 
-class ColorMap(object):
-    def __init__(self):
-        self.colors = defaultdict(lambda: (0,0,0))
+class PPrintSequence(object):
+    def __init__(self, seq):
+        self.seq = seq
+        self.length = len(seq)
+        self.colors = [(0,0,0) for x in range(self.length)]
+        self.underbar = [False for x in range(self.length)]
 
     def add_color(self, i, red, green, blue):
         r,g,b = self.colors[i]
         self.colors[i] = (r+red, g+green, b+blue)
 
+    def add_underbar(self, i):
+        self.underbar[i] = True
+
     def get_color(self, i):
         return '#%02x%02x%02x'%self.colors[i]
 
-def pprint_sequence_html(w, seq, get_color):
-    b = xmlwriter.builder(w)
-    seqstr = str(seq)
-    with b.pre:
-        for i in range(0, len(seqstr), 100):
-            w.write('<span style="black">%4d: </span>'%i)
-            oldcol = None
-            for ii in range(i, min(i+100, len(seqstr)), 10):
-                for iii in range(ii, min(ii+10, len(seqstr)), 1):
-                    color = get_color(iii)
-                    if oldcol!=color:
-                        if oldcol:
-                            w.write('</span>')
-                        w.write('<span style="color:%s">'%color)
-                        oldcol = color
-                    w.write(seqstr[iii])
-                w.write(' ')
-            w.write('\n')
-            if oldcol:
-                w.write('</span>')
+    def get_underbar(self, i):
+        return self.underbar[i]
+
+    def get_style(self, i):
+        color = self.get_color(i)
+        underbar = self.get_underbar(i)
+        if underbar:
+            return "color:%s; text-decoration:underline;"%color
+        else:
+            return "color:%s;"%color
+
+    def write_html(self, w):
+        b = xmlwriter.builder(w)
+        seqstr = str(self.seq)
+        length = len(self.seq)
+
+        with b.pre:
+            for i in range(0, length, 100):
+                w.write('<span style="black">%4d: </span>'%i)
+                oldstyle = ""
+                inspan = False
+                for ii in range(i, min(i+100, length), 10):
+                    for iii in range(ii, min(ii+10, length), 1):
+                        style = self.get_style(iii)
+
+                        if oldstyle!=style:
+                            if inspan:
+                                w.write('</span>')
+                            w.write('<span style="%s">'%style)
+
+                            inspan = True
+                            oldstyle = style
+                        w.write(seqstr[iii])
+                    if inspan:
+                        w.write('</span>')
+                        inspan = False
+                        oldstyle = None
+
+                    w.write(' ')
+
+                w.write('\n')
 
 def no_stop_in_frame(seq):
     s = seq

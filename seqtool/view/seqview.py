@@ -6,17 +6,12 @@ from Bio.Alphabet import IUPAC
 
 import os
 
-from ..util import xmlwriter
+from ..util import report
 from ..nucleotide.primer import Primer,Primers
 from ..util.parser import TreekvParser
 
-from ..util.namedlist import DefaultNamedList
-
-from ..util.subfs import SubFileSystem
 from ..util.dirutils import Filepath
 from .. import db
-
-from .css import seqview_css
 
 from . import template as temp
 from . import block, bsa_block, dbtss_block
@@ -26,9 +21,9 @@ from .outline_renderer import OutlineRenderer
 
 LENGTH_THRESHOLD = 800
 
-__all__ = ['Seqviews']
+__all__ = ['Seqview']
 
-class SeqviewEntity(object):
+class Seqview(object):
     def __init__(self, name, template):
         self.name = name
         self.template = template
@@ -42,7 +37,8 @@ class SeqviewEntity(object):
 
         self.bsa = bsa_block.BsaBlock(self.bs_pcrs)
 
-        self.blocks = [self.bsa, self.pcrs,
+        self.blocks = [self.bsa,
+                       self.pcrs,
                        self.bs_pcrs,
                        self.rt_pcrs]
 
@@ -110,7 +106,8 @@ class SeqviewEntity(object):
             kv = tree.get_one('general/restriction')
             if kv:
                 for v in kv.value_list():
-                    if v not in Restriction.AllEnzymes:
+                    # AllEnzymes is not RestrictionBatch, but set....
+                    if v not in Restriction.CommOnly.elements():
                         print('No such Restriction Enzyme: {0}'.format(v))
                         continue
                     e.restrictions.append(v)
@@ -124,15 +121,17 @@ class SeqviewEntity(object):
                 else:
                     print('Unkown Boolean value: {0}. must be True or False'.format(kv.value))
 
-            kv = tree.get_one('general/bsa/result')
+            kv = tree.get_one('general/bsa')
             if kv:
-                bsa_file = relative_path(kv.value)
-                def lazy():
-                    e.bsa.read(relative_path(bsa_file))
-                post_processing.append(lazy)
-            kv = tree.get_one('general/bsa/celllines')
-            if kv:
-                e.bsa.set_celllines(kv.value_list())
+                kv = tree.get_one('general/bsa/result')
+                if kv:
+                    bsa_file = relative_path(kv.value)
+                    def lazy():
+                        e.bsa.read(relative_path(bsa_file))
+                    post_processing.append(lazy)
+                kv = tree.get_one('general/bsa/celllines')
+                if kv:
+                    e.bsa.set_celllines(kv.value_list())
 
             for kv in tree.get_one('general').get_unused():
                 print(kv.lineinfo.error_msg('Ignored.'))
@@ -234,72 +233,35 @@ class SeqviewEntity(object):
 
         aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
 
-        return aseq.track().svg()
+        return aseq.track(width=None).svg()
 
     def has_transcripts(self):
         return not not self.template.transcripts
 
-    def write_html(self, b, subfs):
+    def html_content(self, b, toc, subfs):
         svgs = [('genome.svg', 'Outline', self.svg_genome(), True),
                 ('baseseq.svg', 'Base Sequence', self.svg_baseseq(), False)]
         if self.has_transcripts():
             svgs.insert(1, ('transcript.svg', 'Transcript', self.svg_transcript(), True))
 
-        b.h2(self.name)
-        for filename, name, svg, show in svgs:
-            subfs.write(filename, svg)
-            link = subfs.get_link_path(filename)
+        with toc.section(self.name):
+            for filename, name, svg, show in svgs:
+                subfs.write(filename, svg)
+                link = subfs.get_link_path(filename)
 
-            b.h3(name)
-            with b.a(href=link):
-                if show:
-                    #b.write_raw(svg.svg_node())
-                    b.img(src=link, width='1000px')
-                else:
-                    with b.a(href=link):
-                        b.text(filename)
+                with toc.section(name):
+                    with b.div:
+                        b.h2(name)
+                        with b.a(href=link):
+                            if show:
+                                #b.write_raw(svg.svg_node())
+                                b.img(src=link, width='1000px')
+                            else:
+                                b.a(filename, href=link)
 
-        #with b.div(**{'class':'primers'}):
-        #    b.h2('Primers')
-        #    primers_write_html(b.get_writer(), self.primers)
-
-        b.h3('Analysis')
-        for block in self.blocks:
-            block.write_html(b, subfs)
-
-class Seqviews(object):
-    def __init__(self):
-        self.entries = []
-
-    def append(self, entity):
-        self.entries.append(entity)
+            for block in self.blocks:
+                if 'html_content' in dir(block):
+                    block.html_content(b, toc, subfs)
 
     def write_html(self, outputp):
-        subfs = SubFileSystem(outputp.dir, outputp.prefix)
-
-        with open(outputp.path,'w') as output:
-            html = xmlwriter.XmlWriter(output)
-            b = xmlwriter.builder(html)
-            with b.html:
-                with b.head:
-                    with b.style(type='text/css'):
-                        b.text(seqview_css)
-            with b.body:
-                count = 0
-                for gt in self.entries:
-                    count += 1
-                    name = gt.name or '%s'%count
-                    subsubfs = subfs.get_subfs(name)
-                    gt.write_html(b, subsubfs)
-
-        subfs.finish()
-
-    def load_seqv(self, filename):
-        e = SeqviewEntity.load_seqv(filename)
-        self.append(e)
-        return e
-
-    def load_gene(self,name, gene_id):
-        e = SeqviewEntity.create_gene(name, gene_id)
-        self.append(e)
-        return e
+        report.write_html(outputp, self.name, self.html_content)

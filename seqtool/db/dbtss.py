@@ -61,7 +61,8 @@ class DoubleStrand(object):
         return self.search(pos.sense, p, q)
 
 class Genome(object):
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.chroms = {}
 
     def read(self, filename):
@@ -108,12 +109,13 @@ class Genome(object):
         return self.chroms[chrom].search(strand,lower,higher)
 
     def get_locus(self, locus):
-        return GenomeLocus(locus.pos, self.get_ds(locus.chrom))
+        return GenomeLocus(locus.pos, self.get_ds(locus.chrom), self.name)
 
 class GenomeLocus(object):
-    def __init__(self, pos, ds):
+    def __init__(self, pos, ds, genome_name):
         self.pos = pos
         self.ds = ds
+        self.name = genome_name
 
         self.maxtag = 1
         for loc, val in self.ds.search_pos(self.pos):
@@ -184,7 +186,7 @@ class Dbtss(object):
         for fname in glob.glob(os.path.join(bed_dir,'*.bed')):
             print('loading: ',fname)
             name = os.path.splitext(os.path.basename(fname))[0]
-            g = Genome()
+            g = Genome(name)
             g.read(fname)
             self.genomeset[name] = g
 
@@ -201,7 +203,7 @@ class Dbtss(object):
         gsl = GenomeSetLocus(locus)
         for genome_name in tissues:
             if genome_name in self.genomeset:
-                gsl.add_genome(self.genomeset[genome_name])
+                gsl.add_genome(genome_name, self.genomeset[genome_name])
             else:
                 print('unkown tissue: ', genome_name)
         return gsl

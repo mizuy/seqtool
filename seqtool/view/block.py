@@ -1,14 +1,11 @@
-
-
-from ..nucleotide.pcr import PCR
-from ..nucleotide.primer import Primer
+from ..nucleotide.pcr import PCR, BisulfitePCR, RtPCR
 from ..util.namedlist import NamedList
+from ..util import report
 
-class PcrsHolder(object):
-    def __init__(self, template, primers):
+class PcrsHolder:
+    def __init__(self, primers):
         self.pcrs = NamedList()
         self.primers = primers
-        self.template = template
 
     def __len__(self):
         return len(self.pcrs)
@@ -16,15 +13,13 @@ class PcrsHolder(object):
     def __iter__(self):
         return iter(self.pcrs)
 
-    def _get(self, name, fw_primer, rv_primer):
-        fw = self.primers.get_default(fw_primer, 'PCR-FW(%s)'%name)
-        rv = self.primers.get_default(rv_primer, 'PCR-RV(%s)'%name)
-        return PCR(name, self.template.seq, fw, rv)
+    def get_primers(self, name, fw_primer, rv_primer):
+        fw = self.primers.get_default(fw_primer, "Foward of {}".format(name))
+        rv = self.primers.get_default(rv_primer, "Reverse of {}".format(name))
+        return fw,rv
 
-    def add(self, name, fw_primer, rv_primer):
-        pcr = self._get(name,fw_primer,rv_primer)
+    def add(self, pcr):
         self.pcrs.append(pcr)
-        return pcr
 
     def get(self, name):
         return self.pcrs.get(name)
@@ -37,8 +32,10 @@ class PcrsHolder(object):
                 ret.add(p.rv)
         return ret
 
+class BaseBlock:
+    def __init__(self, title):
+        self.title = title
 
-class BaseBlock(object):
     def svg_genome(self, t):
         pass
 
@@ -48,41 +45,31 @@ class BaseBlock(object):
     def write_html(self, b, subfs):
         pass
 
-
 class PcrsBlock(BaseBlock):
-    def __init__(self, template, primers):
-        self.kind = 'Genome PCR'
-        self.pcrs = PcrsHolder(template, primers)
+    def __init__(self, template, primers, title='Genome PCR'):
+        self.pcrsholder = PcrsHolder(primers)
         self.template = template
+        super().__init__(title)
 
     def __iter__(self):
-        return iter(self.pcrs)
+        return iter(self.pcrsholder)
 
     def add(self, name, fw, rv):
-        self.pcrs.add(name, fw, rv)
+        fw, rv = self.pcrsholder.get_primers(name, fw, rv)
+        self.pcrsholder.add(PCR(name, self.template.seq, fw, rv))
 
     def svg_genome(self, t):
-        t.add_pcrs_track(self.kind, self.pcrs.pcrs)
+        t.add_pcrs_track(self.title, self.pcrsholder.pcrs)
 
-    def svg_transcripts(self, t, transcript):
-        pass
+    def html_content(self, b, toc, subfs):
+        w = b.get_writer()
+        if not len(self.pcrsholder):
+            return
 
-    def write_products(self, b, products):
-        if len(products) > 0:
-            for c in products:
-                c.write_html(b.get_writer())
-        else:
-            b.p('no products')
-
-    def write_html(self, b, subfs):
-        for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (%s)"%self.kind)
-                pcr.primers.write_html(b.get_writer())
-
-                b.h4('products')
-                with b.div(**{'class':'products'}):
-                    self.write_products(b, pcr.products)
+        with report.section(b, toc, self.title):
+            for pcr in self.pcrsholder:
+                with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
+                    pcr.write_html(w)
 
 class BsPcrsBlock(PcrsBlock):
     """
@@ -90,30 +77,14 @@ class BsPcrsBlock(PcrsBlock):
     so, targets  are bisulite-methyl-DNA, unmethyl-DNA and Genomic DNA.
     """
     def __init__(self, template, primers):
-        super(BsPcrsBlock,self).__init__(template, primers)
-        self.kind = 'Bisulfite PCR'
+        super().__init__(template, primers, 'Bisulfite PCR')
+
+    def add(self, name, fw, rv):
+        fw, rv = self.pcrsholder.get_primers(name, fw, rv)
+        self.pcrsholder.add(BisulfitePCR(name, self.template.seq, fw, rv))
 
     def svg_genome(self, t):
-        t.add_bs_pcrs_track(self.kind, self.pcrs.pcrs)
-
-    def write_html(self, b, subfs):
-        for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (%s)"%self.kind)
-                pcr.primers.write_html(b.get_writer())
-
-                b.h4('products')
-                with b.div(**{'class':'products'}):
-                    b.h5('template = Bisulfite-Treated Sense Strand (CpG Methylated)')
-                    self.write_products(b, pcr.bs_products(methyl=True,sense=True))
-                    b.h5('template = Bisulfite-Treated Sense Strand (CpG Unmethylated)')
-                    self.write_products(b, pcr.bs_products(methyl=False,sense=True))
-                    b.h5('template = Bisulfite-Treated Antisense Strand (CpG Methylated)')
-                    self.write_products(b, pcr.bs_products(methyl=True,sense=False))
-                    b.h5('template = Bisulfite-Treated Antisense Strand (CpG Unmethylated)')
-                    self.write_products(b, pcr.bs_products(methyl=False,sense=False))
-                    b.h5('template = Genome')
-                    self.write_products(b, pcr.products)
+        t.add_bs_pcrs_track(self.title, self.pcrsholder.pcrs)
 
 class RtPcrsBlock(PcrsBlock):
     """
@@ -121,27 +92,14 @@ class RtPcrsBlock(PcrsBlock):
     so, targets of RT-PCR are all transcripts and Genomic DNA.
     """
     def __init__(self, template, primers):
-        super(RtPcrsBlock,self).__init__(template, primers)
-        self.kind = 'RT-PCR'
+        super().__init__(template, primers, 'RT-PCR')
+
+    def add(self, name, fw, rv):
+        fw, rv = self.pcrsholder.get_primers(name, fw, rv)
+        self.pcrsholder.add(RtPCR(name, self.template.seq, self.template.transcripts, fw, rv))
 
     def svg_genome(self, t):
-        t.add_pcrs_track(self.kind, self.pcrs.pcrs)
+        t.add_pcrs_track(self.title, [p.genome_pcr() for p in self.pcrsholder.pcrs])
 
     def svg_transcript(self, t, transcript):
-        pcrs = [PCR(pcr.name, transcript.seq, pcr.fw, pcr.rv) for pcr in self.pcrs.pcrs]
-        t.add_pcrs_track('RT-PCR', pcrs)
-
-    def write_html(self, b, subfs):
-        for pcr in self.pcrs:
-            with b.div(**{'class':'pcr'}):
-                b.h3(pcr.name + " (RT PCR)")
-                pcr.primers.write_html(b.get_writer())
-
-                b.h4('products')
-                with b.div(**{'class':'products'}):
-                    for transcript in self.template.transcripts:
-                        b.h5('template = transcripts: %s'%transcript.name)
-                        self.write_products(b, PCR(pcr.name, transcript.seq, pcr.fw, pcr.rv).products)
-
-                    b.h5('template = Genome')
-                    self.write_products(b, pcr.products)
+        t.add_pcrs_track('RT-PCR', [p.transcript_pcr(transcript) for p in self.pcrsholder.pcrs])

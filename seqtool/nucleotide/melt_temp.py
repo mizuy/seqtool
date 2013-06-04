@@ -114,10 +114,10 @@ def wetmur_tm(seqstr, cation_conc, c_primer):
     l = len(seqstr)
     t0 = 298.2 # room temp.
     d_h_e = 5.
-    d_h_p = -1000. * ( 2*d_h_e + sum([NNT_DH[seqstr[i:i+2]] for i in range(l-1)]) )
+    d_h_p = -1000. * ( 2*d_h_e + sum(NNT_DH[seqstr[i:i+2]] for i in range(l-1)) )
     d_g_e = 1.
     d_g_i = -2.2
-    d_g_p = -1000. * ( 2*d_g_e + d_g_i + sum([NNT_DG[seqstr[i:i+2]] for i in range(l-1)]) )
+    d_g_p = -1000. * ( 2*d_g_e + d_g_i + sum(NNT_DG[seqstr[i:i+2]] for i in range(l-1)) )
     salt_term =  16.6*log10(cation_conc / (1.+0.7*cation_conc)) + 3.85
     t_p = t0*d_h_p / (d_h_p-d_g_p + R*t0*log(c_primer) ) + salt_term - K
     return t_p

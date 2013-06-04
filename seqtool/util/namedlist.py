@@ -21,6 +21,9 @@ class NamedList(object):
         else:
             raise KeyError("No such item: {0}".format(name))
 
+    def __setitem__(self, key, value):
+        self._dict[key] = value
+
     def get(self, name):
         v = self._dict.get(name)
         if v:

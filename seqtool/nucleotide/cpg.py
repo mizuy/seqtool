@@ -131,17 +131,15 @@ def cpg_sites(seq, range_=(None,None)):
     else:
         q = length
 
-    seqstr = seqstr[p:q]
+    seqstr = seqstr
 
-    ret = []
-    j = 0
+    j = p
     while 1:
         j = seqstr.find('CG', j)
-        if j<0:
+        if j<0 or q<=j:
             break
-        ret.append(p+j)
+        yield j
         j += 1
-    return ret
 
 def is_cpg(seq,i):
     """
@@ -218,7 +216,7 @@ def bisulfite(seq, methyl, sense=True):
     key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
 
     if not hasattr(seq, key):
-        ret = bisulfite_conversion_unambiguous(seq, methyl, sense)
+        ret = bisulfite_conversion_unambiguous(seq, sense=sense, methyl=methyl)
         setattr(seq, key, ret)
 
     return getattr(seq, key)
@@ -235,3 +233,10 @@ def _c2t_conversion(seq):
 
 def c2t_conversion(seq, sense=True):
     return asymmetric_conversion(seq, lambda x: _c2t_conversion(x), sense)
+
+
+class BisulfiteTemplate:
+    def __init__(self, origin_seq):
+        self.origin = origin_seq
+        self.sense = bisulfite_conversion(True)
+        self.asense = bisulfite_conversion(False)

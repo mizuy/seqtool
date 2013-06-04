@@ -8,6 +8,7 @@ from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
 from . import primer_cond as pcond
+from . import melt_temp
 
 __all__ = ['Primer', 'PrimerPair']
 
@@ -98,7 +99,7 @@ def annealing_score(p,q,end_annealing=False,getindex=False):
         return eav[0], eav[1]
 
 
-class PrimerAnnealing(object):
+class PrimerAnnealing:
     def __init__(self, p, q, end_annealing=False):
         s, (i, ss) = annealing_score(p,q,end_annealing)
         self.p = p
@@ -122,7 +123,7 @@ class PrimerAnnealing(object):
 
     def write_html(self, w):
         w.push('div',style='annealing')
-        w.push('p','score=%s, index=%s'%(self.score,self.index))
+        w.insert('p','score=%s, index=%s'%(self.score,self.index))
         w.push('pre')
         w.text('\n'.join(self.get_bar()))
         w.pop()
@@ -139,7 +140,7 @@ def count_while(iteration):
 
     return count
 
-class PrimerTemplateAnnealing(object):
+class PrimerTemplateAnnealing:
     def __init__(self, primer, template, strand, loc_3p):
         """
         strand == True
@@ -191,8 +192,11 @@ class PrimerTemplateAnnealing(object):
         count = self.template[self.left:self.right].count('N')
         return 1.*count/(self.right-self.left)
 
+    def tm(self):
+        return melt_temp.melting_temperature_unmethyl(self.template[self.left:self.right])
 
-class Primer(object):
+
+class Primer:
     def __init__(self, name, seq):
         self.name = name
         self.seq = to_seq(seq)
@@ -227,7 +231,7 @@ class Primer(object):
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template, min_length=15):
+    def search(self, template, template_ambiguous=False, min_length=10):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)
@@ -252,11 +256,15 @@ class Primer(object):
             start = m.start()+1
             if m.group(1):
                 pta = PrimerTemplateAnnealing(self, template, True, m.end()-1)
+                if pta.tm() < 40.:
+                    continue
                 if pta.n_percent() > 0.5:
                     continue
                 pp.append(pta)
             if m.group(2):
                 pta = PrimerTemplateAnnealing(self, template, False, m.start())
+                if pta.tm() < 40.:
+                    continue
                 if pta.n_percent() > 0.5:
                     continue
                 pc.append(pta)
@@ -316,7 +324,7 @@ class Primer(object):
 
 
 
-class PrimerPair(object):
+class PrimerPair:
     def __init__(self, fw, rv):
         self.fw = fw
         self.rv = rv
@@ -356,25 +364,33 @@ class PrimerPair(object):
         print('\n'.join(pea.get_bar()))
 
 
-    def write_html(self, w):
+    def write_html(self, w, pair_values=True, annealings=False):
+        head = Primer.get_table_head()
+        if pair_values:
+            head = head + ['pa.', 'pea.', 'score', 'bs score']
+
         b = xmlwriter.builder(w)
         # primer table
         with b.div(cls='primerpair'):
             with b.table(cls='primerpairtable', border=1):
                 with b.tr:
-                    for p in (Primer.get_table_head() + ['pa.', 'pea.', 'score', 'bisulfite score']):
+                    for p in head:
                         b.th(p)
 
                 with b.tr:
                     for v in self.fw.get_table_row():
                         b.td(str(v))
-                    for v in [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]:
-                        b.td(str(v),rowspan='2')
+                    if pair_values:
+                        for v in [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]:
+                            b.td(str(v),rowspan='2')
                 with b.tr:
                     for v in self.rv.get_table_row():
                         b.td(str(v))
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
+            if annealings:
+                self.pair_annealing.write_html(w)
+                self.pair_end_annealing.write_html(w)
 
 
 class Primers(NamedList):
@@ -416,7 +432,6 @@ class Primers(NamedList):
                             b.td(str(v))
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
-
 
     def get_default(self, name, default_name):
         try:
