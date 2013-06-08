@@ -233,7 +233,7 @@ class Seqview(object):
 
         aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
 
-        return aseq.track(width=None).svg()
+        return aseq.track(width=200).svg()
 
     def has_transcripts(self):
         return not not self.template.transcripts

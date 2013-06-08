@@ -351,8 +351,10 @@ class SvgMatrix(SvgBase):
 
     def _width_height(self):
         #num_rows = len(self.rows)
-        num_columns = max(len(row) for row in self.rows)
-        col_widths = [0]*num_columns
+        num_columns = 0
+        for row in self.rows:
+            num_columns = max(num_columns, len(row))
+        col_widths = [0 for x in range(num_columns)]
         row_heights = []
 
         for row in self.rows:

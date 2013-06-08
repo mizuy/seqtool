@@ -123,6 +123,7 @@ class SequencingAnalysis(object):
     def __init__(self):
         self.tc = TemplateCandidate()
         self._seqfiles = []
+        self.name = 'Sequencing Analysis Result'
 
     def load_fasta(self, fasta_file):
         self.tc.load_fasta(fasta_file)

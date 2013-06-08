@@ -21,6 +21,9 @@ class Filepath(object):
     def relative(self, name):
         return os.path.join(self.dir,name)
 
+    def __str__(self):
+        return self.path
+
 class LocalFs(object):
     def __init__(self, filename):
         self.p = Filepath(filename)

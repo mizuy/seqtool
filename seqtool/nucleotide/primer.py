@@ -173,6 +173,7 @@ class PrimerTemplateAnnealing:
             self.loc_5p = self.loc_3p - self.length + 1
             self.left =  self.loc_5p
             self.right = self.loc_3p + 1
+            self.primer_a = p[:l]
         else:
             p = primer.seq.reverse_complement()
             l = min(len(p), len(template)-loc_3p)
@@ -182,6 +183,7 @@ class PrimerTemplateAnnealing:
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
+            self.primer_a = p[:l]
         self.full = self.length == len(self.primer)
         self.match = self.template[self.left:self.right]
 
@@ -193,7 +195,7 @@ class PrimerTemplateAnnealing:
         return 1.*count/(self.right-self.left)
 
     def tm(self):
-        return melt_temp.melting_temperature_unmethyl(self.template[self.left:self.right])
+        return melt_temp.melting_temperature_unmethyl(self.primer_a)
 
 
 class Primer:

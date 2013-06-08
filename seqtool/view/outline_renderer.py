@@ -52,6 +52,8 @@ def get_feature_name(feature):
             organ = feature.qualifiers['organism'][0]
             ch = feature.qualifiers['chromosome'][0]
             name = '%s chromosome %s'%(organ,ch)
+        elif 'note' in feature.qualifiers.keys():
+            name = '{}:{}'.format(t,feature.qualifiers['note'][0])
         else:
             name = t
     except KeyError:
