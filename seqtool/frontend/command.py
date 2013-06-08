@@ -1,16 +1,8 @@
 import sys, os
-import traceback
 from argparse import ArgumentParser
 
 from ..util.dirutils import Filepath
-from ..view import seqview as seqv
-from ..util import xmlwriter
-from ..nucleotide.primer import Primers
 from contextlib import contextmanager
-from ..script.sequencing import SequencingAnalysis
-
-from .configuration import GeneralConfiguration
-from .. import db
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -18,6 +10,7 @@ def log(message):
 
 @contextmanager
 def report_exceptions():
+    import traceback
     import pdb
     try:
         yield
@@ -31,6 +24,8 @@ def report_exceptions():
         pdb.post_mortem(tb)
 
 def init_db():
+    from .. import db
+    from .configuration import GeneralConfiguration
     gc = GeneralConfiguration()
     db.initialize(gc.get_cache_dir(), gc.get_email())
 
@@ -66,8 +61,8 @@ def check_update(dest_path, source_paths, force_update):
         print("Need update. output:{}".format(dest_path))
         return True
     else:
-        print("Don't need update. output:{}".format(dest_path))
-        print("set -f if you want a force update.")
+        print("Nothing to be done for {}".format(dest_path))
+        #print("set -f if you want a force update.")
         return False
 
 def get_output_path(input, output, ext='.html'):
@@ -111,11 +106,12 @@ def seqview():
         init_db()
         with report_exceptions():
             print("processing input:{}, output:{}".format(inputp.path,outputp.path))
+            from ..view import seqview as seqv
             p = seqv.Seqview.load_seqv(inputp.path)
             p.write_html(outputp)
 
-    if args.open:
-        mac_open(outputp)
+        if args.open:
+            mac_open(outputp)
 
 
 def geneview():
@@ -129,9 +125,10 @@ def geneview():
     gene_symbol = args.gene_symbol
     outputp = get_output_path(gene_symbol, args.output, False)
 
-    init_db()
-
     with report_exceptions():
+        from ..view import seqview as seqv
+        from .. import db
+        init_db()
         try:
             gene_id, gene_symbol = db.genetable.get_gene_from_text(gene_symbol)
         except db.NoSuchGene:
@@ -162,6 +159,7 @@ def sequencing():
     inputps = [Filepath(i).path for i in args.inputs]
     outputp = Filepath(args.output)
     if check_update(outputp.path, inputps, args.force):
+        from ..script.sequencing import SequencingAnalysis
         p = SequencingAnalysis()
         p.load_fasta(args.template)
         for input in inputps:
@@ -173,6 +171,7 @@ def sequencing():
             mac_open(outputp)
 
 def get_genbank():
+    from .. import db
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
     parser.add_argument("gene", help="Gene ID or Gene Symbol")
 
@@ -196,6 +195,8 @@ def primers():
 
     inputfiles = args.primers
     
+    from ..nucleotide.primer import Primers
+    from ..util import xmlwriter
     ps = Primers()
 
     for filename in inputfiles:
@@ -215,6 +216,7 @@ def primers():
 
 def seqdb_command():
     from argparse import ArgumentParser
+    from .configuration import GeneralConfiguration
     parser = ArgumentParser(prog='seqdb', description='seqtool database administration.')
     parser.add_argument("--cache_dir", help='database directory')
 
@@ -245,14 +247,17 @@ def seqdb_command():
 
 
 def seqdb_clear(args):
+    from .. import db
     db.clear(args.cache_dir)
     print("genetable cleared.")
 
 def seqdb_dbtss(args):
+    from .. import db
     print("loading dbtss...")
     db.load_dbtss(bed_dir=args.bed_dir, cache_dir=args.cache_dir)
 
 def seqdb_load(args):
+    from .. import db
     print("loading gene tables...")
     db.load_table(args.cache_dir, args.chrom_tab_file, args.hgnc_tab_file, args.ucsc_tab_file)
 
