@@ -5,7 +5,7 @@ from collections import defaultdict
 from . import PPrintSequence, no_stop_in_frame
 from ..util.memoize import memoize
 from ..util import xmlwriter
-from .cpg import bisulfite, cpg_sites, count_cpg
+from .cpg import bisulfite, cpg_sites, count_cpg, bisulfite_conversion_unambiguous
 
 from .primer import PrimerPair, Primer
 

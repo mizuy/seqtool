@@ -89,7 +89,7 @@ basematch_superset = remove_space({
      'D': 'ATG  WR K      D  ',
      'N': 'ATGC WRMKYS BVHD N'})
 
-def oligo_regex(seq, match=basematch_unambiguous):
+def oligo_regex(seq, match=basematch_partial):
     return ''.join(['[{}]'.format(match[s]) for s in str(seq).upper()])
 
 def base_match(base_i, base_j, match=basematch_partial):

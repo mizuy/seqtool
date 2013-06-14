@@ -181,15 +181,20 @@ def _bisulfite_conversion(seq):
     while j+1<l:
         j = seqstr.find('C', j)
 
-        if not (0<j and j+1<l):
+        if not (0<=j and j+1<l):
             break
-        muta[j] = 'Y' if muta[j+1]=='G' else 'T'
+        if seqstr[j+1]=='G':
+            muta[j] = 'Y'
+        else:
+            muta[j] = 'T'
+
 
         j += 1
+
     return muta.toseq()
 
 def bisulfite_conversion(seq, sense=True):
-    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x), sense)
+    return asymmetric_conversion(seq, _bisulfite_conversion, sense=sense)
 
 def asymmetric_conversion(seq, conv, sense):
     if sense:
@@ -198,12 +203,11 @@ def asymmetric_conversion(seq, conv, sense):
         return conv(seq.reverse_complement()).reverse_complement()
 
 def to_unambiguous(bsseq, methyl=True):
-    seqstr = str(bsseq)
     trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
-    return seqstr.translate(trans)
+    return str(bsseq).translate(trans)
 
 def bisulfite_conversion_unambiguous(seq, sense, methyl):
-    return to_unambiguous(bisulfite_conversion(seq, sense), methyl)
+    return to_unambiguous(bisulfite_conversion(seq, sense=sense), methyl=methyl)
 
 def bisulfite(seq, methyl, sense=True):
     """
