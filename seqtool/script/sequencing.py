@@ -37,15 +37,6 @@ class TemplateCandidate(object):
         self.add_template(name+' C2T+', c2t_conversion(seq, True))
         self.add_template(name+' C2T-', c2t_conversion(seq, False))
 
-    def __iter__(self):
-        for name, seq in self._templates:
-            for sense in [True,False]:
-                if sense:
-                    s = seq
-                else:
-                    s = seq.reverse_complement()
-
-                yield name+' '+('sense' if sense else 'asense'), s
 
     def load_fasta(self, filename):
         for record in SeqIO.parse(open(filename,'r'), "fasta"):
@@ -65,11 +56,18 @@ class TemplateCandidate(object):
 
     def alignments(self, target):
         ret = []
-        for name, template in self:
-            al = sw.Alignment(target, template)
-            p,q = al.aseq0.location
-            tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
-            ret.append((al, p, q, tempname))
+        for name, template in self._templates:
+            for sense in [True,False]:
+                if sense:
+                    name = name+'(original)'
+                    st = target
+                else:
+                    name = name+'(reverse)'
+                    st = str(to_seq(target).reverse_complement())
+                al = sw.Alignment(st, template)
+                p,q = al.aseq0.location
+                tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
+                ret.append((al, p, q, tempname))
         return ret
 
 class SeqFile(object):
@@ -99,6 +97,7 @@ class SeqFile(object):
         #b.h3(self.name)
         for al, p, q, tempname in self._alignment:
             b.h4(tempname)
+            
             if al.score_density() < SCORE_THRESHOLD:
                 continue
 

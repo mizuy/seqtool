@@ -157,6 +157,22 @@ class PrimerTemplateAnnealing:
             |       |
            left    right
 
+
+        if strand
+
+           primer_adapter
+             <--->
+          5'-ATGCTCCGTATG-3'
+                  CCGTATG
+
+        if not strand
+        
+                  ATGCCATG
+                  ATGCCATGAACAT-5'
+                          <--->
+                       primer_adapter
+
+
         """
         self.primer = primer
         self.template = template
@@ -169,23 +185,29 @@ class PrimerTemplateAnnealing:
             l = min(len(p), loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p-i],p[len(p)-1-i]) for i in range(l))
             assert(self.length > 0)
+            self.adapter_length = len(p)-self.length
+            self.primer_match = p[self.adapter_length:]
+            self.primer_adapter = p[:self.adapter_length]
 
             self.loc_5p = self.loc_3p - self.length + 1
             self.left =  self.loc_5p
             self.right = self.loc_3p + 1
-            self.primer_a = p[:l]
         else:
             p = primer.seq.reverse_complement()
             l = min(len(p), len(template)-loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p+i],p[i]) for i in range(l))
             assert(self.length > 0)
+            self.adapter_length = len(p)-self.length
+            self.primer_match = p[:self.length]
+            self.primer_adapter = p[self.length:]
 
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
-            self.primer_a = p[:l]
-        self.full = self.length == len(self.primer)
+
+        self.full = (self.length == len(self.primer))
         self.match = self.template[self.left:self.right]
+
 
     def __le__(self, rhs):
         return (self.left <= rhs.left) and (self.right <= rhs.right)
@@ -195,7 +217,7 @@ class PrimerTemplateAnnealing:
         return 1.*count/(self.right-self.left)
 
     def tm(self):
-        return melt_temp.melting_temperature_unmethyl(self.primer_a)
+        return melt_temp.melting_temperature_unmethyl(self.primer_match)
 
 
 class Primer:

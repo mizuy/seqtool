@@ -30,6 +30,10 @@ text{
     stroke-width:0.5;
     stroke-dasharray:30,10;
 }
+rect{
+    fill: none;
+    stroke: black;
+}
 '''
 
 def fm(x):
@@ -79,8 +83,8 @@ class Rectangle(object):
             min(self.y1, rhs.y1))
 
     def intersects(self, rhs):
-        return not ( self.x0 > rhs.x1 or self.x1 < rhs.x0
-            or self.y0 > rhs.y1 or self.y1 < rhs.y0 )
+        return not ( self.x0 >= rhs.x1 or self.x1 <= rhs.x0
+            or self.y0 >= rhs.y1 or self.y1 <= rhs.y0 )
 
     def translate(self,x,y):
         return Rectangle(self.x0+x, self.x1+x, self.y0+y, self.y1+y)
@@ -89,10 +93,10 @@ class Rectangle(object):
         return Rectangle(self.x0 * x, self.x1 * x, self.y0 * y, self.y1 * y)
 
     def intersects_x(self, rhs):
-        return not ( self.x0 > rhs.x1 or self.x1 < rhs.x0 )
+        return not ( self.x0 >= rhs.x1 or self.x1 <= rhs.x0 )
 
     def intersects_y(self, rhs):
-        return not ( self.y0 > rhs.y1 or self.y1 < rhs.y0 )
+        return not ( self.y0 >= rhs.y1 or self.y1 <= rhs.y0 )
 
     def clip_expand(self, x0=None, x1=None, y0=None, y1=None):
         pass
@@ -305,7 +309,7 @@ class SvgBoundbox(SvgParentSingle):
 
     def draw(self,b):
         r = self.rect
-        b.rect(x=fm(r.x), y=fm(r.y), width=fm(r.width), height=fm(r.height), **self.kwargs)
+        b.rect(x=fm(r.x0), y=fm(r.y0), width=fm(r.width), height=fm(r.height), **self.kwargs)
         super().draw(b)
 
 ### Containers
@@ -380,14 +384,12 @@ class SvgItemsVFree(SvgItems):
                             | item2  |
                             +--------+
     """
-    def __init__(self):
+    def __init__(self, reverse=False):
         super().__init__()
         self.trans_y = []
+        self.reverse=reverse
 
     def _find_freespace(self, rects, rect):
-        for r in rects:
-            pass
-            #print r, rect, r.intersects_x(rect)
         conflicts = [(r.y0, r.y1) for r in rects if r.intersects_x(rect)]
         conflicts.sort()
         if not conflicts:
@@ -427,9 +429,15 @@ class SvgItemsVFree(SvgItems):
 
     def draw(self, b):
         rect, tys = self._calc_rect()
+        height = self.rect.y1
 
         for i,item in enumerate(self.children):
-            with g_translate(b, 0, tys[i]):
+            y = tys[i]
+            if not self.reverse:
+                yy = y
+            else:
+                yy = height-(y+item.rect.y1)
+            with g_translate(b, 0, yy):
                 item.draw(b)
 
 class SvgMatrix(SvgBase):
@@ -541,6 +549,7 @@ class SvgItemsWrapping(SvgParentSingle):
     def draw_defs(self, b):
         super().draw_defs(b)
 
+        return
         with b.g(id=self.id):
             super().draw(b)
 
@@ -550,9 +559,10 @@ class SvgItemsWrapping(SvgParentSingle):
 
     def draw(self, b):
         for p,q,r,bid in self.iter_step():
-            with b.g(**{'clip-path':'url(#{})'.format(bid)}):
-                with g_translate(b, -p, r.y0):
-                    b.use(**{'xlink:href':'#{}'.format(self.id)})
+            #with b.g(**{'clip-path':'url(#{})'.format(bid)}):
+            with g_translate(b, -p, r.y0):
+                super().draw(b)
+                #b.use(**{'xlink:href':'#{}'.format(self.id)})
 
 ### Item
 

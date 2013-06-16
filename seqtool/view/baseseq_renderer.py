@@ -8,69 +8,87 @@ def reverse(seq):
 
 def complement(seq):
     return seq.complement()
-    #reverse(seq.reverse_complement())
 
-def iter_step(width, start, end):
-    for x in range(start, end, width):
-        yield x, min(x+width, end)
 
-class Annotation(object):
-    def __init__(self, name, left, right, sequences=[], lt_closed=True, rt_closed=True):
+class Annotation:
+    def __init__(self, name, left, right):
         self.name = name
         self.left = left
         self.right = right
-        self.sequences = sequences
-        self.lt_closed = lt_closed
-        self.rt_closed = rt_closed
 
+    def svg_item(self):
+        w = svg.font_width()
+        lt = self.left*w
+        rt = self.right*w
+        h = svg.font_height()
 
-    def overlap_range(self, left, right):
-        """return True if the self overlap the range [left:right]"""
-        return (self.right > left) and (right > self.left)
+        b = svg.SvgItemsFixedHeight(h)
+        b.add(svg.SvgText(self.name, lt, 0))
+        b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;', stroke='black'))
+        return b
 
-    def cut_range(self, left, right):
-        """return intersected anntation of the self and the range [left:right]"""
-        if not self.overlap_range(left, right):
-            return None
-        l = max(left, self.left)
-        lo = not (self.left < left)
-        r = min(right, self.right)
-        ro = not (right < self.right)
-        seq = [s[l-self.left:r-self.left] for s in self.sequences]
-        return Annotation(self.name, l, r, seq, lo, ro)
+class AnnotationTexts(Annotation):
+    def __init__(self, name, left, right, texts=[]):
+        super().__init__(name, left, right)
+        self.texts = texts
 
-    def shift(self, x):
-        return Annotation(self.name, self.left+x, self.right+x, self.sequences, self.lt_closed, self.rt_closed)
+    def svg_item(self):
+        w = svg.font_width()
+        lt = self.left*w
+        rt = self.right*w
 
-class Annotations(object):
-    def __init__(self):
-        self._items = []
+        t = svg.SvgItemsVStack()
+        t.add(svg.SvgText(self.name, lt, 0))
+        for s in self.texts:
+            t.add(svg.SvgText(s, lt, 0))
 
-    def __iter__(self):
-        return iter(self._items)
+        b = svg.SvgItemsFixedHeight(t.rect.height)
+        b.add(t)
+        b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;', stroke='black'))
+        return b
 
-    def add(self, name, left, right, sequences=[], lt_closed=True, rt_closed=True):
-        self._items.append(Annotation(name, left, right, sequences, lt_closed, rt_closed))
+class AnnotationPrimerAnneal:
+    def __init__(self, pta):
+        self.pta = pta
+        self.name = pta.primer.name
+        
+        self.matched = (pta.primer_match, pta.left, pta.right)
+        self.left = pta.left
 
-    def cut_range(self, left, right):
-        """
-        get annotations within the range [left:right]
-        """
-        for i in self:
-            c = i.cut_range(left, right)
-            if c:
-                yield c.shift(-left)
+        if not pta.full:
+            if pta.strand:
+                al = pta.left - pta.adapter_length
+                ar = pta.left
+                self.left = al
+            else:
+                al = pta.right
+                ar = pta.right + pta.adapter_length
+                self.left = pta.left
+            self.adapter = (pta.primer_adapter, al, ar)
+
+    def svg_item(self):
+        w = svg.font_width()
+        h = svg.font_height()
+
+        ps = svg.SvgItemsFixedHeight(h)
+        s,l,r = self.matched
+        ps.add(svg.SvgText(s, l*w, 0))
+
+        if not self.pta.full:
+            s,l,r = self.adapter
+            ps.add(svg.SvgBoundbox(svg.SvgText(s, l*w, 0)))
+
+        t = svg.SvgItemsVStack()
+        t.add(svg.SvgText(self.name, self.left*w, 0))
+        t.add(ps)
+
+        return svg.SvgBoundbox(t)
+
 
 class AnnotatedSeqTrack(svg.SvgMatrix):
     def __init__(self):
         self.gen = svg.SvgItemGenerator(1, 1)
         super(AnnotatedSeqTrack,self).__init__()
-
-    def svg_seq(self, seq, p, q):
-        r = svg.SvgItemsVStack()
-        r.add(svg.SvgText(str(seq[p:q])))
-        r.add(svg.SvgText(complement(seq)[p:q]))
-        return r
 
     def add_sequence(self, name, index, seq):
         self.add_named(name , index, " 5'-", self.gen.text(seq), "-3'")
@@ -88,121 +106,99 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
     def add_padding(self, height):
         self.add(svg.SvgItemsFixedHeight(height))
 
-    def add_hline(self, length, height=5, **kwargs):
+    def add_hline(self, length, w, height=5):
         t = svg.SvgItemsFixedHeight(height)
-        t.add(self.gen.hline(0, length, height/2, **kwargs))
+        t.add(self.gen.hline(0, length, height/2, **{'stroke-width':str(w)}))
         self.add(t)
 
-    def add_annotation(self, annos):
-        w = svg.font_width()
-        u = svg.SvgItemsVFree()
+    def add_annotation(self, annos, reverse):
+        if not annos:
+            return
 
-        flag = False
+        u = svg.SvgItemsVFree(reverse)
         for a in annos:
-            lt = a.left*w
-            rt = a.right*w
-            h = svg.font_height()
+            u.add(a.svg_item())
+        self.add(u)
 
-            if not a.sequences:
-                b = svg.SvgItemsFixedHeight(h)
-                b.add(svg.SvgText(a.name, lt, 0))
-                b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;', stroke='black'))
-            else:
-                t = svg.SvgItemsVStack()
-                t.add(svg.SvgText(a.name, lt, 0))
-                for s in a.sequences:
-                    t.add(svg.SvgText(s, lt, 0))
+    def add_doublestrand(self, ds):
+        self.add_padding(8)
+        self.add_annotation(ds.pos, True)
+        self.add_sequence(ds.name, 0, ds.seq)
+        self.add_annotation(ds.neg, False)
+        self.add_padding(8)
 
-                b = svg.SvgItemsFixedHeight(t.rect.height)
-                b.add(t)
-                b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;', stroke='black'))
-            u.add(b)
 
-            flag = True
-        if flag:
-            self.add(u)
-
-class DoubleStrand(object):
-    def __init__(self, seq):
+class DoubleStrand:
+    def __init__(self, name, seq):
+        self.name = name
         self.seq = seq
-        self.positive = str(seq)
-        self.negative = complement(seq)
 
-        self.pos_anno = Annotations()
-        self.neg_anno = Annotations()
+        self.pos = []
+        self.neg = []
 
-class BaseseqRenderer(object):
+no_conversions = [("", lambda x: x)]
+
+bisulfite_conversions = [
+    ("BS(+)", lambda x: bisulfite_conversion(x, sense=True)),
+    ("", lambda x: x),
+    ("BS(-)", lambda x: bisulfite_conversion(x, sense=False)),
+]
+
+
+class BaseseqRenderer:
     def __init__(self, seq, bisulfite=False):
-        self.primers = []
-        self.regions = []
-
         self.length = len(seq)
-        self.seq = DoubleStrand(seq)
-        self.bs_pos = DoubleStrand(bisulfite_conversion(seq, True))
-        self.bs_neg = DoubleStrand(bisulfite_conversion(seq.reverse_complement(), True).reverse_complement())
 
+        conversions = no_conversions
         if bisulfite:
-            self.dss = [("BS(+)", self.bs_pos),
-                         ("", self.seq),
-                         ("BS(-)", self.bs_neg)]
-        else:
-            self.dss = [("", self.seq)]
+            conversions = bisulfite_conversions
 
-        self.bisulfite = bisulfite
+        self.dss = []
+        for name, conv in conversions:
+            self.dss.append(DoubleStrand(name, conv(seq)))
 
     def add_primer(self, primer):
-        self.primers.append(primer)
-
-        for name, ds in self.dss:
+        for ds in self.dss:
             pp,pc = primer.search(ds.seq)
             for a in pp:
-                name = primer.name + ('' if a.full else '(partial)')
-                ds.pos_anno.add(name, a.left, a.right)
+                ds.pos.append(AnnotationPrimerAnneal(a))
             for a in pc:
-                name = primer.name + ('' if a.full else '(partial)')
-                ds.neg_anno.add(name, a.left, a.right)
+                ds.neg.append(AnnotationPrimerAnneal(a))
 
 
     def add_restriction_batch(self, restriction_batch):
-        for name, ds in self.dss:
+        for ds in self.dss:
             for enzyme, locs in list(restriction_batch.search(ds.seq).items()):
                 #if len(locs)>1:
                 #    continue
                 for l in locs:
                     # TODO: pretty prent restriction cut pattern
                     p = l -1 - enzyme.fst5
-                    ds.pos_anno.add(str(enzyme), p, p+len(enzyme.site))
+                    ds.pos.append(AnnotationTexts(str(enzyme), p, p+len(enzyme.site),[enzyme.site]))
 
     def add_alignment(self, name, p, q, bars):
-        self.seq.pos_anno.add(name, p, q, bars)
-
-    def add_region(self, name, p, q):
-        self.regions.append((name,p,q))
+        for ds in self.dss:
+            ds.pos.append(AnnotationTexts(ds.name, p, q, bars))
 
     def track(self, width):
-        width = self.length
+        l = self.length
+        w = svg.font_width()
 
         t = AnnotatedSeqTrack()
 
-        t.add_hline(width*svg.font_width(), **{'stroke-width':'3'})
+        t.add_hline(l*w, 3)
 
-        for p,q in iter_step(width, 0, self.length):
+        count = 0
+        for ds in self.dss:
+            if count != 0:
+                t.add_hline(l*w, 0.5)
+            count += 1
 
-            count = 0
-            for ds_name, ds in self.dss:
-                if count != 0:
-                    t.add_hline(width*svg.font_width(), color='gray')
-                count += 1
+            t.add_doublestrand(ds)
 
-                t.add_padding(8)
-                t.add_annotation(ds.pos_anno.cut_range(p, q))
-                t.add_sequence(ds_name, p, ds.seq[p:q])
-                t.add_annotation(ds.neg_anno.cut_range(p, q))
-                t.add_padding(8)
+        t.add_hline(l*w, 3)
 
-            t.add_hline(width*svg.font_width(), **{'stroke-width':'3'})
-
-        p = svg.SvgItemsWrapping(160*svg.font_width(), t)
+        p = svg.SvgItemsWrapping(width*w, t)
 
         return p
 

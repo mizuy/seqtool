@@ -19,7 +19,7 @@ from . import block, bsa_block, dbtss_block
 from .baseseq_renderer import BaseseqRenderer
 from .outline_renderer import OutlineRenderer
 
-LENGTH_THRESHOLD = 800
+LENGTH_THRESHOLD = 8000
 
 __all__ = ['Seqview']
 
@@ -233,7 +233,7 @@ class Seqview(object):
 
         aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
 
-        return aseq.track(width=200).svg()
+        return aseq.track(width=160).svg()
 
     def has_transcripts(self):
         return not not self.template.transcripts
