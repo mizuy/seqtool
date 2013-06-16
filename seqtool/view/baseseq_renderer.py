@@ -1,10 +1,7 @@
-
-
 from ..nucleotide.cpg import bisulfite_conversion
 from . import svg
 
 __all__ = ['BaseseqRenderer']
-
 
 def reverse(seq):
     return str(seq)[::-1]
@@ -109,7 +106,7 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
             if not a.sequences:
                 b = svg.SvgItemsFixedHeight(h)
                 b.add(svg.SvgText(a.name, lt, 0))
-                b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;'))
+                b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;', stroke='black'))
             else:
                 t = svg.SvgItemsVStack()
                 t.add(svg.SvgText(a.name, lt, 0))
@@ -118,7 +115,7 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
 
                 b = svg.SvgItemsFixedHeight(t.rect.height)
                 b.add(t)
-                b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;'))
+                b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;', stroke='black'))
             u.add(b)
 
             flag = True
@@ -182,8 +179,8 @@ class BaseseqRenderer(object):
     def add_region(self, name, p, q):
         self.regions.append((name,p,q))
 
-    def track(self, width=160):
-        width = width or self.length
+    def track(self, width):
+        width = self.length
 
         t = AnnotatedSeqTrack()
 
@@ -205,7 +202,9 @@ class BaseseqRenderer(object):
 
             t.add_hline(width*svg.font_width(), **{'stroke-width':'3'})
 
-        return t
+        p = svg.SvgItemsWrapping(160*svg.font_width(), t)
+
+        return p
 
 
 

@@ -32,7 +32,7 @@ text{
 }
 '''
 
-def ffmt(x):
+def fm(x):
     return '{:.2f}'.format(x) if x%1 else '{}'.format(int(x))
 
 ### Rectangle
@@ -94,6 +94,26 @@ class Rectangle(object):
     def intersects_y(self, rhs):
         return not ( self.y0 > rhs.y1 or self.y1 < rhs.y0 )
 
+    def clip_expand(self, x0=None, x1=None, y0=None, y1=None):
+        pass
+    def clip_intersect(self, x0=None, x1=None, y0=None, y1=None):
+        pass
+
+class RectangleClip:
+    def __init__(self, x0=None, x1=None, y0=None, y1=None):
+        self.x0 = x0
+        self.y0 = y0
+        self.x1 = x1
+        self.y1 = y1
+
+class RectangleClipExpand:
+    def __init__(self, x0=None, x1=None, y0=None, y1=None):
+        super().__init__(x0, x1, y0, y1)
+
+class RectangleClipLimit:
+    def __init__(self, x0=None, x1=None, y0=None, y1=None):
+        super().__init__(x0, x1, y0, y1)
+
 ### Base
 
 class SvgBase(object):
@@ -105,6 +125,9 @@ class SvgBase(object):
         return self._rect
 
     def draw(self, b):
+        pass
+
+    def draw_defs(self, b):
         pass
 
     def _style(self, kwargs):
@@ -119,6 +142,9 @@ class SvgBase(object):
         return ret
 
     def svg_node(self, width=None, height=None):
+        """
+        For embeded svg
+        """
         w = self.rect.width
         h = self.rect.height
         width = width or w
@@ -128,7 +154,7 @@ class SvgBase(object):
         writer = xmlwriter.XmlWriter(buff)
         b = xmlwriter.builder(writer)
         with b.svg(xmlns="http://www.w3.org/2000/svg",
-                   width=ffmt(width), height=ffmt(height),
+                   width=fm(width), height=fm(height),
 #                   viewBox="0 0 %d %d"%(w, h),
                    preserveAspectRatio='none',
                    **{"xmlns:xlink":"http://www.w3.org/1999/xlink"}):
@@ -136,6 +162,8 @@ class SvgBase(object):
                 writer.write('<![CDATA[')
                 writer.write(self.svg_css())
                 writer.write(']]>')
+            with b.defs:
+                self.draw_defs(b)
             self.draw(b)
         return buff.getvalue()
 
@@ -158,79 +186,146 @@ def g_scale(b,x,y):
 def g_translate_scale(b,x,y,sx,sy):
     return b.g(transform='translate(%.2f,%.2f) scale(%.2f,%.2f)'%(x,y,sx,sy))
 
-class SvgTranslate(SvgBase):
+class SvgParent(SvgBase):
+    def __init__(self, children=[]):
+        self.children = children
+        super().__init__()
+
+    def draw_defs(self, b):
+        for c in self.children:
+            c.draw_defs(b)
+
+    def draw(self, b):
+        for c in self.children:
+            c.draw(b)
+
+    @property
+    def rect(self):
+        if self.children:
+            return reduce(lambda a,b: a+b, (i.rect for i in self.children))
+        else:
+            return Rectangle(0,0,0,0)
+
+class SvgParentSingle(SvgParent):
+    def __init__(self, child):
+        super().__init__([child])
+        self.child = child
+
+    @property
+    def rect(self):
+        return self.child.rect
+
+class SvgTranslate(SvgParentSingle):
     def __init__(self, x, y, child):
-        self._rect = child.rect.translate(x,y)
+        super().__init__(child)
         self.x = x
         self.y = y
-        self.child = child
     
     def draw(self, b):
         with g_translate(b,self.x,self.y):
-            self.child.draw(b)
+            super().draw(b)
 
-class SvgScale(SvgBase):
+    @property
+    def rect(self):
+        return super().rect.translate(self.x, self.y)
+
+class SvgClipWidth(SvgParentSingle):
+    num = 0
+    def __init__(self, x0, x1, child):
+        super().__init__(child)
+        self.x0 = x0
+        self.x1 = x1
+        self.num = SvgClipWidth.num
+        self.id = 'clip{}'.format(self.num)
+        SvgClipWidth.num += 1
+
+    def draw_defs(self, b):
+        with b.clipPath(id=self.id):
+            b.rect(x=self.rect.x, y=self.rect.y, width=self.rect.width, height=self.rect.height)
+        super().draw_defs()
+
+    def draw(self, b):
+        with b.g(**{'clip-path':'url({})'.format(self.id)}):
+            super().draw(b)
+
+    @property
+    def rect(self):
+        r = super().rect
+        return Rectangle(max(self.x0,r.x0), min(self.x1,r.x1), r.y0, r.y1)
+
+class SvgScale(SvgParentSingle):
     def __init__(self, x, y, child):
-        self._rect = child.rect.scale(x,y)
+        super().__init__(child)
         self.x = x
         self.y = y
-        self.child = child
     
     def draw(self, b):
         with g_scale(b, self.x,self.y):
-            self.child.draw(b)
+            super().draw(b)
 
-class SvgTranslateScale(SvgBase):
+    @property
+    def rect(self):
+        return super().rect.scale(self.x, self.y)
+
+class SvgTranslateScale(SvgParentSingle):
     def __init__(self, x, y, sx, sy, child):
-        self._rect = child.rect.translate(x,y).scale(sx,sy)
+        super().__init__(child)
         self.x = x
         self.y = y
         self.sx = sx
         self.sy = sy
-        self.child = child
     
     def draw(self, b):
         with g_translate_scale(b, self.x,self.y,self.sx,self.sy):
-            self.child.draw(b)
-
-class SvgPadding(SvgBase):
-    def __init__(self, x, y, child):
-        self._rect = Rectangle(child.rect.x0, child.rect.x1+2*x,child.rect.y0, child.rect.y1+2*y)
-        self.x = x
-        self.y = y
-        self.child = child
-    
-    def draw(self, b):
-        with g_translate(b, self.x, self.y):
-            self.child.draw(b)
-
-### Containers
-
-class SvgItems(SvgBase):
-    def __init__(self):
-        super(SvgItems,self).__init__()
-        self.items = []
-
-    def add(self, item):
-        self.items.append(item)
+            super().draw(b)
 
     @property
     def rect(self):
-        return reduce(lambda a,b: a+b, (i.rect for i in self.items)) if self.items else Rectangle(0,0,0,0)
+        return super().rect.translate(self.x,self.y).scale(self.sx,self.sy)
 
+class SvgPadding(SvgParentSingle):
+    def __init__(self, x, y, child):
+        super().__init__(child)
+        self.x = x
+        self.y = y
+    
     def draw(self, b):
-        for c in self.items:
-            c.draw(b)
+        with g_translate(b, self.x, self.y):
+            super().draw(b)
+
+    @property
+    def rect(self):
+        r = super().rect
+        return Rectangle(r.x0, r.x1+2*self.x,r.y0, r.y1+2*self.y)
+
+class SvgBoundbox(SvgParentSingle):
+    def __init__(self, child, **kwargs):
+        super().__init__(child)
+        self.kwargs = self._style(kwargs)
+
+    def draw(self,b):
+        r = self.rect
+        b.rect(x=fm(r.x), y=fm(r.y), width=fm(r.width), height=fm(r.height), **self.kwargs)
+        super().draw(b)
+
+### Containers
+
+class SvgItems(SvgParent):
+    def __init__(self):
+        super().__init__([])
+
+    def add(self, item):
+        self.children.append(item)
 
 class SvgItemsFixedHeight(SvgItems):
     def __init__(self, height):
-        super(SvgItemsFixedHeight,self).__init__()
+        super().__init__()
         self.height = height
 
     @property
     def rect(self):
-        if self.items:
-            r = reduce(lambda a,b: a+b, (i.rect for i in self.items))
+        if self.children:
+            r = reduce(lambda a,b: a+b, (i.rect for i in self.children))
             r.y1 = max(r.y1, self.height)
             return r
         else:
@@ -249,22 +344,22 @@ class SvgItemsVStack(SvgItems):
     +-------------+
     """
     def __init__(self):
-        super(SvgItemsVStack, self).__init__()
+        super().__init__()
 
     def _item_heights(self):
-        return sum(item.rect.height for item in self.items)
+        return sum(item.rect.height for item in self.children)
 
     @property
     def rect(self):
-        x0 = min(item.rect.x0 for item in self.items)
-        x1 = max(item.rect.x1 for item in self.items)
-        h = sum(item.rect.y1 for item in self.items)
-        #h = sum(item.rect.height for item in self.items)
+        x0 = min(item.rect.x0 for item in self.children)
+        x1 = max(item.rect.x1 for item in self.children)
+        h = sum(item.rect.y1 for item in self.children)
+        #h = sum(item.rect.height for item in self.children)
         return Rectangle(x0,x1,0,h)
 
     def draw(self, b):
         y = 0
-        for item in self.items:
+        for item in self.children:
             with g_translate(b, 0, y):
                 item.draw(b)
             y += item.rect.height
@@ -286,7 +381,7 @@ class SvgItemsVFree(SvgItems):
                             +--------+
     """
     def __init__(self):
-        super(SvgItemsVFree,self).__init__()
+        super().__init__()
         self.trans_y = []
 
     def _find_freespace(self, rects, rect):
@@ -317,7 +412,7 @@ class SvgItemsVFree(SvgItems):
     def _calc_rect(self):
         rects = []
         trans_ys = []
-        for item in self.items:
+        for item in self.children:
             y0 = self._find_freespace(rects, item.rect)
             trans_y = y0 - item.rect.y0
             rects.append(item.rect.translate(0, trans_y))
@@ -333,13 +428,13 @@ class SvgItemsVFree(SvgItems):
     def draw(self, b):
         rect, tys = self._calc_rect()
 
-        for i,item in enumerate(self.items):
+        for i,item in enumerate(self.children):
             with g_translate(b, 0, tys[i]):
                 item.draw(b)
 
 class SvgMatrix(SvgBase):
     def __init__(self):
-        super(SvgMatrix,self).__init__()
+        super().__init__()
         self.rows = []
         self.aligns = []
 
@@ -400,6 +495,65 @@ class SvgMatrix(SvgBase):
             y += row_h[iy]
             iy += 1
 
+### Wrapping
+
+def iter_step(width, start, end):
+    for x in range(start, end, width):
+        yield x, min(x+width, end)
+
+class SvgItemsWrapping(SvgParentSingle):
+    unique_counter = 0
+
+    def __init__(self, width, child):
+        super().__init__(child)
+
+        self.width = width
+        self.id = 'siw_{}'.format(SvgItemsWrapping.unique_counter)
+        SvgItemsWrapping.unique_counter += 1
+
+    @property
+    def length(self):
+        return super().rect.x1
+
+    @property
+    def height(self):
+        return super().rect.y1
+
+    @property
+    def rect(self):
+        l = self.length
+        h = self.height
+        c = l / self.width
+        if l % self.width:
+            c += 1
+        return Rectangle(0, self.width, 0, c * h)
+
+    def iter_step(self):
+        c = 0
+        y = 0
+        h = self.height
+        for p,q in iter_step(int(self.width), 0, int(self.length)):
+            r = Rectangle(0, self.width, y, y+h)
+            yield p,q,r,'siw_{}_{}'.format(p,q)
+            c += 1
+            y += h
+
+    def draw_defs(self, b):
+        super().draw_defs(b)
+
+        with b.g(id=self.id):
+            super().draw(b)
+
+        for p,q,r,bid in self.iter_step():
+            with b.clipPath(id=bid):
+                b.rect(x=fm(r.x0), y=fm(r.y0), width=fm(r.width), height=fm(r.height))
+
+    def draw(self, b):
+        for p,q,r,bid in self.iter_step():
+            with b.g(**{'clip-path':'url(#{})'.format(bid)}):
+                with g_translate(b, -p, r.y0):
+                    b.use(**{'xlink:href':'#{}'.format(self.id)})
+
 ### Item
 
 class SvgLine(SvgBase):
@@ -412,7 +566,7 @@ class SvgLine(SvgBase):
         self._rect = Rectangle(x0, x1, y0, y1)
 
     def draw(self, b):
-        b.line(x1=ffmt(self.x0), x2=ffmt(self.x1), y1=ffmt(self.y0), y2=ffmt(self.y1), **self.kwargs)
+        b.line(x1=fm(self.x0), x2=fm(self.x1), y1=fm(self.y0), y2=fm(self.y1), **self.kwargs)
 
 class SvgVline(SvgLine):
     def __init__(self, x, y0, y1, **kwargs):
@@ -432,7 +586,7 @@ class SvgRect(SvgBase):
         self._rect = Rectangle(x, x+width, y, y+height)
 
     def draw(self,b):
-        b.rect(x=ffmt(self.x), y=ffmt(self.y), width=ffmt(self.width), height=ffmt(self.height), **self.kwargs)
+        b.rect(x=fm(self.x), y=fm(self.y), width=fm(self.width), height=fm(self.height), **self.kwargs)
 
 class SvgLines(SvgBase):
     def __init__(self, lines, **kwargs):
@@ -448,45 +602,10 @@ class SvgLines(SvgBase):
         self._rect = Rectangle(x0, x1, y0, y1)
 
     def draw(self, b):
-        d = " ".join("M{} {} l{} {}".format(ffmt(x0),ffmt(y0),ffmt(x1-x0),ffmt(y1-y0)) for x0,y0,x1,y1 in self.lines)
+        d = " ".join("M{} {} l{} {}".format(fm(x0),fm(y0),fm(x1-x0),fm(y1-y0)) for x0,y0,x1,y1 in self.lines)
         b.path(d=d, **self.kwargs)
 
-"""
-class SvgPath(SvgBase):
-    def __init__(self, x, y, **kwargs):
-        self.d = []
-        self.kwargs = self._style(kwargs)
-        self._rect = Rectangle(x, x, y, y)
-        self.add_p("M", x,y)
 
-    def add_p(self, i, x, y):
-        self.d.append((i, [x,y]))
-        self._rect = self._rect.include_point(x,y)
-
-    def m(self, x, y):
-        self.add_p('m',x,y)
-    def M(self, x, y):
-        self.add_p('M',x,y)
-    def L(self, x, y):
-        self.add_p('L',x,y)
-    def l(self, x, y):
-        self.add_p('l',x,y)
-
-    def z(self):
-        self.d.append(('z', []))
-
-    # TODO other instruction supports
-
-    def draw(self,b):
-        d = " ".join("{} {}".format(i, ' '.join(v)) for i, v in self.d)
-        b.path(d=d, **self.kwargs)
-
-    def scale(self, sx, sy):
-        ret = SvgPath()
-        for i, (x,y) in self.d:
-            ret.add_p(i, x/sx, y/sy)
-        return ret
-"""
 
 class SvgCircle(SvgBase):
     def __init__(self, x, y, radius, **kwargs):
@@ -497,7 +616,7 @@ class SvgCircle(SvgBase):
         self._rect = Rectangle(x-radius, x+radius, y-radius, y+radius)
 
     def draw(self,b):
-        b.circle(cx=ffmt(self.x), cy=ffmt(self.y), r=ffmt(self.radius), **self.kwargs)
+        b.circle(cx=fm(self.x), cy=fm(self.y), r=fm(self.radius), **self.kwargs)
 
 class SvgHbar(SvgRect):
     def __init__(self, start, end, y, thick, **kwargs):
@@ -511,7 +630,7 @@ def font_height(fontsize=DEFAULT_FONTSIZE):
     return fontsize*1.1
 
 class SvgText(SvgBase):
-    def __init__(self, text, x, y, anchor='start', fontsize=DEFAULT_FONTSIZE):
+    def __init__(self, text, x=0, y=0, anchor='start', fontsize=DEFAULT_FONTSIZE):
         self.text = text
 
         self.w = font_width(fontsize) * len(text)
@@ -534,14 +653,14 @@ class SvgText(SvgBase):
         self._rect = Rectangle(x, x+self.w, y, y+self.h)
 
     def draw(self,b):
-        with b['text'](x=ffmt(self.x), y=ffmt(self.y+self.h), textLength=ffmt(self.textLength), **self.style):
+        with b['text'](x=fm(self.x), y=fm(self.y+self.h), textLength=fm(self.textLength), **self.style):
             b.text(self.text)
         if DEBUG:
-            b.rect(x=ffmt(self.rect.x0), y=ffmt(self.rect.y0), width=ffmt(self.rect.width), height=ffmt(self.rect.height), stroke='red', style='fill:none;')
+            b.rect(x=fm(self.rect.x0), y=fm(self.rect.y0), width=fm(self.rect.width), height=fm(self.rect.height), stroke='red', style='fill:none;')
 
 class SvgGraphline(SvgItemsFixedHeight):
     def __init__(self, height, values, bars=[], scalex=1., width=None, **kwargs):
-        super(SvgGraphline,self).__init__(height)
+        super().__init__(height)
 
         step = max(1, int(1./scalex)) # for smaller file size.
         self.points = [(i*scalex,height*(1.-values[i])) for i in range(0, len(values), step)]
@@ -556,10 +675,10 @@ class SvgGraphline(SvgItemsFixedHeight):
         b.polyline(points=p, **self.kwargs)
         for bar in self.bars:
             t = self.height * (1.-bar)
-            b.line(x1=0, x2=ffmt(self.width), y1=ffmt(t), y2=ffmt(t), klass='graphline')
+            b.line(x1=0, x2=fm(self.width), y1=fm(t), y2=fm(t), klass='graphline')
 
 
-class SvgItemGenerator(object):
+class SvgItemGenerator:
     def __init__(self, scalex, scaley):
         self.sx = scalex
         self.sy = scaley
