@@ -233,7 +233,7 @@ class Primer:
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template, template_ambiguous=False, min_length=10):
+    def search(self, template, template_ambiguous=False, min_length=16):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)

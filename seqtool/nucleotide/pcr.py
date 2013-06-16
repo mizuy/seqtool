@@ -9,6 +9,8 @@ from .cpg import bisulfite, cpg_sites, count_cpg, bisulfite_conversion_unambiguo
 
 from .primer import PrimerPair, Primer
 
+MAX_PRODUCT_SIZE = 1500
+
 __all__ = ['PCR', 'BisulfitePCR', 'RtPCR']
 
 class PCRProduct:
@@ -91,24 +93,28 @@ class PCRProduct:
 
             seq = self.seq
 
-            cm = PPrintSequence(seq)
+            if len(self) < MAX_PRODUCT_SIZE:
+                cm = PPrintSequence(seq)
 
-            parts = [(100,100,100),
-                     (255, 0, 0),
-                     (0, 0, 0),
-                     (0, 0, 255),
-                     (100,100,100) ]
+                parts = [(100,100,100),
+                         (255, 0, 0),
+                         (0, 0, 0),
+                         (0, 0, 255),
+                         (100,100,100) ]
 
-            for i, (rr, gg, bb) in enumerate(parts):
-                p,q = self.partsv[i]
-                for i in range(p,q):
-                    cm.add_color(i, rr,gg,bb)
+                for i, (rr, gg, bb) in enumerate(parts):
+                    p,q = self.partsv[i]
+                    for i in range(p,q):
+                        cm.add_color(i, rr,gg,bb)
 
-            for i in cpg_sites(seq, self.partsv[2]):
-                cm.add_underbar(i)
-                cm.add_underbar(i+1)
+                for i in cpg_sites(seq, self.partsv[2]):
+                    cm.add_underbar(i)
+                    cm.add_underbar(i+1)
 
-            cm.write_html(w)
+                cm.write_html(w)
+            else:
+                w.text('sequence ommitted. product length = {}'.format(len(self)))
+
             with b.span(**{'class':'length'}):
                 b.text('length=%d, CpG=%d, no stop=%s'%(len(seq), count_cpg(self.middle), no_stop_in_frame(seq)))
 
