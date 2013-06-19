@@ -9,7 +9,7 @@ class AlingnedSeq(object):
         self.location = (first,last)
         self.first = seq[:first]
         self.mid = seq[first:last]
-        self.last = seq[:last]
+        self.last = seq[last:]
 
         self.mid_gap = mid_gap
 
