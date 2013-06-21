@@ -1,6 +1,6 @@
 import re
 
-from . import to_seq, melt_temp, tm_gc
+from . import to_seq, melt_temp, tm_gc, is_sequence_like
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from ..util.parser import TreekvParser
@@ -8,7 +8,6 @@ from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
 from . import primer_cond as pcond
-from . import melt_temp
 
 __all__ = ['Primer', 'PrimerPair']
 
@@ -461,9 +460,11 @@ class Primers(NamedList):
         try:
             return self[name]
         except KeyError:
-            r = Primer(default_name, name)
-            self.append(r)
-            return r
+            if is_sequence_like(name):
+                r = Primer(default_name, name)
+                self.append(r)
+                return r
+        raise KeyError('no such primer and this is not valid sequence: {}'.format(name))
 
 def test_pp(a,b):
     PrimerPair(Primer('fw',a),Primer('rv',b)).debugprint()

@@ -5,6 +5,8 @@ import itertools
 from io import StringIO
 from functools import reduce
 
+from .rectangle import Line, Rectangle
+
 DEBUG = False
 
 SVG_HEADER = '''<?xml version="1.0" standalone="no"?>
@@ -39,84 +41,6 @@ rect{
 def fm(x):
     return '{:.2f}'.format(x) if x%1 else '{}'.format(int(x))
 
-### Rectangle
-
-class Rectangle(object):
-    def __init__(self, x0, x1, y0, y1):
-        self.valid = (x0 <= x1 and y0 <= y1)
-        self.x0 = x0
-        self.y0 = y0
-        self.x1 = x1
-        self.y1 = y1
-        self.width = x1-x0
-        self.height = y1-y0
-
-    def __repr__(self):
-        return 'Rectangle(%f,%f,%f,%f)' % (self.x0, self.x1, self.y0, self.y1)
-
-    def __bool__(self):
-        return self.valid
-
-    def __mul__(self, rhs):
-        return self.intersect(rhs)
-
-    def __add__(self, rhs):
-        return self.add(rhs)
-
-    def include_point(self, x, y):
-        return Rectangle( min(self.x0, x),max(self.x1, x),min(self.y0, y),max(self.y1, y) )
-
-    def add(self, rhs):
-        return Rectangle(
-            min(self.x0,rhs.x0),
-            max(self.x1, rhs.x1),
-            min(self.y0, rhs.y0),
-            max(self.y1, rhs.y1) )
-
-    def contains(self, x, y):
-        return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
-
-    def intersect(self, rhs):
-        return Rectangle(max(self.x0,rhs.x0),
-            min(self.x1, rhs.x1),
-            max(self.y0, rhs.y0),
-            min(self.y1, rhs.y1))
-
-    def intersects(self, rhs):
-        return not ( self.x0 >= rhs.x1 or self.x1 <= rhs.x0
-            or self.y0 >= rhs.y1 or self.y1 <= rhs.y0 )
-
-    def translate(self,x,y):
-        return Rectangle(self.x0+x, self.x1+x, self.y0+y, self.y1+y)
-
-    def scale(self, x, y):
-        return Rectangle(self.x0 * x, self.x1 * x, self.y0 * y, self.y1 * y)
-
-    def intersects_x(self, rhs):
-        return not ( self.x0 >= rhs.x1 or self.x1 <= rhs.x0 )
-
-    def intersects_y(self, rhs):
-        return not ( self.y0 >= rhs.y1 or self.y1 <= rhs.y0 )
-
-    def clip_expand(self, x0=None, x1=None, y0=None, y1=None):
-        pass
-    def clip_intersect(self, x0=None, x1=None, y0=None, y1=None):
-        pass
-
-class RectangleClip:
-    def __init__(self, x0=None, x1=None, y0=None, y1=None):
-        self.x0 = x0
-        self.y0 = y0
-        self.x1 = x1
-        self.y1 = y1
-
-class RectangleClipExpand:
-    def __init__(self, x0=None, x1=None, y0=None, y1=None):
-        super().__init__(x0, x1, y0, y1)
-
-class RectangleClipLimit:
-    def __init__(self, x0=None, x1=None, y0=None, y1=None):
-        super().__init__(x0, x1, y0, y1)
 
 ### Base
 
@@ -390,7 +314,7 @@ class SvgItemsVFree(SvgItems):
         self.reverse=reverse
 
     def _find_freespace(self, rects, rect):
-        conflicts = [(r.y0, r.y1) for r in rects if r.intersects_x(rect)]
+        conflicts = [(r.y0, r.y1) for r in rects if r.x.has_intersect(rect.x)]
         conflicts.sort()
         if not conflicts:
             return 0
@@ -549,7 +473,6 @@ class SvgItemsWrapping(SvgParentSingle):
     def draw_defs(self, b):
         super().draw_defs(b)
 
-        return
         with b.g(id=self.id):
             super().draw(b)
 
@@ -561,8 +484,8 @@ class SvgItemsWrapping(SvgParentSingle):
         for p,q,r,bid in self.iter_step():
             #with b.g(**{'clip-path':'url(#{})'.format(bid)}):
             with g_translate(b, -p, r.y0):
-                super().draw(b)
-                #b.use(**{'xlink:href':'#{}'.format(self.id)})
+                #super().draw(b)
+                b.use(**{'xlink:href':'#{}'.format(self.id)})
 
 ### Item
 

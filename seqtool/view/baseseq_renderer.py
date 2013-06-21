@@ -16,6 +16,9 @@ class Annotation:
         self.left = left
         self.right = right
 
+    def svg_item_filtered(self, p, q):
+        if p < self.left or 
+
     def svg_item(self):
         w = svg.font_width()
         lt = self.left*w
@@ -92,7 +95,7 @@ class AnnotatedSeqTrack(svg.SvgMatrix):
 
     def add_sequence(self, name, index, seq):
         self.add_named(name , index, " 5'-", self.gen.text(seq), "-3'")
-        self.add_named(name , index, " 3'-", self.gen.text(complement(seq)), "-5'")
+        self.add_named('' , '', " 3'-", self.gen.text(complement(seq)), "-5'")
 
     def add_named(self, name, index, pre, track, post):
         self.add_row([self.gen.text(name+" "),

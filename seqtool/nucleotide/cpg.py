@@ -1,4 +1,5 @@
 from Bio.SeqUtils import GC
+from . import to_unambiguous_seq
 
 def drop_small_region(items, length):
     ret = []
@@ -204,7 +205,7 @@ def asymmetric_conversion(seq, conv, sense):
 
 def to_unambiguous(bsseq, methyl=True):
     trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
-    return str(bsseq).translate(trans)
+    return to_unambiguous_seq(str(bsseq).translate(trans))
 
 def bisulfite_conversion_unambiguous(seq, sense, methyl):
     return to_unambiguous(bisulfite_conversion(seq, sense=sense), methyl=methyl)
