@@ -6,6 +6,7 @@ import sys, os, time
 import tempfile
 from ..util.prompt import prompt
 
+
 class PrimerAlign(object):
     def __init__(self, template, seq, mismatch, offset):
         self.template = template
@@ -13,13 +14,16 @@ class PrimerAlign(object):
         self.mismatch = mismatch
         self.offset = offset
 
+
 class PCRFragment(object):
     def __init__(self, template, fw, rv):
         self.template = template
         self.fw = fw
         self.rv = rv
+
     def __len__(self):
         return self.rv.offset - self.fw.offset + len(self.rv.origin)
+
 
 def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
     '''

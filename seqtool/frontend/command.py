@@ -86,9 +86,11 @@ def get_output_path(input, output, ext='.html'):
         else:
             return Filepath(output)
 
-def mac_open(outputs):
-    if outputs:
-        os.system('open {0}'.format(' '.join(outputs)))
+def mac_open(outputp):
+    if outputp:
+        command = 'open {}'.format(outputp.path)
+        print(command)
+        os.system(command)
 
 def seqview():
     parser = ArgumentParser(prog='seqview', description='pretty HTML+SVG report of sequence and adittional data')

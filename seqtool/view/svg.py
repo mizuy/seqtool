@@ -39,6 +39,14 @@ rect{
 '''
 
 def fm(x):
+    """
+    >>> fm(0.5)
+    0.5
+    >>> fm(0.0555)
+    0.05
+    >>> fm(45.)
+    45
+    """
     return '{:.2f}'.format(x) if x%1 else '{}'.format(int(x))
 
 
@@ -103,7 +111,7 @@ class SvgBase(object):
 
 class SvgNone(SvgBase):
     def __init__(self):
-        super(SvgNone,self).__init__()
+        super().__init__()
 
 ### wrappers
 
@@ -129,10 +137,7 @@ class SvgParent(SvgBase):
 
     @property
     def rect(self):
-        if self.children:
-            return reduce(lambda a,b: a+b, (i.rect for i in self.children))
-        else:
-            return Rectangle(0,0,0,0)
+        return Rectangle.union_all(i.rect for i in self.children)
 
 class SvgParentSingle(SvgParent):
     def __init__(self, child):
@@ -168,13 +173,15 @@ class SvgClipWidth(SvgParentSingle):
         SvgClipWidth.num += 1
 
     def draw_defs(self, b):
-        with b.clipPath(id=self.id):
-            b.rect(x=self.rect.x, y=self.rect.y, width=self.rect.width, height=self.rect.height)
-        super().draw_defs()
+        if self.rect.valid:
+            with b.clipPath(id=self.id):
+                b.rect(x=fm(self.rect.x0-1), y=fm(self.rect.y0-1), width=fm(self.rect.width+2), height=fm(self.rect.height+2))
+        super().draw_defs(b)
 
     def draw(self, b):
-        with b.g(**{'clip-path':'url({})'.format(self.id)}):
-            super().draw(b)
+        if self.rect.valid:
+            with b.g(**{'clip-path':'url(#{})'.format(self.id)}):
+                super().draw(b)
 
     @property
     def rect(self):
@@ -236,6 +243,30 @@ class SvgBoundbox(SvgParentSingle):
         b.rect(x=fm(r.x0), y=fm(r.y0), width=fm(r.width), height=fm(r.height), **self.kwargs)
         super().draw(b)
 
+class SvgExpandWidth(SvgParentSingle):
+    def __init__(self, width, child, **kwargs):
+        super().__init__(child)
+        self.kwargs = self._style(kwargs)
+        self.expand = width
+
+    @property
+    def rect(self):
+        r = super().rect
+        r.x1 = r.x0 + max(r.width, self.expand)
+        return r
+
+class SvgExpandHeight(SvgParentSingle):
+    def __init__(self, height, child, **kwargs):
+        super().__init__(child)
+        self.kwargs = self._style(kwargs)
+        self.expand = height
+
+    @property
+    def rect(self):
+        r = super().rect
+        r.y1 = r.y0 + max(r.height, self.expand)
+        return r
+
 ### Containers
 
 class SvgItems(SvgParent):
@@ -253,7 +284,7 @@ class SvgItemsFixedHeight(SvgItems):
     @property
     def rect(self):
         if self.children:
-            r = reduce(lambda a,b: a+b, (i.rect for i in self.children))
+            r = Rectangle.union_all(i.rect for i in self.children)
             r.y1 = max(r.y1, self.height)
             return r
         else:
@@ -279,6 +310,8 @@ class SvgItemsVStack(SvgItems):
 
     @property
     def rect(self):
+        if not self.children:
+            return Rectangle(0,0,0,0)
         x0 = min(item.rect.x0 for item in self.children)
         x1 = max(item.rect.x1 for item in self.children)
         h = sum(item.rect.y1 for item in self.children)
@@ -293,7 +326,10 @@ class SvgItemsVStack(SvgItems):
             y += item.rect.height
 
 def grouper(n, iterable, fillvalue=None):
-    "grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"
+    """
+    >>> grouper(3, 'ABCDEFG', 'x')
+    "ABC DEF Gxx"
+    """
     args = [iter(iterable)] * n
     return itertools.zip_longest(fillvalue=fillvalue, *args)
 
@@ -310,7 +346,6 @@ class SvgItemsVFree(SvgItems):
     """
     def __init__(self, reverse=False):
         super().__init__()
-        self.trans_y = []
         self.reverse=reverse
 
     def _find_freespace(self, rects, rect):
@@ -353,7 +388,7 @@ class SvgItemsVFree(SvgItems):
 
     def draw(self, b):
         rect, tys = self._calc_rect()
-        height = self.rect.y1
+        height = rect.y1
 
         for i,item in enumerate(self.children):
             y = tys[i]
@@ -426,6 +461,12 @@ class SvgMatrix(SvgBase):
                 ix += 1
             y += row_h[iy]
             iy += 1
+
+    def draw_defs(self, b):
+        for row in self.rows:
+            for cell in row:
+                if not isinstance(cell, SvgNone):
+                    cell.draw_defs(b)
 
 ### Wrapping
 
@@ -509,6 +550,11 @@ class SvgHline(SvgLine):
     def __init__(self, x0, x1, y, **kwargs):
         super().__init__(x0,x1,y,y,**kwargs)
 
+class SvgHlineBox(SvgExpandHeight):
+    def __init__(self, x0, x1, height):
+        super().__init__(height, SvgHline(x0, x1, height/2.))
+
+
 class SvgRect(SvgBase):
     def __init__(self, x, y, width, height, **kwargs):
         self.x = x
@@ -537,8 +583,6 @@ class SvgLines(SvgBase):
     def draw(self, b):
         d = " ".join("M{} {} l{} {}".format(fm(x0),fm(y0),fm(x1-x0),fm(y1-y0)) for x0,y0,x1,y1 in self.lines)
         b.path(d=d, **self.kwargs)
-
-
 
 class SvgCircle(SvgBase):
     def __init__(self, x, y, radius, **kwargs):

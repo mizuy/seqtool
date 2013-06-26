@@ -1,56 +1,49 @@
+
 from ..nucleotide.cpg import bisulfite_conversion
 from . import svg
+from .rectangle import Rectangle,Line
+from ..nucleotide import reverse, complement
 
 __all__ = ['BaseseqRenderer']
-
-def reverse(seq):
-    return str(seq)[::-1]
-
-def complement(seq):
-    return seq.complement()
-
 
 class Annotation:
     def __init__(self, name, left, right):
         self.name = name
-        self.left = left
-        self.right = right
-
-    def svg_item_filtered(self, p, q):
-        if p < self.left or 
-
-    def svg_item(self):
+        self.range = Line(left,right)
         w = svg.font_width()
-        lt = self.left*w
-        rt = self.right*w
-        h = svg.font_height()
+        self._vr = self.range.scale(w)
 
-        b = svg.SvgItemsFixedHeight(h)
-        b.add(svg.SvgText(self.name, lt, 0))
-        b.add(svg.SvgRect(lt, 0, rt-lt, h, style='fill:none;', stroke='black'))
-        return b
+    def svg_item(self, r=None):
+        if r and not self.range.has_intersect(r):
+            return None
+
+    @classmethod
+    def get_track(self, annotations, reverse, p, q):
+        u = svg.SvgItemsVFree(reverse)
+        for a in annotations:
+            item = a.svg_item(Line(p,q))
+            if item:
+                u.add(item)
+        w = svg.font_width()
+        return svg.SvgClipWidth(0, w*(q-p), svg.SvgTranslate(-w*p, 0, u))
 
 class AnnotationTexts(Annotation):
     def __init__(self, name, left, right, texts=[]):
         super().__init__(name, left, right)
         self.texts = texts
 
-    def svg_item(self):
-        w = svg.font_width()
-        lt = self.left*w
-        rt = self.right*w
+    def svg_item(self, r=None):
+        if r and not self.range.has_intersect(r):
+            return None
 
         t = svg.SvgItemsVStack()
-        t.add(svg.SvgText(self.name, lt, 0))
+        t.add(svg.SvgText(self.name, self._vr.start, 0))
         for s in self.texts:
-            t.add(svg.SvgText(s, lt, 0))
+            t.add(svg.SvgText(s, self._vr.start, 0))
 
-        b = svg.SvgItemsFixedHeight(t.rect.height)
-        b.add(t)
-        b.add(svg.SvgRect(lt, 0, rt-lt, t.rect.height, style='fill:none;', stroke='black'))
-        return b
+        return svg.SvgBoundbox(svg.SvgExpandWidth(self._vr.length, t))
 
-class AnnotationPrimerAnneal:
+class AnnotationPrimerAnneal(Annotation):
     def __init__(self, pta):
         self.pta = pta
         self.name = pta.primer.name
@@ -64,12 +57,19 @@ class AnnotationPrimerAnneal:
                 ar = pta.left
                 self.left = al
             else:
+                # todo complementary for - strand...
                 al = pta.right
                 ar = pta.right + pta.adapter_length
                 self.left = pta.left
             self.adapter = (pta.primer_adapter, al, ar)
 
-    def svg_item(self):
+        self.right = pta.right
+
+        super().__init__(pta.primer.name, self.left, self.right)
+
+    def svg_item(self, r=None):
+        if r and not self.range.has_intersect(r):
+            return None
         w = svg.font_width()
         h = svg.font_height()
 
@@ -88,47 +88,18 @@ class AnnotationPrimerAnneal:
         return svg.SvgBoundbox(t)
 
 
-class AnnotatedSeqTrack(svg.SvgMatrix):
+class NamedStack(svg.SvgMatrix):
     def __init__(self):
-        self.gen = svg.SvgItemGenerator(1, 1)
-        super(AnnotatedSeqTrack,self).__init__()
+        super().__init__()
 
-    def add_sequence(self, name, index, seq):
-        self.add_named(name , index, " 5'-", self.gen.text(seq), "-3'")
-        self.add_named('' , '', " 3'-", self.gen.text(complement(seq)), "-5'")
+    def add_seq(self, name, pre, seq, post):
+        self.add_row([svg.SvgText(name), svg.SvgText(pre), svg.SvgText(seq), svg.SvgText(post)])
 
-    def add_named(self, name, index, pre, track, post):
-        self.add_row([self.gen.text(name+" "),
-                     self.gen.text(" {0}: ".format(str(index))),
-                     self.gen.text(pre), track, self.gen.text(post)],
-                     ['right', 'right', 'right', None, 'left'])
+    def add_named(self, name, t):
+        self.add_row([svg.SvgText(name), svg.SvgBase(), t, svg.SvgBase()])
 
-    def add(self, track):
-        self.add_row([None, None, None, track, None])
-
-    def add_padding(self, height):
-        self.add(svg.SvgItemsFixedHeight(height))
-
-    def add_hline(self, length, w, height=5):
-        t = svg.SvgItemsFixedHeight(height)
-        t.add(self.gen.hline(0, length, height/2, **{'stroke-width':str(w)}))
-        self.add(t)
-
-    def add_annotation(self, annos, reverse):
-        if not annos:
-            return
-
-        u = svg.SvgItemsVFree(reverse)
-        for a in annos:
-            u.add(a.svg_item())
-        self.add(u)
-
-    def add_doublestrand(self, ds):
-        self.add_padding(8)
-        self.add_annotation(ds.pos, True)
-        self.add_sequence(ds.name, 0, ds.seq)
-        self.add_annotation(ds.neg, False)
-        self.add_padding(8)
+    def add(self, t):
+        self.add_row([svg.SvgBase(), svg.SvgBase(), t, svg.SvgBase()])
 
 
 class DoubleStrand:
@@ -139,71 +110,106 @@ class DoubleStrand:
         self.pos = []
         self.neg = []
 
-no_conversions = [("", lambda x: x)]
+    def get_track(self, p, q):
+        t = NamedStack()
 
-bisulfite_conversions = [
+        # padding
+        t.add(svg.SvgItemsFixedHeight(8))
+
+        # positive strand annotations
+        t.add(Annotation.get_track(self.pos, True, p, q))
+
+        # sequences
+        s = self.seq[p:q]
+        t.add_seq(self.name, "5'-", s, "-3'")
+        t.add_seq(self.name, "3'-", complement(s), "-5'")
+
+        # negative strand annotations
+        t.add(Annotation.get_track(self.neg, False, p, q))
+
+        # padding
+        t.add(svg.SvgItemsFixedHeight(8))
+
+        return t
+
+    def add_primer(self, primer):
+        pp,pc = primer.search(self.seq)
+        for a in pp:
+            self.pos.append(AnnotationPrimerAnneal(a))
+        for a in pc:
+            self.neg.append(AnnotationPrimerAnneal(a))
+
+    def add_restriction_batch(self, rb):
+        for enzyme, locs in list(rb.search(self.seq).items()):
+            #if len(locs)>1:
+            #    continue
+            for l in locs:
+                # TODO: pretty prent restriction cut pattern
+                p = l -1 - enzyme.fst5
+                self.pos.append(AnnotationTexts(str(enzyme), p, p+len(enzyme.site),[enzyme.site]))
+
+
+
+NO_CONVERSIONS = [("", lambda x: x)]
+
+
+BISULFITE_CONVERSIONS = [
     ("BS(+)", lambda x: bisulfite_conversion(x, sense=True)),
     ("", lambda x: x),
     ("BS(-)", lambda x: bisulfite_conversion(x, sense=False)),
 ]
 
 
+def iter_step(width, start, end):
+    for x in range(start, end, width):
+        yield x, min(x+width, end)
+
+
 class BaseseqRenderer:
     def __init__(self, seq, bisulfite=False):
         self.length = len(seq)
 
-        conversions = no_conversions
+        conversions = NO_CONVERSIONS
         if bisulfite:
-            conversions = bisulfite_conversions
+            conversions = BISULFITE_CONVERSIONS
 
-        self.dss = []
+        self.doublestrands = []
         for name, conv in conversions:
-            self.dss.append(DoubleStrand(name, conv(seq)))
+            self.doublestrands.append(DoubleStrand(name, conv(seq)))
 
     def add_primer(self, primer):
-        for ds in self.dss:
-            pp,pc = primer.search(ds.seq)
-            for a in pp:
-                ds.pos.append(AnnotationPrimerAnneal(a))
-            for a in pc:
-                ds.neg.append(AnnotationPrimerAnneal(a))
-
+        for ds in self.doublestrands:
+            ds.add_primer(primer)
 
     def add_restriction_batch(self, restriction_batch):
-        for ds in self.dss:
-            for enzyme, locs in list(restriction_batch.search(ds.seq).items()):
-                #if len(locs)>1:
-                #    continue
-                for l in locs:
-                    # TODO: pretty prent restriction cut pattern
-                    p = l -1 - enzyme.fst5
-                    ds.pos.append(AnnotationTexts(str(enzyme), p, p+len(enzyme.site),[enzyme.site]))
+        for ds in self.doublestrands:
+            ds.add_restriction_batch(restriction_batch)
 
     def add_alignment(self, name, p, q, bars):
-        for ds in self.dss:
+        for ds in self.doublestrands:
             ds.pos.append(AnnotationTexts(ds.name, p, q, bars))
 
     def track(self, width):
         l = self.length
         w = svg.font_width()
 
-        t = AnnotatedSeqTrack()
+        t = svg.SvgItemsVStack()
 
-        t.add_hline(l*w, 3)
+        for p,q in iter_step(width, 0, l):
+            # TODO aligned Hlinebox
+            t.add(svg.SvgHlineBox(0, width*w, 10))
 
-        count = 0
-        for ds in self.dss:
-            if count != 0:
-                t.add_hline(l*w, 0.5)
-            count += 1
+            count = 0
+            for ds in self.doublestrands:
+                if count != 0:
+                    t.add(svg.SvgHlineBox(0, width*w, 0.1))
+                count += 1
 
-            t.add_doublestrand(ds)
+                t.add(ds.get_track(p,q))
 
-        t.add_hline(l*w, 3)
+        t.add(svg.SvgHlineBox(0, width*w, 10))
 
-        p = svg.SvgItemsWrapping(width*w, t)
-
-        return p
+        return svg.SvgPadding(10,10,t)
 
 
 

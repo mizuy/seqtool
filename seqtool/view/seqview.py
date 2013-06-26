@@ -19,7 +19,7 @@ from . import block, bsa_block, dbtss_block
 from .baseseq_renderer import BaseseqRenderer
 from .outline_renderer import OutlineRenderer
 
-LENGTH_THRESHOLD = 8000
+LENGTH_THRESHOLD = 2000
 
 __all__ = ['Seqview']
 

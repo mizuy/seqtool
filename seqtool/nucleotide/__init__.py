@@ -120,3 +120,8 @@ def no_stop_in_frame(seq):
     stopped = stopped and all('*' in s[i:].translate() for i in range(3))
     return not stopped
 
+def reverse(seq):
+    return str(seq)[::-1]
+
+def complement(seq):
+    return seq.complement()
