@@ -48,22 +48,13 @@ class AnnotationPrimerAnneal(Annotation):
         self.pta = pta
         self.name = pta.primer.name
         
-        self.matched = (pta.primer_match, pta.left, pta.right)
-        self.left = pta.left
+        self.matched = (pta.display_match, pta.left, pta.right)
+        self.left = pta.leftmost
+        self.right = pta.right
 
         if not pta.full:
-            if pta.strand:
-                al = pta.left - pta.adapter_length
-                ar = pta.left
-                self.left = al
-            else:
-                # todo complementary for - strand...
-                al = pta.right
-                ar = pta.right + pta.adapter_length
-                self.left = pta.left
-            self.adapter = (pta.primer_adapter, al, ar)
+            self.adapter = (pta.display_adapter, pta.a_l, pta.a_r)
 
-        self.right = pta.right
 
         super().__init__(pta.primer.name, self.left, self.right)
 
@@ -101,6 +92,11 @@ class NamedStack(svg.SvgMatrix):
     def add(self, t):
         self.add_row([svg.SvgBase(), svg.SvgBase(), t, svg.SvgBase()])
 
+    def add_subline(self, width):
+        self.add(svg.SvgHlineBox(0, width, 10, **{'stroke-width':0.1, 'stroke-dasharray':'5 5'}))
+
+    def add_line(self, width):
+        self.add(svg.SvgHlineBox(0, width, 10))
 
 class DoubleStrand:
     def __init__(self, name, seq):
@@ -110,8 +106,8 @@ class DoubleStrand:
         self.pos = []
         self.neg = []
 
-    def get_track(self, p, q):
-        t = NamedStack()
+    def assign_track(self, named_track, p, q):
+        t = named_track
 
         # padding
         t.add(svg.SvgItemsFixedHeight(8))
@@ -129,8 +125,6 @@ class DoubleStrand:
 
         # padding
         t.add(svg.SvgItemsFixedHeight(8))
-
-        return t
 
     def add_primer(self, primer):
         pp,pc = primer.search(self.seq)
@@ -164,6 +158,20 @@ def iter_step(width, start, end):
     for x in range(start, end, width):
         yield x, min(x+width, end)
 
+def iter_sep(iterable, sep, firstend = True):
+    count =  0
+    for i in iterable:
+        if count == 0:
+            if firstend:
+                sep()
+        else:
+            sep()
+        yield i
+        count += 1
+
+    if firstend:
+        sep()
+        
 
 class BaseseqRenderer:
     def __init__(self, seq, bisulfite=False):
@@ -192,22 +200,13 @@ class BaseseqRenderer:
     def track(self, width):
         l = self.length
         w = svg.font_width()
+        ww =  width * w
 
-        t = svg.SvgItemsVStack()
+        t = NamedStack()
 
-        for p,q in iter_step(width, 0, l):
-            # TODO aligned Hlinebox
-            t.add(svg.SvgHlineBox(0, width*w, 10))
-
-            count = 0
-            for ds in self.doublestrands:
-                if count != 0:
-                    t.add(svg.SvgHlineBox(0, width*w, 0.1))
-                count += 1
-
-                t.add(ds.get_track(p,q))
-
-        t.add(svg.SvgHlineBox(0, width*w, 10))
+        for p,q in iter_sep(iter_step(width, 0, l), lambda:t.add_line(ww)):
+            for ds in iter_sep(self.doublestrands, lambda:t.add_subline(ww), False):
+                ds.assign_track(t, p, q)
 
         return svg.SvgPadding(10,10,t)
 

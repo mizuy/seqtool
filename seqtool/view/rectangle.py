@@ -15,7 +15,7 @@ class Line:
 
     @property
     def valid(self):
-        return self.start <= self.end
+        return self.start < self.end
 
     def has_intersect(self, rhs):
         return self.intersect(rhs).valid

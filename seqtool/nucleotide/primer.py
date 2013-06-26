@@ -159,17 +159,21 @@ class PrimerTemplateAnnealing:
 
         if strand
 
-           primer_adapter
-             <--->
+            a_l  a_r
+             |    |
           5'-ATGCTCCGTATG-3'
                   CCGTATG
+                  |      |
+                left    right
 
         if not strand
-        
+
+                left    right
+                  |       |
                   ATGCCATG
                   ATGCCATGAACAT-5'
-                          <--->
-                       primer_adapter
+                          |   |
+                         a_l a_r
 
 
         """
@@ -183,26 +187,39 @@ class PrimerTemplateAnnealing:
             p = primer.seq
             l = min(len(p), loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p-i],p[len(p)-1-i]) for i in range(l))
-            assert(self.length > 0)
-            self.adapter_length = len(p)-self.length
-            self.primer_match = p[self.adapter_length:]
-            self.primer_adapter = p[:self.adapter_length]
-
             self.loc_5p = self.loc_3p - self.length + 1
             self.left =  self.loc_5p
             self.right = self.loc_3p + 1
+
+            assert(self.length > 0)
+            pp =  str(primer.seq)
+            self.adapter_length = len(p)-self.length
+            self.primer_match =  pp[self.adapter_length:]
+            self.display_match = pp[self.adapter_length:]
+            self.display_adapter = pp[:self.adapter_length]
+
+            self.a_l = self.left -  self.adapter_length
+            self.a_r = self.left
+            self.leftmost =  self.a_l
         else:
             p = primer.seq.reverse_complement()
             l = min(len(p), len(template)-loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p+i],p[i]) for i in range(l))
-            assert(self.length > 0)
-            self.adapter_length = len(p)-self.length
-            self.primer_match = p[:self.length]
-            self.primer_adapter = p[self.length:]
-
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
+
+            assert(self.length > 0)
+            pp =  str(primer.seq)
+            self.adapter_length = len(p)-self.length
+            self.primer_match =  pp[self.adapter_length:]
+            self.display_match = pp[self.adapter_length:][::-1]
+            self.display_adapter = pp[:self.adapter_length][::-1]
+
+            self.a_l = self.right
+            self.a_r = self.right + self.adapter_length
+            self.leftmost =  self.left
+
 
         self.full = (self.length == len(self.primer))
         self.match = self.template[self.left:self.right]

@@ -551,8 +551,8 @@ class SvgHline(SvgLine):
         super().__init__(x0,x1,y,y,**kwargs)
 
 class SvgHlineBox(SvgExpandHeight):
-    def __init__(self, x0, x1, height):
-        super().__init__(height, SvgHline(x0, x1, height/2.))
+    def __init__(self, x0, x1, height, **kwargs):
+        super().__init__(height, SvgHline(x0, x1, height/2., **kwargs))
 
 
 class SvgRect(SvgBase):
