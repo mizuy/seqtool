@@ -18,10 +18,10 @@ class PrimerCondition(object):
         self.primer_length = Condition(0.5, 23., 10, 30)
         self.gc        = Condition(1.0, 50., 30, 70)
         self.tm            = Condition(1.0, 60., 45, 70)
-        self.sa            = Condition(0.1, 0., 0, 25)
-        self.sea           = Condition(0.2, 0., 0, 15)
-        self.pa            = Condition(0.1, 0., 0, 25)
-        self.pea           = Condition(0.2, 0., 0, 15)
+        self.sa            = Condition(0.1, 0., 0, 20)
+        self.sea           = Condition(0.2, 0., 0, 10)
+        self.pa            = Condition(0.1, 0., 0, 20)
+        self.pea           = Condition(0.2, 0., 0, 10)
 
     def score_primer(self, p):
         return self.primer_length.score(len(p)) \

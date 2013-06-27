@@ -227,7 +227,11 @@ def bisulfite(seq, methyl, sense=True):
     return getattr(seq, key)
 
 def gc_ratio(seq):
-    return GC(seq)
+    c = seq.count('C')
+    c += seq.count('G')
+    c += seq.count('Y')
+    c += seq.count('R')
+    return 100. * c/len(seq)
 
 def _c2t_conversion(seq):
     muta = seq.tomutable()

@@ -13,7 +13,7 @@ def to_unambiguous_seq(st):
 
 def is_sequence_like(s):
     t = str(s).upper().translate(seqfilter)
-    if all(n in IUPAC.unambiguous_dna.letters for n in t):
+    if all(n in IUPAC.ambiguous_dna.letters for n in t):
         return True
 
 def to_seq(s):

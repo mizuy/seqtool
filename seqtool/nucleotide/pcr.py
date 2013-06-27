@@ -37,10 +37,12 @@ class PCRProduct:
 
         self.template = i.template
 
+        self.start_0 =  i.left - i.adapter_length
         self.start = i.left
         self.start_i = i.right
         self.end_i = j.left
         self.end = j.right
+        self.end_0 =  j.right + j.adapter_length
 
         self.head = self.fw.seq[:-self.i.length]
         self.fw_3 = self.fw.seq[-self.i.length:]
@@ -54,7 +56,7 @@ class PCRProduct:
             self.fwp = i.primer
 
         if self.tail:
-            self.rvp = Primer('{}({}-mer)'.format(j.primer.name, len(self.rv_3)),self.rv_3)
+            self.rvp = Primer('{}({}-mer)'.format(j.primer.name, len(self.rv_3)),self.rv_3.reverse_complement())
         else:
             self.rvp = j.primer
 
@@ -84,7 +86,7 @@ class PCRProduct:
     def __str__(self):
         return str(self.seq)
 
-    def write_html(self, w):
+    def write_html(self, w, callback = None):
         b = xmlwriter.builder(w)
 
         with b.div:
@@ -112,6 +114,7 @@ class PCRProduct:
                     cm.add_underbar(i+1)
 
                 cm.write_html(w)
+                callback(self)
             else:
                 w.text('sequence ommitted. product length = {}'.format(len(self)))
 
@@ -128,12 +131,12 @@ class PCRProducts:
     def __len__(self):
         return len(self.products)
 
-    def write_html(self, w):
+    def write_html(self, w, callback = None):
         b = xmlwriter.builder(w)
         if len(self.products) > 0:
             with b.div(klass='products'):
                 for c in self.products:
-                    c.write_html(b.get_writer())
+                    c.write_html(b.get_writer(), callback)
         else:
             with b.div(klass='products'):
                 b.p('no products')
@@ -189,9 +192,9 @@ class PCR:
             print('product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg()))
             print(c.seq)
 
-    def write_html(self, w):
+    def write_html(self, w, callback = None):
         self.primers.write_html(w)
-        self.products.write_html(w)
+        self.products.write_html(w, callback)
 
 class PCRBand:
     """
@@ -234,13 +237,13 @@ class PCRconv(PCR):
             products = PCRProducts(self._search(temp))
             self.converted_temp.append((name, abbr, temp, products))
 
-    def write_html(self, w):
+    def write_html(self, w, callback = None):
         b = w.get_builder()
         self.primers.write_html(w)
 
         for name, abbr, temp, products in self.converted_temp:
             b.h5('template = {}'.format(name))
-            products.write_html(w)
+            products.write_html(w, callback)
 
     def bands(self):
         ret = defaultdict(lambda :PCRBand())
@@ -271,13 +274,13 @@ class PCRmulti(PCR):
             pcr = PCR(name, seq, primer_fw, primer_rv)
             self.multi_temp.append((tname, pcr))
 
-    def write_html(self, w):
+    def write_html(self, w, callback = None):
         b = w.get_builder()
         self.primers.write_html(w)
 
         for tname, pcr in self.multi_temp:
             b.h5('template = {}'.format(tname))
-            pcr.products.write_html(w)
+            pcr.products.write_html(w, callback)
 
 class RtPCR(PCRmulti):
     def __init__(self, name, genome, transcripts, primer_fw, primer_rv):

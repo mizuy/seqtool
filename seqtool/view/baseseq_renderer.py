@@ -118,7 +118,7 @@ class DoubleStrand:
         # sequences
         s = self.seq[p:q]
         t.add_seq(self.name, "5'-", s, "-3'")
-        t.add_seq(self.name, "3'-", complement(s), "-5'")
+        t.add_seq('', "3'-", complement(s), "-5'")
 
         # negative strand annotations
         t.add(Annotation.get_track(self.neg, False, p, q))
@@ -127,7 +127,7 @@ class DoubleStrand:
         t.add(svg.SvgItemsFixedHeight(8))
 
     def add_primer(self, primer):
-        pp,pc = primer.search(self.seq)
+        pp,pc = primer.search(self.seq, template_ambiguous = True)
         for a in pp:
             self.pos.append(AnnotationPrimerAnneal(a))
         for a in pc:
@@ -197,18 +197,22 @@ class BaseseqRenderer:
         for ds in self.doublestrands:
             ds.pos.append(AnnotationTexts(ds.name, p, q, bars))
 
-    def track(self, width):
-        l = self.length
+    def track_partial(self, start, end, width = None):
+        start = max(start, 0)
+        end = min(end, self.length)
+
+        width = width or (end - start)
         w = svg.font_width()
         ww =  width * w
 
         t = NamedStack()
 
-        for p,q in iter_sep(iter_step(width, 0, l), lambda:t.add_line(ww)):
+        for p,q in iter_sep(iter_step(width, start, end), lambda:t.add_line(ww)):
             for ds in iter_sep(self.doublestrands, lambda:t.add_subline(ww), False):
                 ds.assign_track(t, p, q)
 
-        return svg.SvgPadding(10,10,t)
+        return svg.SvgPadding(20,20,t)
 
 
-
+    def track(self, width = None):
+        return self.track_partial(0, self.length, width)

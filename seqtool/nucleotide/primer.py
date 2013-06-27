@@ -283,7 +283,12 @@ class Primer:
             seq = self.seq
         primer = seq
         cprimer = seq.reverse_complement()
-        reg = re.compile('(%s)|(%s)'%(iupac.oligo_regex(primer),iupac.oligo_regex(cprimer)))
+        if template_ambiguous:
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_partial)
+        else:
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_unambiguous)
+            
+        reg = re.compile('(%s)|(%s)'%(oregex(primer),oregex(cprimer)))
 
         template = str(template).upper()
         pp = []

@@ -275,6 +275,10 @@ class SvgItems(SvgParent):
 
     def add(self, item):
         self.children.append(item)
+        self._update()
+
+    def _update(self):
+        pass
 
 class SvgItemsFixedHeight(SvgItems):
     def __init__(self, height):
@@ -347,6 +351,11 @@ class SvgItemsVFree(SvgItems):
     def __init__(self, reverse=False):
         super().__init__()
         self.reverse=reverse
+        self._recalc = True
+        self._cache = None
+
+    def _update(self):
+        self._recalc = True
 
     def _find_freespace(self, rects, rect):
         conflicts = [(r.y0, r.y1) for r in rects if r.x.has_intersect(rect.x)]
@@ -381,13 +390,19 @@ class SvgItemsVFree(SvgItems):
 
         return reduce(Rectangle.__add__,rects,Rectangle(0,0,0,0)), trans_ys
 
+    def _cached_calc_rect(self):
+        if self._recalc or not self._cache:
+            self._cache =  self._calc_rect()
+            self._recalc = False
+        return self._cache
+
     @property
     def rect(self):
-        rect, tys = self._calc_rect()
+        rect, tys = self._cached_calc_rect()
         return rect
 
     def draw(self, b):
-        rect, tys = self._calc_rect()
+        rect, tys = self._cached_calc_rect()
         height = rect.y1
 
         for i,item in enumerate(self.children):
