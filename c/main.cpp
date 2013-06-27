@@ -5,6 +5,11 @@
 
 #include "nucleotide.h"
 
+// Na 33mM, K 0mM, Mg 6.5mM, Primer 0.5uM
+const PCRCondition defaultPCRCondition(0.0, 0.05f, 0.0015, 0.000001);
+const PCRCondition myPCRCondition(0.033, 0.0, 0.0065, 0.0000005);
+
+
 namespace po = boost::program_options;
 using namespace std;
 
@@ -48,7 +53,6 @@ int main(int argc, char* argv[]){
 	int product_len_max=250;
 	int primer_len_min=20;
 	int primer_len_max=35;
-	PCRCondition cond=PCRCondition();
     float max_tm_diff=4.0f;
     //float max_tm_diff=8.0f;
 	float max_met_tm_diff = 2.5f;
@@ -142,9 +146,9 @@ int main(int argc, char* argv[]){
     std::ostream logging(lbuf);
 
 	try{
-		bisearch(seq.c_str(), output, logging,
+		bisearch(seq.c_str(), output, logging, myPCRCondition, 
 			product_len_min, product_len_max, primer_len_min, primer_len_max,
-			cond, max_tm_diff, max_met_tm_diff, max_cpg_in_primer, score_threshold, max_results);
+			max_tm_diff, max_met_tm_diff, max_cpg_in_primer, score_threshold, max_results);
 	}
 	catch(std::exception& e) 
 	{ 

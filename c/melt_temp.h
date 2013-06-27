@@ -1,6 +1,7 @@
 #ifndef MELT_TEMP_H
 #define MELT_TEMP_H
 
+#include <cmath>
 #include <vector>
 #include "bisearch.h"
 
@@ -24,7 +25,7 @@ namespace melt_temp{
 	  MeltTemp(const PCRCondition& cond) : cond(cond) {
 	    c_salt = cond.na_conc + cond.k_conc + 4*pow(cond.mg_conc,0.5f);
 	    cc_primer = c_r*c_t0*log(cond.primer_conc); // RT0ln(c)
-	    cc_salt = 16.6 * log10(c_salt / (1+0.7*c_salt));
+	    cc_salt = 16.6 * log10(c_salt / (1.0+0.7*c_salt)) +  3.85;
 
 	    // nnt_dh, nnt_dg validity. NNT of a sequence complemtely equals to that of reverse complement.
 	    /*if(debug){
@@ -40,9 +41,9 @@ namespace melt_temp{
 	    }*/
 	  }
 	  float calc_tm(float sdh, float sdg){
-	    float dhp = -1000.0 * (2*c_dhe + sdh);
-	    float dgp = -1000.0 * (2*c_dge + c_dgi + sdg);
-	    return c_t0 * dhp / (dhp-dgp+cc_primer) + cc_salt - 269.3;
+	    float dhp = -1000.0f * (2*c_dhe + sdh);
+	    float dgp = -1000.0f * (2*c_dge + c_dgi + sdg);
+	    return c_t0 * dhp / (dhp-dgp+cc_primer) + cc_salt - c_k;
 	  }
 	  float seq_tm(const std::vector<char>& seq){
 	    float p=0; //enthalpy
@@ -58,6 +59,7 @@ namespace melt_temp{
 	  float cc_primer;
 	  float cc_salt;
 	  const float c_r = 1.987f;
+      const float c_k =  273.15f;
 	  const float c_t0 = 298.2f;
 	  const float c_dhe = 5.0; // delta He = 5 kcal/mol
 	  const float c_dge = 1.0; // delta Ge = 1 kcal/mol

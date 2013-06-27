@@ -5,14 +5,17 @@ LIBS = -L/usr/local/lib -lboost_program_options
 
 INPUT = $(wildcard *.cpp)
 OBJS  = $(INPUT:.cpp=.o)
-TARGET = $(BIN)/bisearch
+TARGET = $(BIN)/bisearch $(BIN)/tm
 
-all: $(TARGET)
+all: $(TARGET) 
 
 include Makefile.deps
 
-$(TARGET): $(OBJS)
-	$(CPP) $(CFLAGS) $(LIBS) $(OBJS) -o $@
+$(BIN)/bisearch: bisearch.o primer.o main.o
+	$(CPP) $(CFLAGS) $(LIBS) bisearch.o primer.o main.o -o $@
+
+$(BIN)/tm: tm.o
+	$(CPP) $(CFLAGS) $(LIBS) tm.o bisearch.o -o $@
 
 dep: Makefile.deps
 
