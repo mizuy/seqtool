@@ -36,6 +36,10 @@ rect{
     fill: none;
     stroke: black;
 }
+polyline{
+    stroke: black;
+    fill: none;
+}
 '''
 
 def fm(x):
@@ -658,9 +662,9 @@ class SvgGraphline(SvgItemsFixedHeight):
         self.points = [(i*scalex,height*(1.-values[i])) for i in range(0, len(values), step)]
         self.bars = bars
         self.kwargs = self._style(kwargs)
-        self.width = width or len(values)
+        self.width = width or len(values) * scalex
 
-        self._rect = Rectangle(0, len(values), 0, height)
+        self._rect = Rectangle(0, self.width, 0, height)
 
     def draw(self, b):
         p = ','.join(["%.2f %.2f"%(x,y) for (x,y) in self.points])
@@ -668,6 +672,89 @@ class SvgGraphline(SvgItemsFixedHeight):
         for bar in self.bars:
             t = self.height * (1.-bar)
             b.line(x1=0, x2=fm(self.width), y1=fm(t), y2=fm(t), klass='graphline')
+            
+    @property
+    def rect(self):
+        return self._rect
+
+class SvgGraph(SvgItemsFixedHeight):
+    def __init__(self, height, values, scalex=1., **kwargs):
+        super().__init__(height)
+
+        step = max(1, int(1./scalex)) # for smaller file size.
+        self.points = [(i*scalex,height*(1.-values[i])) for i in range(0, len(values), step)]
+        self.kwargs = self._style(kwargs)
+
+        width = len(values) * scalex
+
+        self._rect = Rectangle(0, width, 0, height)
+
+    def draw(self, b):
+        p = ','.join(["%.2f %.2f"%(x,y) for (x,y) in self.points])
+        b.polyline(points=p, **self.kwargs)
+            
+    @property
+    def rect(self):
+        return self._rect
+
+from ..nucleotide import base_color
+
+class SvgBaseText(SvgBase):
+    def __init__(self, ploc, pbas, scalex = 1., fontsize = DEFAULT_FONTSIZE):
+        fw = font_width(fontsize)
+        self.x = ' '.join(fm(x * scalex - fw/2.) for x in ploc)
+        self.pbas = pbas
+        self.y = 0
+        self.w = max(ploc) * scalex
+        self.h = font_height(fontsize)
+
+        self.style = {}
+        if fontsize != DEFAULT_FONTSIZE:
+            self.style['fontsize'] = fontsize
+
+        self._rect = Rectangle(0, self.w, 0, self.h)
+
+    def draw(self,b):
+        with b['text'](x=self.x, y=fm(self.h), **self.style):
+            b.text(self.pbas)
+
+class SvgBasePeaks(SvgItemsVStack):
+    def __init__(self, height, peaks, ploc, pbas, scalex = 1.):
+        super().__init__()
+        self.add(SvgBaseText(ploc, pbas, scalex))
+        self.add(SvgPeaks(height, peaks, scalex))
+
+class SvgPeaks(SvgItemsFixedHeight):
+    def __init__(self, height, peaks, scalex = 1.):
+        super().__init__(height)
+
+        self.scalex = scalex
+        self.peaks = peaks
+
+        self.max_peak = 0
+        self.length = 0
+        for base, values in peaks.items():
+            self.max_peak = max(self.max_peak, max(values))
+            self.length = max(self.length, len(values))
+
+        self.height = height
+        self.scaley = 1. * self.height/self.max_peak
+
+        self.width = self.scalex * self.length
+        self._rect = Rectangle(0, self.width, 0, self.height)
+
+    def draw(self, b):
+        for base, values in self.peaks.items():
+            color = base_color(base)
+            style = 'stroke:{}'.format(color)
+
+            v = ['{:.2f} {:.2f}'.format(x * self.scalex, self.height - y * self.scaley) for x, y in enumerate(values)]
+            
+            b.polyline(points = ','.join(v), style = style)
+
+    @property
+    def rect(self):
+        return self._rect
 
 
 class SvgItemGenerator:

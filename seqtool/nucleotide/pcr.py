@@ -146,6 +146,13 @@ class PCRProducts:
 
 class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
+        """
+        >>> fw = Primer('Fw','TTTCAGCAAGGACTGGTCTTT')
+        >>> rv = Primer('Rv','CACAACTTTCAGCAGCTTACAAA')
+        >>> t = Seq.Seq('TTTCAGCAAGGACTGGTCTTTCTATCTCTTGTACTACACTGAATTCACCCCCACTGAAAAAGATGAGTATGCCTGCCGTGTGAACCATGTGACTTTGTCACAGCCCAAGATAGTTAAGTGGGGTAAGTCTTACATTCTTTTGTAAGCTGCTGAAAGTTGTG')
+        >>> pcr = PCR('B2M', t, fw, rv)
+        aa
+        """
         assert(isinstance(template, Seq.Seq))
         assert(isinstance(name, str))
         assert(isinstance(primer_fw, Primer))

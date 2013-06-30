@@ -17,7 +17,7 @@ cleanall: clean
 	rm -rf develop-egg parts *.egg-info dist
 
 test:
-	$(BIN)/nosetests
+	$(BIN)/nosetests --with-coverage --cover-html --with-doctest --cover-package=seqtool
 
 examples:
 	cd example; make

@@ -1,22 +1,22 @@
-from Bio.SeqUtils import GC
 from . import to_unambiguous_seq
+
 
 def drop_small_region(items, length):
     ret = []
-    for p,q in items:
+    for p, q in items:
         if q-p >= length:
-            ret.append((p,q))
+            ret.append((p, q))
     return ret
 
 def region_growing(items, gap=0):
-    if len(items)<2:
+    if len(items) < 2:
         return items
-    p,q = items[0]
+    p, q = items[0]
     rest = items[1:]
     for i in range(len(rest)):
-        r,s = rest[i]
-        if r<q+gap:
-            q = max(q,s)
+        r, s = rest[i]
+        if r < q + gap:
+            q = max(q, s)
             continue
         else:
             return [(p,q)]+region_growing(rest[i:],gap)
@@ -45,7 +45,7 @@ class cpgisland_searcher(object):
     def finish(self):
         self.p(self.length, False)
         h = self.window/2
-        
+
         connected = region_growing([(p-h, q+h) for p,q in self.islands])
         # Two individual CpG islands were connected if they were separated by less than 100 bp
         gap_connected = region_growing(connected, 100)
@@ -76,7 +76,7 @@ def seq_cpg_analysis(seq, window):
 
         gc_per.append(gcp)
         obs.append(oe)
-    
+
         island = (gcp > 0.55) and (oe > 0.65)
         sr.p(i, island)
 
@@ -161,6 +161,8 @@ def count_cpg(seq, range_=(None,None)):
     3
     >>> count_cpg('ATGCCGCGATCG',(2,6))
     2
+    >>> count_cpg('ATGCCGCGATCG',(2,6))
+    30
     """
     p,q = range_
     p = p or 0
@@ -171,7 +173,7 @@ def count_cpg(seq, range_=(None,None)):
 
 def _bisulfite_conversion(seq):
     """
-    >>> _bisulfite_conversion_ambiguous('ATGCCGATGC')
+    >>> _bisulfite_conversion('ATGCCGATGC')
     Seq.Seq('ATGTYGATGT')
     """
     seqstr = str(seq)
@@ -188,7 +190,6 @@ def _bisulfite_conversion(seq):
             muta[j] = 'Y'
         else:
             muta[j] = 'T'
-
 
         j += 1
 
@@ -249,3 +250,7 @@ class BisulfiteTemplate:
         self.origin = origin_seq
         self.sense = bisulfite_conversion(True)
         self.asense = bisulfite_conversion(False)
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
