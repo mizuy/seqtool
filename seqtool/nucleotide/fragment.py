@@ -21,8 +21,6 @@ class Fragment(object):
         self.p3 = p3
 
     def __repr__(self):
-        """
-        """
         ret = self.p5.seq \
             + ('_' if self.p5.strand else '^') \
             + self.body \
@@ -31,11 +29,6 @@ class Fragment(object):
         return "Fragment({})".format(ret)
 
     def digestion(self, ri):
-        """
-        >>> a = Fragment('ATGCCCGG')
-        >>> a.digstion(EcoRI)
-
-        """
         return []
 
     def ligation(self, flag):

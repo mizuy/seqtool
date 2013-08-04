@@ -22,6 +22,7 @@ temp
 /src
 .mr.developer.cfg
 .coverage
+/cover
 
 # Setuptools/Distribute's files
 /*.egg
@@ -45,7 +46,8 @@ temp
 
 # backup files
 *~
-#*
+\#*
+.\#*
 
 # virtualenv
 /env

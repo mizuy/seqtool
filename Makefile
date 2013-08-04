@@ -16,8 +16,14 @@ clean:
 cleanall: clean
 	rm -rf develop-egg parts *.egg-info dist
 
-test:
+coverage:
 	$(BIN)/nosetests --with-coverage --cover-html --with-doctest --cover-package=seqtool
+
+test:
+	$(BIN)/nosetests --with-doctest
+
+ctags:
+	ctags -e -R seqtool
 
 examples:
 	cd example; make
@@ -27,7 +33,7 @@ build: bisearch
 
 bootstrap:
 	virtualenv --python=python3.3 --system-site-packages env
-	# pip install Cython numpy
+	#pip install Cython numpy
 	python setup.py develop
 
 pdf: source.pdf
@@ -36,5 +42,5 @@ source.pdf: seqtool/*.py seqtool/**/*.py
 	pstopdf source.ps -o source.pdf
 	rm source.ps
 
-.PHONY: test all build clean examples cleanall dbload bsearch bootstrap
+.PHONY: test coverage all build clean examples cleanall dbload bsearch bootstrap
 

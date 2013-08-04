@@ -41,6 +41,7 @@ rpm = seqtool.script.cf:main
 align = seqtool.script.align:main
 translate = seqtool.script.translate:main
 server = seqtool.server.server:main
+abiraw = seqtool.frontend.command:abiraw
 """
 setup(
     name='seqtool',

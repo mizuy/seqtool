@@ -1,26 +1,10 @@
 import struct
 import datetime
-from contextlib import contextmanager
-from ..nucleotide import base_color
-from ..view import svg
+
+from seqtool.util import svg, debug
+from .render import SvgPeaks, SvgBasePeaks
 
 base_index = {0:'G', 1:'A', 2:'T', 3:'C'}
-
-@contextmanager
-def report_exceptions():
-    import traceback
-    import pdb
-    import sys
-    try:
-        yield
-    except Exception:
-        e, m, tb = sys.exc_info()
-        print('exception traceback:'.ljust( 80, '=' ))
-        for tbi in traceback.format_tb( tb ):
-            print(tbi)
-        print('  %s' % str( m ))
-        print(''.rjust( 80, '=' ))
-        pdb.post_mortem(tb)
 
 class InvalidFormat(Exception):
     pass
@@ -111,8 +95,9 @@ class Entry:
             return contents
 
 class AbiFormat:
-    def __init__(self):
-        pass
+    def __init__(self, filename):
+        with open(filename, 'rb') as fp:
+            self.readfp(fp)
 
     def readfp(self, fp):
         header =  fp.read(4)
@@ -129,6 +114,14 @@ class AbiFormat:
     def get(self, name, number = 1):
         return self._items.get((name, number))
 
+    def get_sequence(self):
+        pbas = self.get('PBAS').entries
+        pbas = ''.join(p.decode('utf-8') for p in pbas)
+        return pbas
+
+    def get_sequence_loc(self):
+        return self.get('PLOC').entries
+    
     def get_peaks(self):
         peaks = {}
         for i in range(4):
@@ -144,28 +137,26 @@ class AbiFormat:
             values = self.get('DATA', 1 + i).entries
             peaks[base] = values
         return peaks
-    
-    def read(self, filename):
-        with open(filename, 'rb') as fp:
-            self.readfp(fp)
 
     def svg(self):
-        ploc = self.get('PLOC').entries
-        pbas = self.get('PBAS').entries
-        pbas = ''.join(p.decode('utf-8') for p in pbas)
-        print(pbas)
+        ploc = self.get_sequence_loc()
+        pbas = self.get_sequence()
         t = svg.SvgItemsVStack()
-        peak = svg.SvgBasePeaks(200, self.get_peaks(), ploc, pbas)
-        raw = svg.SvgPeaks(200, self.get_raw())
-        t.add(peak)
-        t.add(raw)
+        t.add(SvgBasePeaks(200, self.get_peaks(), ploc, pbas))
+        t.add(SvgPeaks(200, self.get_raw()))
         return svg.SvgPadding(20, 20, t).svg()
 
-def main():
-    a = AbiFormat()
-    a.read('test.ab1')
-    open('test.svg', 'w').write(a.svg())
+    def svg_raw(self):
+        return svg.SvgPadding(20, 20, SvgPeaks(200, self.get_raw())).svg()
 
+def svg_raw(filename, output):
+    with debug.report_exceptions():
+        a = AbiFormat()
+        a.read(filename)
+        open(output, 'w').write(a.svg_raw())
+    
 if __name__ == '__main__':
-    with report_exceptions():
-        main()
+    with debug.report_exceptions():
+        a = AbiFormat()
+        a.read('test.ab1')
+        open('test.svg', 'w').write(a.svg())

@@ -1,27 +1,12 @@
 import sys, os
 from argparse import ArgumentParser
 
+from ..util.debug import report_exceptions
 from ..util.dirutils import Filepath
-from contextlib import contextmanager
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
     sys.stderr.flush()
-
-@contextmanager
-def report_exceptions():
-    import traceback
-    import pdb
-    try:
-        yield
-    except Exception:
-        e, m, tb = sys.exc_info()
-        print('exception traceback:'.ljust( 80, '=' ))
-        for tbi in traceback.format_tb( tb ):
-            print(tbi)
-        print('  %s' % str( m ))
-        print(''.rjust( 80, '=' ))
-        pdb.post_mortem(tb)
 
 def init_db():
     from .. import db
@@ -215,6 +200,24 @@ def primers():
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
                 ps.write_html(html)
+
+def abiraw():
+    parser = ArgumentParser(prog='abiraw', description='Ab1 File Raw Signal Viewer')
+    parser.add_argument('filename', help='.ab1 file')
+    parser.add_argument("-o", "--output", dest="output", help="output html filename")
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+    parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
+
+    args = parser.parse_args()
+
+    inputp = Filepath(args.filename)
+    outputp = get_output_path(args.filename, args.output, '.svg')
+    if check_update(outputp.path, [inputp.path], args.force):
+        from seqtool.format import abi
+        abi.svg_raw(inputp.path, outputp.path)
+
+        if args.open:
+            mac_open(outputp)
 
 def seqdb_command():
     from argparse import ArgumentParser

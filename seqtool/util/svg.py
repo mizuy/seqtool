@@ -1,11 +1,10 @@
 
+from . import xmlwriter
+from .rectangle import Rectangle
 
-from ..util import xmlwriter
 import itertools
 from io import StringIO
 from functools import reduce
-
-from .rectangle import Line, Rectangle
 
 DEBUG = False
 
@@ -45,11 +44,11 @@ polyline{
 def fm(x):
     """
     >>> fm(0.5)
-    0.5
+    '0.50'
     >>> fm(0.0555)
-    0.05
+    '0.06'
     >>> fm(45.)
-    45
+    '45'
     """
     return '{:.2f}'.format(x) if x%1 else '{}'.format(int(x))
 
@@ -335,8 +334,8 @@ class SvgItemsVStack(SvgItems):
 
 def grouper(n, iterable, fillvalue=None):
     """
-    >>> grouper(3, 'ABCDEFG', 'x')
-    "ABC DEF Gxx"
+    >>> list(grouper(3, 'ABCDEFG', 'x'))
+    [('A', 'B', 'C'), ('D', 'E', 'F'), ('G', 'x', 'x')]
     """
     args = [iter(iterable)] * n
     return itertools.zip_longest(fillvalue=fillvalue, *args)
@@ -697,65 +696,6 @@ class SvgGraph(SvgItemsFixedHeight):
     def rect(self):
         return self._rect
 
-from ..nucleotide import base_color
-
-class SvgBaseText(SvgBase):
-    def __init__(self, ploc, pbas, scalex = 1., fontsize = DEFAULT_FONTSIZE):
-        fw = font_width(fontsize)
-        self.x = ' '.join(fm(x * scalex - fw/2.) for x in ploc)
-        self.pbas = pbas
-        self.y = 0
-        self.w = max(ploc) * scalex
-        self.h = font_height(fontsize)
-
-        self.style = {}
-        if fontsize != DEFAULT_FONTSIZE:
-            self.style['fontsize'] = fontsize
-
-        self._rect = Rectangle(0, self.w, 0, self.h)
-
-    def draw(self,b):
-        with b['text'](x=self.x, y=fm(self.h), **self.style):
-            b.text(self.pbas)
-
-class SvgBasePeaks(SvgItemsVStack):
-    def __init__(self, height, peaks, ploc, pbas, scalex = 1.):
-        super().__init__()
-        self.add(SvgBaseText(ploc, pbas, scalex))
-        self.add(SvgPeaks(height, peaks, scalex))
-
-class SvgPeaks(SvgItemsFixedHeight):
-    def __init__(self, height, peaks, scalex = 1.):
-        super().__init__(height)
-
-        self.scalex = scalex
-        self.peaks = peaks
-
-        self.max_peak = 0
-        self.length = 0
-        for base, values in peaks.items():
-            self.max_peak = max(self.max_peak, max(values))
-            self.length = max(self.length, len(values))
-
-        self.height = height
-        self.scaley = 1. * self.height/self.max_peak
-
-        self.width = self.scalex * self.length
-        self._rect = Rectangle(0, self.width, 0, self.height)
-
-    def draw(self, b):
-        for base, values in self.peaks.items():
-            color = base_color(base)
-            style = 'stroke:{}'.format(color)
-
-            v = ['{:.2f} {:.2f}'.format(x * self.scalex, self.height - y * self.scaley) for x, y in enumerate(values)]
-            
-            b.polyline(points = ','.join(v), style = style)
-
-    @property
-    def rect(self):
-        return self._rect
-
 
 class SvgItemGenerator:
     def __init__(self, scalex, scaley):
@@ -807,6 +747,4 @@ class SvgItemGenerator:
     def graphline(self, height, values, bars=[], width=None, **kwargs):
         height /= self.sy
         return SvgGraphline(height, values, bars, scalex=self.sx, width=width, **kwargs)
-
-
 

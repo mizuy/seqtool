@@ -63,12 +63,12 @@ class Alignment(object):
     def text_all(self):
         p,q = self.aseq0.adjust, self.aseq1.adjust
         r = max(p,q)
-        return '{}\n{}'.format(' '*(r-p) + self.aseq0.combined(), 
+        return '{}\n{}'.format(' '*(r-p) + self.aseq0.combined(),
                                ' '*(r-q) + self.aseq1.combined() )
 
     def text_local(self, upstream=30, downstream=30):
         p,q = self.aseq0.adjust, self.aseq1.adjust
-        return '{}\n{}\n{}'.format(self.aseq1.local(upstream,downstream), 
+        return '{}\n{}\n{}'.format(self.aseq1.local(upstream,downstream),
                                ' '*upstream+self.match_bar(),
                                self.aseq0.local(upstream,downstream) )
 
@@ -97,6 +97,46 @@ class Alignment(object):
 
         return m
 
+    def get_loc(self, loc, index):
+        if index == 0:
+            base = self.aseq0.mid_gap
+            targ = self.aseq1.mid_gap
+        else:
+            base = self.aseq1.mid_gap
+            targ = self.aseq0.mid_gap
+
+        assert(len(self.aseq0.mid)==len(loc))
+        assert(len(self.aseq1.mid)==len(loc))
+
+        l = len(base)
+        assert(l == len(targ))
+
+        ret = []
+        b_i = -1
+        t_i = -1
+        for i in range(l):
+            b = base[i]
+            t = targ[i]
+            if b == '-' and t == '-':
+                continue
+            elif b == '-':
+                t_i += 1
+                if b_i<0:
+                    lo = loc[0]
+                elif 0 < b_i and b_i+1 < l:
+                    lo = .5*(loc[b_i]+loc[b_i+1])
+                else:
+                    lo = loc[b_i]
+                ret.append(lo)
+            elif t == '-':
+                b_i += 1
+            else:
+                b_i += 1
+                t_i += 1
+                ret.append(loc[b_i])
+
+        return ret
+
     def compare_bar(self, index):
         """
         view   : ATTTG-CA
@@ -104,7 +144,7 @@ class Alignment(object):
         base   : A---AACN
 
         compare: Ag-CA
-        gap    :  <   
+        gap    :  <
         base'  : AAACN
         """
         if index == 0:

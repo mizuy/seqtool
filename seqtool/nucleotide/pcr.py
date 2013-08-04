@@ -151,7 +151,6 @@ class PCR:
         >>> rv = Primer('Rv','CACAACTTTCAGCAGCTTACAAA')
         >>> t = Seq.Seq('TTTCAGCAAGGACTGGTCTTTCTATCTCTTGTACTACACTGAATTCACCCCCACTGAAAAAGATGAGTATGCCTGCCGTGTGAACCATGTGACTTTGTCACAGCCCAAGATAGTTAAGTGGGGTAAGTCTTACATTCTTTTGTAAGCTGCTGAAAGTTGTG')
         >>> pcr = PCR('B2M', t, fw, rv)
-        aa
         """
         assert(isinstance(template, Seq.Seq))
         assert(isinstance(name, str))

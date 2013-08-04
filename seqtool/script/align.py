@@ -5,14 +5,14 @@ import readline
 import traceback
 
 from seqtool.nucleotide import to_seq
-from seqtool.nucleotide.cpg import bisulfite_conversion_ambiguous, c2t_conversion
+from seqtool.nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from seqtool.nucleotide import sw
 from Bio import SeqIO
 
 conversions = [
     ('origin(MH)', lambda x: x),
-    ('BS+ (N)', lambda x: bisulfite_conversion_ambiguous(x, True)),
-    ('BS- (N)', lambda x: bisulfite_conversion_ambiguous(x, False)),
+    ('BS+ (N)', lambda x: bisulfite_conversion(x, True)),
+    ('BS- (N)', lambda x: bisulfite_conversion(x, False)),
     ('C2T+ (NMH)', lambda x: c2t_conversion(x, True)),
     ('C2T- (NMH)', lambda x: c2t_conversion(x, False)) ]
 

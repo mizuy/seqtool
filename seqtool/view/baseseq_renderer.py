@@ -1,7 +1,7 @@
 
 from ..nucleotide.cpg import bisulfite_conversion
-from . import svg
-from .rectangle import Rectangle,Line
+from ..util import svg
+from ..util.rectangle import Rectangle,Line
 from ..nucleotide import reverse, complement
 
 __all__ = ['BaseseqRenderer']

@@ -1,5 +1,5 @@
 
-import seqtool.view.svg as svg
+import seqtool.util.svg as svg
 from seqtool.util.parser import TreekvParser
 import sys
 import math

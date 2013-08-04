@@ -1,15 +1,11 @@
+import os
 from Bio import SeqIO
 
-import os
-from seqtool.nucleotide import to_seq
-from seqtool.nucleotide.cpg import bisulfite_conversion, c2t_conversion
-from seqtool.nucleotide import sw
-#from Bio import SeqIO
-from seqtool.view.baseseq_renderer import BaseseqRenderer
-from ..util.subfs import SubFileSystem
-from ..util import xmlwriter
+from ..nucleotide import to_seq, sw
+from ..nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from ..nucleotide.primer import Primer
 from ..util import report
+from ..view.baseseq_renderer import BaseseqRenderer
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -75,7 +71,12 @@ class SeqFile(object):
         self.name = name
         self.filename = filename
         self.tc = template_candidate
-        self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+        base,ext = os.path.splitext(self.filename)
+        if ext=='.seq':
+            self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+        elif ext=='.ab1':
+            self.ab1 = AbiFormat(filename)
+            self.seq = self.ab1.get_sequence()
         self._alignment = self.tc.alignments(self.seq)
 
     def svg(self):
@@ -92,6 +93,20 @@ class SeqFile(object):
             render.add_alignment(tempname, p, q, [comp, gap])
 
         return render.track(len(self.seq)+10).svg()
+
+    def svg_peak(self):
+        t = svg.SvgItemsVStack()
+        #for primer in self.tc.primers:
+        #    render.add_primer(primer)
+
+        p = format.render.SvgPeakAlignment(self.ab1)
+        for al, p, q, tempname in self._alignment:
+            if al.score_density() < SCORE_THRESHOLD:
+                continue
+            
+            p.add_alignment(tempname, al.get_loc(self.ab1.ploc(),0),al.get_mid(),al.get_gap)
+
+        return p.svg()
 
     def html(self, b):
         #b.h3(self.name)
