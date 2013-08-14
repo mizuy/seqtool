@@ -1,8 +1,8 @@
 import sys, os
 from argparse import ArgumentParser
 
-from ..util.debug import report_exceptions
 from ..util.dirutils import Filepath
+from ..util.debug import report_exceptions
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -91,11 +91,10 @@ def seqview():
 
     if check_update(outputp.path, [inputp.path], args.force):
         init_db()
-        with report_exceptions():
-            print("processing input:{}, output:{}".format(inputp.path,outputp.path))
-            from ..view import seqview as seqv
-            p = seqv.Seqview.load_seqv(inputp.path)
-            p.write_html(outputp)
+        print("processing input:{}, output:{}".format(inputp.path,outputp.path))
+        from ..view import seqview as seqv
+        p = seqv.Seqview.load_seqv(inputp.path)
+        p.write_html(outputp)
 
         if args.open:
             mac_open(outputp)
@@ -108,23 +107,21 @@ def geneview():
     parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
 
     args = parser.parse_args()
-
     gene_symbol = args.gene_symbol
     outputp = get_output_path(gene_symbol, args.output, False)
 
-    with report_exceptions():
-        from ..view import seqview as seqv
+    init_db()
+    try:
         from .. import db
-        init_db()
-        try:
-            gene_id, gene_symbol = db.genetable.get_gene_from_text(gene_symbol)
-        except db.NoSuchGene:
-            log('gene entry: No such Gene %s'%gene_symbol)
-            return
+        gene_id, gene_symbol = db.genetable.get_gene_from_text(gene_symbol)
+    except db.NoSuchGene:
+        log('gene entry: No such Gene %s'%gene_symbol)
+        return
 
-        sv = seqv.Seqview.create_gene(gene_symbol, gene_id)
-        sv.add_dbtss(db.dbtss.get_dbtss_tissues())
-        sv.write_html(outputp)
+    from ..view import seqview as seqv
+    sv = seqv.Seqview.create_gene(gene_symbol, gene_id)
+    sv.add_dbtss(db.dbtss.get_dbtss_tissues())
+    sv.write_html(outputp)
 
     if args.open:
         mac_open(outputp)
@@ -147,28 +144,29 @@ def sequencing():
     outputp = Filepath(args.output)
     if check_update(outputp.path, inputps, args.force):
         from ..script.sequencing import SequencingAnalysis
-        p = SequencingAnalysis()
-        p.load_fasta(args.template)
-        for input in inputps:
-            print(' processing:', input)
-            p.load_seqfile(input)
-        p.write_html(outputp)
+        with report_exceptions():
+            p = SequencingAnalysis()
+            p.load_fasta(args.template)
+            for input in inputps:
+                print(' processing:', input)
+                p.load_seqfile(input)
+            p.write_html(outputp)
 
-        if args.open:
-            mac_open(outputp)
+            if args.open:
+                mac_open(outputp)
 
 def get_genbank():
-    from .. import db
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
     parser.add_argument("gene", help="Gene ID or Gene Symbol")
 
     args = parser.parse_args()
 
     init_db()
+    from .. import db
     genbank = db.genetable.get_genomic_context_genbank(args.gene)
 
     if not genbank:
-        print("GenBank retrieve error: ", args.gene)
+        print("Failed to retrieve GenBank: ", args.gene)
         return
     sys.stdout.write(genbank)
 

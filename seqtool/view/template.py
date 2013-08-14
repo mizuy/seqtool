@@ -81,7 +81,7 @@ class GenbankTemplate(BaseTemplate):
 
     @property
     def name(self):
-        return self.name_
+        return 'GenbankTemplate'
 
     @property
     def description(self):

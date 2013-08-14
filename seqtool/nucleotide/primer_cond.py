@@ -23,6 +23,19 @@ class PrimerCondition(object):
         self.pa            = Condition(0.1, 0., 0, 20)
         self.pea           = Condition(0.2, 0., 0, 10)
 
+    def bound_primer(self, p):
+        return self.primer_length.bound(len(p)) \
+              and self.gc.bound(p.gc_ratio) \
+              and self.tm.bound(p.melting_temperature()) \
+              and self.sa.bound(p.sa.score) \
+              and self.sea.bound(p.sea.score)
+
+    def bound_primerpair(self, pp):
+        return self.bound_primer(pp.fw) \
+            and self.bound_primer(pp.rv) \
+            and self.pa.bound(pp.pa.score) \
+            and self.pea.bound(pp.pea.score)
+        
     def score_primer(self, p):
         return self.primer_length.score(len(p)) \
               + self.gc.score(p.gc_ratio) \
@@ -35,6 +48,8 @@ class PrimerCondition(object):
             + self.score_primer(pp.rv) \
             + self.pa.score(pp.pa.score) \
             + self.pea.score(pp.pea.score)
+
+    
 
 class PrimerConditionBisulfite(PrimerCondition):
     def __init__(self):

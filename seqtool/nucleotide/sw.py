@@ -51,7 +51,7 @@ def does_match(i,j):
 
 def match_bar(s0, s1):
     assert(len(s0)==len(s1))
-    return ''.join('| : '[does_match(s0[i],s1[i])] for i in range(len(s0)))
+    return ''.join('|-:-'[does_match(s0[i],s1[i])] for i in range(len(s0)))
 
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
@@ -97,16 +97,17 @@ class Alignment(object):
 
         return m
 
-    def get_loc(self, loc, index):
+    def get_mid_loc(self, loc_full, index):
         if index == 0:
+            p,q = self.aseq0.location
+            loc = loc_full[p:q]
             base = self.aseq0.mid_gap
             targ = self.aseq1.mid_gap
         else:
+            p,q = self.aseq1.location
+            loc = loc_full[p:q]
             base = self.aseq1.mid_gap
             targ = self.aseq0.mid_gap
-
-        assert(len(self.aseq0.mid)==len(loc))
-        assert(len(self.aseq1.mid)==len(loc))
 
         l = len(base)
         assert(l == len(targ))

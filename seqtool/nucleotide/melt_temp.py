@@ -37,6 +37,8 @@ DEFAULT_C_NTP = DEFAULT_C_PRIMER
 
 DEFAULT_MIX = PCRMixture(DEFAULT_C_NA, DEFAULT_C_K,  DEFAULT_C_MG, DEFAULT_C_PRIMER, DEFAULT_C_NTP)
 
+# 50mM Na, 1.5mM Mg, 200nM primers, 
+STANDARD_MIX = PCRMixture(50*10**-3, 0, 1.5*10**-3, 0.2*10**-6, 0.2*10**-6)
     
 def melting_temperature_unmethyl(seq, pcr_mix=DEFAULT_MIX, unmethyl=True):
     seq = str(seq).upper()

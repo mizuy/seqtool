@@ -6,6 +6,10 @@ from ..nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from ..nucleotide.primer import Primer
 from ..util import report
 from ..view.baseseq_renderer import BaseseqRenderer
+from .. import format
+from ..format.abi import AbiFormat
+from ..format.render import SvgPeaksAlignment
+
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -33,7 +37,6 @@ class TemplateCandidate(object):
         self.add_template(name+' C2T+', c2t_conversion(seq, True))
         self.add_template(name+' C2T-', c2t_conversion(seq, False))
 
-
     def load_fasta(self, filename):
         for record in SeqIO.parse(open(filename,'r'), "fasta"):
             name, sep, conv = record.description.partition(':')
@@ -56,11 +59,11 @@ class TemplateCandidate(object):
             for sense in [True,False]:
                 if sense:
                     name = name+'(original)'
-                    st = target
+                    st = template
                 else:
                     name = name+'(reverse)'
-                    st = str(to_seq(target).reverse_complement())
-                al = sw.Alignment(st, template)
+                    st = str(to_seq(template).reverse_complement())
+                al = sw.Alignment(target, st)
                 p,q = al.aseq0.location
                 tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
                 ret.append((al, p, q, tempname))
@@ -73,10 +76,11 @@ class SeqFile(object):
         self.tc = template_candidate
         base,ext = os.path.splitext(self.filename)
         if ext=='.seq':
+            self.abi = None
             self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
         elif ext=='.ab1':
-            self.ab1 = AbiFormat(filename)
-            self.seq = self.ab1.get_sequence()
+            self.abi = AbiFormat(filename)
+            self.seq = self.abi.get_sequence()
         self._alignment = self.tc.alignments(self.seq)
 
     def svg(self):
@@ -95,18 +99,19 @@ class SeqFile(object):
         return render.track(len(self.seq)+10).svg()
 
     def svg_peak(self):
-        t = svg.SvgItemsVStack()
-        #for primer in self.tc.primers:
-        #    render.add_primer(primer)
+        render = SvgPeaksAlignment()
 
-        p = format.render.SvgPeakAlignment(self.ab1)
         for al, p, q, tempname in self._alignment:
             if al.score_density() < SCORE_THRESHOLD:
                 continue
-            
-            p.add_alignment(tempname, al.get_loc(self.ab1.ploc(),0),al.get_mid(),al.get_gap)
 
-        return p.svg()
+            locs = al.get_mid_loc(self.abi.get_sequence_loc(),0)
+            texts = [tempname, al.aseq1.mid_gap, al.match_bar(), al.aseq0.mid_gap]
+            render.add_texts(texts, locs)
+
+        render.add_peaks(200, self.abi.get_peaks())
+
+        return render.svg()
 
     def html(self, b):
         #b.h3(self.name)
@@ -152,13 +157,17 @@ class SequencingAnalysis(object):
         b.h2('Sequencing Analysis:')
         b.h3('Alignment View')
         for sf in self._seqfiles:
-            filename = sf.name+'.svg'
-            subfs.write(filename, sf.svg())
-            link = subfs.get_link_path(filename)
+            fs = [(sf.name+'.svg', sf.svg())]
+            if sf.abi:
+                fs.append((sf.name+'_peak.svg', sf.svg_peak()))
 
             b.h3(sf.name)
             with b.div(cls='products'):
-                with b.a(href=link):
-                    b.img(src=link, width='1000px')
+                for filename, content in fs:
+                    link = subfs.get_link_path(filename)
+                    subfs.write(filename, content)
+                    
+                    with b.a(href=link):
+                        b.img(src=link, width='1000px')
                 sf.html(b)
 

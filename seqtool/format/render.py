@@ -5,8 +5,6 @@ from seqtool import format
 
 fm = svg.fm
 
-
-
 class SvgBaseText(svg.SvgBase):
     def __init__(self, ploc, pbas, scalex = 1., fontsize = svg.DEFAULT_FONTSIZE):
         fw = svg.font_width(fontsize)
@@ -32,6 +30,16 @@ class SvgBasePeaks(svg.SvgItemsVStack):
         self.add(SvgBaseText(ploc, pbas, scalex))
         self.add(SvgPeaks(height, peaks, scalex))
 
+class SvgPeaksAlignment(svg.SvgItemsVStack):
+    def __init__(self):
+        super().__init__()
+
+    def add_texts(self, texts, locs):
+        for t in texts:
+            self.add(SvgBaseText(locs, t, 1.))
+
+    def add_peaks(self, height, peaks):
+        self.add(SvgPeaks(height, peaks, 1.))
 
 class SvgPeaks(svg.SvgItemsFixedHeight):
     def __init__(self, height, peaks, scalex = 1.):

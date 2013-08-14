@@ -30,7 +30,7 @@ class Annotation:
 class AnnotationTexts(Annotation):
     def __init__(self, name, left, right, texts=[]):
         super().__init__(name, left, right)
-        self.texts = texts
+        self.texts = [name]+texts
 
     def svg_item(self, r=None):
         if r and not self.range.has_intersect(r):

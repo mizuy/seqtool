@@ -129,6 +129,14 @@ class PrimerAnnealing:
         w.pop()
 
 def count_while(iteration):
+    '''
+    >>> count_while([1,2,3,4,0])
+    4
+    >>> count_while([])
+    0
+    >>> count_while([0])
+    0
+    '''
     count = 0
 
     for i in iteration:
@@ -232,8 +240,8 @@ class PrimerTemplateAnnealing:
         count = self.template[self.left:self.right].count('N')
         return 1.*count/(self.right-self.left)
 
-    def tm(self):
-        return melt_temp.melting_temperature_unmethyl(self.primer_match)
+    def tm(self, pcr_mix=melt_temp.STANDARD_MIX):
+        return melt_temp.melting_temperature_unmethyl(self.primer_match, pcr_mix)
 
 
 class Primer:
@@ -256,7 +264,7 @@ class Primer:
     def gc_ratio(self):
         return gc_ratio(self.seq)
 
-    def melting_temperature(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=True):
+    def melting_temperature(self, pcr_mix=melt_temp.STANDARD_MIX, unmethyl=True):
         return melt_temp.melting_temperature_unmethyl(self.seq, pcr_mix, unmethyl)
 
     @property
@@ -315,8 +323,13 @@ class Primer:
                 pc.append(pta)
         return pp,pc
 
-    def debugprint(self):
-        #print("%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % (**self.get_table_row()))
+    def write_text(self):
+        print("-"*20)
+        print("{}: 5'-{}-3'".format(self.name,self.seq))
+        h = self.get_table_head()[2:8]
+        r = self.get_table_row()[2:8]
+        for n,v in zip(h,r):
+            print('{}: {}'.format(n,v))
         print('sa=%s, index=%s'%(self.sa.score, self.sa.index))
         print('\n'.join(self.sa.get_bar()))
         print('sea=%s, index=%s'%(self.sea.score, self.sea.index))
@@ -396,17 +409,19 @@ class PrimerPair:
     def score_bisulfite(self):
         return pcond.BISULFITE_PCR.score_primerpair(self)
 
-    def debugprint(self):
+    def write_text(self):
+        print('PrimerPair: {} {}'.format(self.fw.name, self.rv.name))
         print('score=', self.score)
         print('bisulfite score=', self.score_bisulfite)
-        for r in [self.fw, self.rv]:
-            r.debugprint()
+        print('pair-annealing:')
         pa = self.pair_annealing
         print('pa=%s, index=%s'%(pa.score,pa.index))
         print('\n'.join(pa.get_bar()))
         pea = self.pair_end_annealing
         print('pea=%s, index=%s'%(pea.score,pea.index))
         print('\n'.join(pea.get_bar()))
+        for r in [self.fw, self.rv]:
+            r.write_text()
 
 
     def write_html(self, w, pair_values=True, annealings=False):
@@ -488,6 +503,14 @@ class Primers(NamedList):
                 return r
         raise KeyError('no such primer and this is not valid sequence: {}'.format(name))
 
-def test_pp(a,b):
-    PrimerPair(Primer('fw',a),Primer('rv',b)).debugprint()
 
+def main():
+    import sys
+    ps = sys.argv[1:]
+
+    if len(ps)==2:
+        PrimerPair(Primer('fw',ps[0]),Primer('rv',ps[1])).write_text()
+    else:
+        for i,p in enumerate(ps):
+            Primer('Primer{}'.format(i),p).write_text()
+        

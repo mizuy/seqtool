@@ -81,7 +81,7 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
             primer_full_count[primer_i] += 1
 
         align = PrimerAlign(template, primer, difference, offset)
-        if direction == '+':
+        if direction == b'+':
             matches_positive[template].append(align)
         else:
             matches_negative[template].append(align)
@@ -92,9 +92,9 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
         print(' full match = %4d' % primer_full_count[i])
         print(' miss match = %4d' % primer_miss_count[i])
 
-    for v in list(matches_positive.values()):
+    for v in matches_positive.values():
         v.sort(key=lambda x:x.offset)
-    for v in list(matches_negative.values()):
+    for v in matches_negative.values():
         v.sort(key=lambda x:x.offset)
 
     templates = set(matches_positive.keys()) & set(matches_negative.keys())
@@ -142,6 +142,8 @@ def main():
     if options.bisulfite and options.template:
         parser.error('bisulfite option and template option are exclusive.')
 
+    length = options.length if options.length > 0 else None
+
     def s(template):
         '''
         -p 2 : number of thread
@@ -157,9 +159,7 @@ def main():
                 print('match at %s length=%10d %s(%s) -> %s(%s)' %(str(r.template).ljust(10), len(r), r.fw.origin,r.fw.mismatch, r.rv.origin,r.rv.mismatch))
         else:
             print('no result')
-        
                           
-    length = options.length if options.length > 0 else None
     result = None
     if options.template:
         s(options.template)

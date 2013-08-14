@@ -97,7 +97,8 @@ class Seqview(object):
 
             kv = tree.get_one('general/primers')
             if kv:
-                e.primers.load_file(relative_path(kv.value))
+                for v in kv.value_list():
+                    e.primers.load_file(relative_path(v))
 
             kv = tree.get_one('general/tss')
             if kv:
@@ -234,13 +235,25 @@ class Seqview(object):
         aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
         return aseq
 
+    def fasta(self):
+        ret = '>{} : {}\n'.format(self.template.name, self.template.description)
+        ss = str(self.template.seq)
+        l = len(ss)
+
+        for i in range(0, l, 70):
+            ret += ss[i:i+100]
+            ret += '\n'
+
+        return ret
+
     def has_transcripts(self):
         return not not self.template.transcripts
 
     def html_content(self, b, toc, subfs):
         bsr =  self.baseseq_renderer()
         svgs = [('genome.svg', 'Outline', self.svg_genome(), True),
-                ('baseseq.svg', 'Base Sequence', bsr.track(width = 120).svg(), False)]
+                ('baseseq.svg', 'Base Sequence', bsr.track(width = 120).svg(), False),
+                ('seq.seq', 'sequence file', str(self.template.seq), False)]
         if self.has_transcripts():
             svgs.insert(1, ('transcript.svg', 'Transcript', self.svg_transcript(), True))
 

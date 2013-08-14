@@ -1,0 +1,8 @@
+*.ebwt
+*.fa
+convert
+build.sh
+*.log
+chromFa
+bsfa
+*.deps

@@ -121,8 +121,8 @@ class PCRProduct:
             with b.span(**{'class':'length'}):
                 b.text('length=%d, CpG=%d, no stop=%s'%(len(seq), count_cpg(self.middle), no_stop_in_frame(seq)))
 
-            #with b.textarea(cols='10', rows='1', cls='copybox'):
-            #    w.write(str(self.seq))
+            with b.textarea(cols='5', rows='1', cls='copybox'):
+                w.write(str(self.seq))
 
 class PCRProducts:
     def __init__(self, products):
