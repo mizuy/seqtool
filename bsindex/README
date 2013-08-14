@@ -1,0 +1,138 @@
+* How to make bs index
+
+download and unpack chromFa.tar.gz
+http://hgdownload.cse.ucsc.edu/goldenPath/hg19/bigZips/
+
+---
+% ls chromFa
+chr1.fa                   chr19_gl000209_random.fa  chr6_mcf_hap5.fa          chrUn_gl000216.fa         chrUn_gl000235.fa
+chr10.fa                  chr1_gl000191_random.fa   chr6_qbl_hap6.fa          chrUn_gl000217.fa         chrUn_gl000236.fa
+chr11.fa                  chr1_gl000192_random.fa   chr6_ssto_hap7.fa         chrUn_gl000218.fa         chrUn_gl000237.fa
+chr11_gl000202_random.fa  chr2.fa                   chr7.fa                   chrUn_gl000219.fa         chrUn_gl000238.fa
+chr12.fa                  chr20.fa                  chr7_gl000195_random.fa   chrUn_gl000220.fa         chrUn_gl000239.fa
+chr13.fa                  chr21.fa                  chr8.fa                   chrUn_gl000221.fa         chrUn_gl000240.fa
+chr14.fa                  chr21_gl000210_random.fa  chr8_gl000196_random.fa   chrUn_gl000222.fa         chrUn_gl000241.fa
+chr15.fa                  chr22.fa                  chr8_gl000197_random.fa   chrUn_gl000223.fa         chrUn_gl000242.fa
+chr16.fa                  chr3.fa                   chr9.fa                   chrUn_gl000224.fa         chrUn_gl000243.fa
+chr17.fa                  chr4.fa                   chr9_gl000198_random.fa   chrUn_gl000225.fa         chrUn_gl000244.fa
+chr17_ctg5_hap1.fa        chr4_ctg9_hap1.fa         chr9_gl000199_random.fa   chrUn_gl000226.fa         chrUn_gl000245.fa
+chr17_gl000203_random.fa  chr4_gl000193_random.fa   chr9_gl000200_random.fa   chrUn_gl000227.fa         chrUn_gl000246.fa
+chr17_gl000204_random.fa  chr4_gl000194_random.fa   chr9_gl000201_random.fa   chrUn_gl000228.fa         chrUn_gl000247.fa
+chr17_gl000205_random.fa  chr5.fa                   chrM.fa                   chrUn_gl000229.fa         chrUn_gl000248.fa
+chr17_gl000206_random.fa  chr6.fa                   chrUn_gl000211.fa         chrUn_gl000230.fa         chrUn_gl000249.fa
+chr18.fa                  chr6_apd_hap1.fa          chrUn_gl000212.fa         chrUn_gl000231.fa         chrX.fa
+chr18_gl000207_random.fa  chr6_cox_hap2.fa          chrUn_gl000213.fa         chrUn_gl000232.fa         chrY.fa
+chr19.fa                  chr6_dbb_hap3.fa          chrUn_gl000214.fa         chrUn_gl000233.fa
+chr19_gl000208_random.fa  chr6_mann_hap4.fa         chrUn_gl000215.fa         chrUn_gl000234.fa
+% mkdir bsfa
+% ./conv.sh
++ for f in 'chromFa/*.fa'
++ echo 'processing chromFa/chr1.fa file...'
+processing chromFa/chr1.fa file...
++ ./convert p m chromFa/chr1.fa
+++ basename chromFa/chr1.fa .fa
++ ./convert p u chromFa/chr1.fa
+++ basename chromFa/chr1.fa .fa
++ ./convert n m chromFa/chr1.fa
+....
+about 1 hour....
+% ls bsfa
+chr10_nm.fa                  chr21_gl000210_random_nu.fa  chr9_gl000198_random_pm.fa   chrUn_gl000228_pu.fa
+chr10_nu.fa                  chr21_gl000210_random_pm.fa  chr9_gl000198_random_pu.fa   chrUn_gl000229_nm.fa
+chr10_pm.fa                  chr21_gl000210_random_pu.fa  chr9_gl000199_random_nm.fa   chrUn_gl000229_nu.fa
+chr10_pu.fa                  chr21_nm.fa                  chr9_gl000199_random_nu.fa   chrUn_gl000229_pm.fa
+chr11_gl000202_random_nm.fa  chr21_nu.fa                  chr9_gl000199_random_pm.fa   chrUn_gl000229_pu.fa
+chr11_gl000202_random_nu.fa  chr21_pm.fa                  chr9_gl000199_random_pu.fa   chrUn_gl000230_nm.fa
+chr11_gl000202_random_pm.fa  chr21_pu.fa                  chr9_gl000200_random_nm.fa   chrUn_gl000230_nu.fa
+chr11_gl000202_random_pu.fa  chr22_nm.fa                  chr9_gl000200_random_nu.fa   chrUn_gl000230_pm.fa
+chr11_nm.fa                  chr22_nu.fa                  chr9_gl000200_random_pm.fa   chrUn_gl000230_pu.fa
+chr11_nu.fa                  chr22_pm.fa                  chr9_gl000200_random_pu.fa   chrUn_gl000231_nm.fa
+chr11_pm.fa                  chr22_pu.fa                  chr9_gl000201_random_nm.fa   chrUn_gl000231_nu.fa
+chr11_pu.fa                  chr2_nm.fa                   chr9_gl000201_random_nu.fa   chrUn_gl000231_pm.fa
+chr12_nm.fa                  chr2_nu.fa                   chr9_gl000201_random_pm.fa   chrUn_gl000231_pu.fa
+chr12_nu.fa                  chr2_pm.fa                   chr9_gl000201_random_pu.fa   chrUn_gl000232_nm.fa
+chr12_pm.fa                  chr2_pu.fa                   chr9_nm.fa                   chrUn_gl000232_nu.fa
+chr12_pu.fa                  chr3_nm.fa                   chr9_nu.fa                   chrUn_gl000232_pm.fa
+chr13_nm.fa                  chr3_nu.fa                   chr9_pm.fa                   chrUn_gl000232_pu.fa
+chr13_nu.fa                  chr3_pm.fa                   chr9_pu.fa                   chrUn_gl000233_nm.fa
+chr13_pm.fa                  chr3_pu.fa                   chrM_nm.fa                   chrUn_gl000233_nu.fa
+chr13_pu.fa                  chr4_ctg9_hap1_nm.fa         chrM_nu.fa                   chrUn_gl000233_pm.fa
+chr14_nm.fa                  chr4_ctg9_hap1_nu.fa         chrM_pm.fa                   chrUn_gl000233_pu.fa
+chr14_nu.fa                  chr4_ctg9_hap1_pm.fa         chrM_pu.fa                   chrUn_gl000234_nm.fa
+chr14_pm.fa                  chr4_ctg9_hap1_pu.fa         chrUn_gl000211_nm.fa         chrUn_gl000234_nu.fa
+chr14_pu.fa                  chr4_gl000193_random_nm.fa   chrUn_gl000211_nu.fa         chrUn_gl000234_pm.fa
+chr15_nm.fa                  chr4_gl000193_random_nu.fa   chrUn_gl000211_pm.fa         chrUn_gl000234_pu.fa
+chr15_nu.fa                  chr4_gl000193_random_pm.fa   chrUn_gl000211_pu.fa         chrUn_gl000235_nm.fa
+chr15_pm.fa                  chr4_gl000193_random_pu.fa   chrUn_gl000212_nm.fa         chrUn_gl000235_nu.fa
+chr15_pu.fa                  chr4_gl000194_random_nm.fa   chrUn_gl000212_nu.fa         chrUn_gl000235_pm.fa
+chr16_nm.fa                  chr4_gl000194_random_nu.fa   chrUn_gl000212_pm.fa         chrUn_gl000235_pu.fa
+chr16_nu.fa                  chr4_gl000194_random_pm.fa   chrUn_gl000212_pu.fa         chrUn_gl000236_nm.fa
+chr16_pm.fa                  chr4_gl000194_random_pu.fa   chrUn_gl000213_nm.fa         chrUn_gl000236_nu.fa
+chr16_pu.fa                  chr4_nm.fa                   chrUn_gl000213_nu.fa         chrUn_gl000236_pm.fa
+chr17_ctg5_hap1_nm.fa        chr4_nu.fa                   chrUn_gl000213_pm.fa         chrUn_gl000236_pu.fa
+chr17_ctg5_hap1_nu.fa        chr4_pm.fa                   chrUn_gl000213_pu.fa         chrUn_gl000237_nm.fa
+chr17_ctg5_hap1_pm.fa        chr4_pu.fa                   chrUn_gl000214_nm.fa         chrUn_gl000237_nu.fa
+chr17_ctg5_hap1_pu.fa        chr5_nm.fa                   chrUn_gl000214_nu.fa         chrUn_gl000237_pm.fa
+chr17_gl000203_random_nm.fa  chr5_nu.fa                   chrUn_gl000214_pm.fa         chrUn_gl000237_pu.fa
+chr17_gl000203_random_nu.fa  chr5_pm.fa                   chrUn_gl000214_pu.fa         chrUn_gl000238_nm.fa
+chr17_gl000203_random_pm.fa  chr5_pu.fa                   chrUn_gl000215_nm.fa         chrUn_gl000238_nu.fa
+chr17_gl000203_random_pu.fa  chr6_apd_hap1_nm.fa          chrUn_gl000215_nu.fa         chrUn_gl000238_pm.fa
+chr17_gl000204_random_nm.fa  chr6_apd_hap1_nu.fa          chrUn_gl000215_pm.fa         chrUn_gl000238_pu.fa
+chr17_gl000204_random_nu.fa  chr6_apd_hap1_pm.fa          chrUn_gl000215_pu.fa         chrUn_gl000239_nm.fa
+chr17_gl000204_random_pm.fa  chr6_apd_hap1_pu.fa          chrUn_gl000216_nm.fa         chrUn_gl000239_nu.fa
+chr17_gl000204_random_pu.fa  chr6_cox_hap2_nm.fa          chrUn_gl000216_nu.fa         chrUn_gl000239_pm.fa
+chr17_gl000205_random_nm.fa  chr6_cox_hap2_nu.fa          chrUn_gl000216_pm.fa         chrUn_gl000239_pu.fa
+chr17_gl000205_random_nu.fa  chr6_cox_hap2_pm.fa          chrUn_gl000216_pu.fa         chrUn_gl000240_nm.fa
+chr17_gl000205_random_pm.fa  chr6_cox_hap2_pu.fa          chrUn_gl000217_nm.fa         chrUn_gl000240_nu.fa
+chr17_gl000205_random_pu.fa  chr6_dbb_hap3_nm.fa          chrUn_gl000217_nu.fa         chrUn_gl000240_pm.fa
+chr17_gl000206_random_nm.fa  chr6_dbb_hap3_nu.fa          chrUn_gl000217_pm.fa         chrUn_gl000240_pu.fa
+chr17_gl000206_random_nu.fa  chr6_dbb_hap3_pm.fa          chrUn_gl000217_pu.fa         chrUn_gl000241_nm.fa
+chr17_gl000206_random_pm.fa  chr6_dbb_hap3_pu.fa          chrUn_gl000218_nm.fa         chrUn_gl000241_nu.fa
+chr17_gl000206_random_pu.fa  chr6_mann_hap4_nm.fa         chrUn_gl000218_nu.fa         chrUn_gl000241_pm.fa
+chr17_nm.fa                  chr6_mann_hap4_nu.fa         chrUn_gl000218_pm.fa         chrUn_gl000241_pu.fa
+chr17_nu.fa                  chr6_mann_hap4_pm.fa         chrUn_gl000218_pu.fa         chrUn_gl000242_nm.fa
+chr17_pm.fa                  chr6_mann_hap4_pu.fa         chrUn_gl000219_nm.fa         chrUn_gl000242_nu.fa
+chr17_pu.fa                  chr6_mcf_hap5_nm.fa          chrUn_gl000219_nu.fa         chrUn_gl000242_pm.fa
+chr18_gl000207_random_nm.fa  chr6_mcf_hap5_nu.fa          chrUn_gl000219_pm.fa         chrUn_gl000242_pu.fa
+chr18_gl000207_random_nu.fa  chr6_mcf_hap5_pm.fa          chrUn_gl000219_pu.fa         chrUn_gl000243_nm.fa
+chr18_gl000207_random_pm.fa  chr6_mcf_hap5_pu.fa          chrUn_gl000220_nm.fa         chrUn_gl000243_nu.fa
+chr18_gl000207_random_pu.fa  chr6_nm.fa                   chrUn_gl000220_nu.fa         chrUn_gl000243_pm.fa
+chr18_nm.fa                  chr6_nu.fa                   chrUn_gl000220_pm.fa         chrUn_gl000243_pu.fa
+chr18_nu.fa                  chr6_pm.fa                   chrUn_gl000220_pu.fa         chrUn_gl000244_nm.fa
+chr18_pm.fa                  chr6_pu.fa                   chrUn_gl000221_nm.fa         chrUn_gl000244_nu.fa
+chr18_pu.fa                  chr6_qbl_hap6_nm.fa          chrUn_gl000221_nu.fa         chrUn_gl000244_pm.fa
+chr19_gl000208_random_nm.fa  chr6_qbl_hap6_nu.fa          chrUn_gl000221_pm.fa         chrUn_gl000244_pu.fa
+chr19_gl000208_random_nu.fa  chr6_qbl_hap6_pm.fa          chrUn_gl000221_pu.fa         chrUn_gl000245_nm.fa
+chr19_gl000208_random_pm.fa  chr6_qbl_hap6_pu.fa          chrUn_gl000222_nm.fa         chrUn_gl000245_nu.fa
+chr19_gl000208_random_pu.fa  chr6_ssto_hap7_nm.fa         chrUn_gl000222_nu.fa         chrUn_gl000245_pm.fa
+chr19_gl000209_random_nm.fa  chr6_ssto_hap7_nu.fa         chrUn_gl000222_pm.fa         chrUn_gl000245_pu.fa
+chr19_gl000209_random_nu.fa  chr6_ssto_hap7_pm.fa         chrUn_gl000222_pu.fa         chrUn_gl000246_nm.fa
+chr19_gl000209_random_pm.fa  chr6_ssto_hap7_pu.fa         chrUn_gl000223_nm.fa         chrUn_gl000246_nu.fa
+chr19_gl000209_random_pu.fa  chr7_gl000195_random_nm.fa   chrUn_gl000223_nu.fa         chrUn_gl000246_pm.fa
+chr19_nm.fa                  chr7_gl000195_random_nu.fa   chrUn_gl000223_pm.fa         chrUn_gl000246_pu.fa
+chr19_nu.fa                  chr7_gl000195_random_pm.fa   chrUn_gl000223_pu.fa         chrUn_gl000247_nm.fa
+chr19_pm.fa                  chr7_gl000195_random_pu.fa   chrUn_gl000224_nm.fa         chrUn_gl000247_nu.fa
+chr19_pu.fa                  chr7_nm.fa                   chrUn_gl000224_nu.fa         chrUn_gl000247_pm.fa
+chr1_gl000191_random_nm.fa   chr7_nu.fa                   chrUn_gl000224_pm.fa         chrUn_gl000247_pu.fa
+chr1_gl000191_random_nu.fa   chr7_pm.fa                   chrUn_gl000224_pu.fa         chrUn_gl000248_nm.fa
+chr1_gl000191_random_pm.fa   chr7_pu.fa                   chrUn_gl000225_nm.fa         chrUn_gl000248_nu.fa
+chr1_gl000191_random_pu.fa   chr8_gl000196_random_nm.fa   chrUn_gl000225_nu.fa         chrUn_gl000248_pm.fa
+chr1_gl000192_random_nm.fa   chr8_gl000196_random_nu.fa   chrUn_gl000225_pm.fa         chrUn_gl000248_pu.fa
+chr1_gl000192_random_nu.fa   chr8_gl000196_random_pm.fa   chrUn_gl000225_pu.fa         chrUn_gl000249_nm.fa
+chr1_gl000192_random_pm.fa   chr8_gl000196_random_pu.fa   chrUn_gl000226_nm.fa         chrUn_gl000249_nu.fa
+chr1_gl000192_random_pu.fa   chr8_gl000197_random_nm.fa   chrUn_gl000226_nu.fa         chrUn_gl000249_pm.fa
+chr1_nm.fa                   chr8_gl000197_random_nu.fa   chrUn_gl000226_pm.fa         chrUn_gl000249_pu.fa
+chr1_nu.fa                   chr8_gl000197_random_pm.fa   chrUn_gl000226_pu.fa         chrX_nm.fa
+chr1_pm.fa                   chr8_gl000197_random_pu.fa   chrUn_gl000227_nm.fa         chrX_nu.fa
+chr1_pu.fa                   chr8_nm.fa                   chrUn_gl000227_nu.fa         chrX_pm.fa
+chr20_nm.fa                  chr8_nu.fa                   chrUn_gl000227_pm.fa         chrX_pu.fa
+chr20_nu.fa                  chr8_pm.fa                   chrUn_gl000227_pu.fa         chrY_nm.fa
+chr20_pm.fa                  chr8_pu.fa                   chrUn_gl000228_nm.fa         chrY_nu.fa
+chr20_pu.fa                  chr9_gl000198_random_nm.fa   chrUn_gl000228_nu.fa         chrY_pm.fa
+chr21_gl000210_random_nm.fa  chr9_gl000198_random_nu.fa   chrUn_gl000228_pm.fa         chrY_pu.fa
+% python make_index.py > build.sh
+% chmod +x build.sh
+% nohup ./build.sh > out.log 2> err.log < /dev/null &
+---
+
+4hour*4 = 16hoursぐらいかかる

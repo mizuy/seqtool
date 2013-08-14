@@ -1,5 +1,9 @@
 miscellaneous tools for molecular biology.
 
+** Requirements
+
+Python 3.3
+
 ** Commands
 
 get_genbank: get GenBank file from ncbi.
@@ -10,53 +14,17 @@ bisearch: design primer based on primer3 algorithm.
 primers: calculate primer properties
 virtualpcr: PCR primer alignment tool using bowtie
 
-** Install
-python setup.py install
+** configfile
 
-** Mac OS X, homebrew and python Environment
+'/Users/_____/Library/Application Support/seqtool/version/config.cfg'
 
-*** Installing Brew's python
-http://penandpants.com/2012/02/24/install-python/
-https://github.com/mxcl/homebrew/wiki/Homebrew-and-Python
+** bootstrap
 
-% which python
-/usr/bin/python
-% python --version
-Python 2.7.1
-% brew install python
-% which python
-/usr/local/bin/python
-% sudo easy_install virtualenv
-% virtualenv --version
-1.8.2
-% which virtualenv
-/usr/local/share/python/virtualenv
-% pip install numpy
-
-% brew install gfortran
-% pip install scipy
-  --> failed. ;-P
-
-*** virtualenv setup
-
-% virtualenv env
-New python executable in env/bin/python
-Installing setuptools............done.
-Installing pip...............done.
-% source env/bin/activate   
-(env)% python setup.py develop 
-  --> numpy compile failed ;-PPP
-(env)% pip install numpy
-  --> success
-(env)% python setup.py develop 
-...
-Using /Users/mizuy/projects/seqtool/env/lib/python2.7/site-packages
-Finished processing dependencies for seqtool==0.1.1
+make bootstrap
 
 ** databases
 
-ucsc table browser
-http://genome.ucsc.edu/cgi-bin/hgTables?hgsid=310886027&clade=mammal&org=Human&db=hg19&hgta_group=genes&hgta_track=refGene&hgta_table=refGene&hgta_regionType=genome&position=chr21%3A33031597-33041570&hgta_outputType=primaryTable&hgta_outFileName=
+see database/README
 
 ** building boost
 no user-config.bjam required.
@@ -68,8 +36,23 @@ no user-config.bjam required.
 
 You must link boost_program_options
 
-** matplot
-git clone https://github.com/matplotlib/matplotlib.git
-cd matplotlib
-python setup.py build
-sudo python setup.py install
+** TODO
+
+- general
+    - better logging
+    
+- seqview
+    - zoom button in seqv
+    - web server implementation
+    - misc primer attribute calculations
+    - svg link to pcr entry
+    - pcr virtualpcr integration
+
+- new
+    - plasmid fragment analysis and view
+    - local database. MySQL, emsemble.
+
+- bisearch
+    - MSP
+    - python interface
+

@@ -1,40 +1,46 @@
-CPP = clang++
-CFLAGS = -Wall -std=c++0x -stdlib=libc++ -L/usr/local/lib -I/usr/local/include
+BIN = env/bin
 
-all: seqview tssview geneview get_genbank primers bisearch
-	
-seqview:
-	seqview input/seqview.seqv -o _output/seqview.html
+all: build
 
-tssview:
-	tssview input/tssview.tssv -o _output/tssview.html
+dbload:
+	cd database; make
 
-geneview:
-	geneview TP53 -o _output/geneview.html
-
-get_genbank:
-	get_genbank TP53 > _output/TP53.gb
-
-primers:
-	primers input/primers.txt -o _output/primers.html 
-	primers input/primers.txt -c -o _output/primers.csv 
-
-bisearch: bin/bisearch
-	./bin/bisearch input/test.fasta > _output/bisearch.seqv
-	seqview _output/bisearch.seqv -o _output/bisearch.html
-
-bin/bisearch: c/bisearch.cpp c/bisearch.h c/nucleotide.h c/main.cpp
-	$(CPP) $(CFLAGS) -O1 -lboost_program_options c/bisearch.cpp c/main.cpp -o bin/bisearch
-
+bisearch:
+	cd c; make
 
 clean:
-	rm -f **/*~
-	rm -f #*
-	rm -f **/*.pyc
-	rm example/*.html
+	find . -name '*~' -delete
+	find . -name '*.pyc' -delete
+	find . -name '__pycache__' -delete
+
+cleanall: clean
+	rm -rf develop-egg parts *.egg-info dist
+
+coverage:
+	$(BIN)/nosetests --with-coverage --cover-html --with-doctest --cover-package=seqtool
 
 test:
-	nosetests
+	$(BIN)/nosetests --with-doctest
 
-.PHONY: test all
+ctags:
+	ctags -e -R seqtool
+
+examples:
+	cd example; make
+
+build: bisearch
+	cd input; make build
+
+bootstrap:
+	virtualenv --python=python3.3 --system-site-packages env
+	#pip install Cython numpy
+	python setup.py develop
+
+pdf: source.pdf
+source.pdf: seqtool/*.py seqtool/**/*.py
+	enscript seqtool/*.py seqtool/**/*.py --font=Courier6 --highlight=python --line-numbers --landscape --columns=2 --color -o source.ps
+	pstopdf source.ps -o source.pdf
+	rm source.ps
+
+.PHONY: test coverage all build clean examples cleanall dbload bsearch bootstrap
 

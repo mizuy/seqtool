@@ -1,5 +1,0 @@
-SQLAlchemy==0.7.9
-biopython==1.60
-numpy==1.6.2
--e git+git@github.com:mizuy/seqtool.git@c147f8ab92959604edbc504cda630742ab453c80#egg=seqtool-dev
-wsgiref==0.1.2

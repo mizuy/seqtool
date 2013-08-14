@@ -10,11 +10,12 @@
 #include <iostream>
 #include <sstream>
 #include <set>
-\
+
 #include "melt_temp.h"
 #include "container.h"
 #include "bisearch.h"
 #include "nucleotide.h"
+#include "primer.h"
 
 const bool debug = false;
 
@@ -183,7 +184,8 @@ public:
 
   container::iterator begin(){return set_.begin();}
   container::iterator end(){return set_.end();}
-  container::iterator last(){return --end();}
+  container::iterator last(){return begin();}
+  container::iterator first(){return --end();}
   float lowest(){return lowest_;}
 
   bool add(const PrimerPairResult & ppr){
@@ -201,597 +203,459 @@ public:
         set_.erase(l);
         set_.insert(ppr);
         lowest_ = last()->score();
-        return true;
-      }
-    }
-    return false;
-  }
-private:
-  container set_;
-  int size_;
-  float lowest_;
-};
-
-class Results{
-public:
-  typedef vector<ResultChunk> container;
-  container::iterator begin(){return list_.begin();}
-  container::iterator end(){return list_.end();}
-
-  Results(int length, int chunk, int coverage){
-    length_ = length;
-    chunk_ = chunk;
-    coverage_ = coverage;
-
-    clength_ = length/chunk + ((length%chunk)?1:0);
-    list_.resize(clength_);
-    for(auto& i : list_){
-      i.resize(coverage_);
-    }
-  }
-
-  float lowest(int pos){
-    int ii = pos/chunk_;
-    assert(ii < clength_);
-    return list_.at(ii).lowest();
-  };
-  void add(int pos, const PrimerPairResult & ppr){
-    int ii = pos/chunk_;
-    assert(ii < clength_);
-    list_.at(ii).add(ppr);
-  }
-private:
-  container list_;
-  int length_;
-  int clength_;
-  int chunk_;
-  int coverage_;
-};
-
-
-// Store highest score and k value.
-class AnnealStore{
-public:
-  AnnealStore():value(-1), index(0){}
-  inline void store(float v, int i){
-    if(v > value){
-      value = v;
-      index = i;
-    }
-  }
-  float value;
-  int index;
-};
-
-void bisearch(const char* input, ostream& output,
-                  int product_len_min, int product_len_max,
-                  int primer_len_min, int primer_len_max,
-                  PCRCondition cond,
-                  float max_tm_diff,
-                  float max_met_tm_diff,
-                  float score_threshold,
-                  int max_results)
-{
-  PrimerCondition primer_cond(primer_len_min, primer_len_max, true);
-  Condition product_cond(0, 0, product_len_min, product_len_max);
-  melt_temp::MeltTemp mt(cond);
-
-  const string genomic(input);
-  string seq;
-  bisulfite<true>(seq, genomic);
-
-  const int length = seq.length();
-  Seqint seqint(seq);
-
-  //output << "# bisearch length=" << length << " primer_len=" << primer_len_max << endl;
-
-  // TODO: I dont need a field for primer_len_max<minimum. DROP IT OUT.
-  array2<Value> cs(length, primer_len_max);
-  
-  //output << "# Tm, length, GC calculation" << endl;
-
-  // TM of fw primer and rv primer is identical.
-  // TODO. dynamic programming for TM calculation.
-  for(int i=0; i<length; i++){
-    int cpg=0;
-    int gc=0;
-    if(seqint.is_cpg(i)) cpg++;
-    if(seqint.is_gc(i)) gc++;
-    float dh = 0;
-    float dg = 0; 
-    float dh_u = 0;
-    float dg_u = 0;
-
-    int n=2;
-    for(; n<=min(length-i, primer_len_min-1); n++){
-      assert( i+n <= length );
-      assert( ! primer_cond.length.within(n) );
-      const int j = i+n-1;
-
-      // calc state of the primer seq[i:j]
-      if(seqint.is_cpg(j)) cpg++;
-      if(seqint.is_gc(j)) gc++;
-      dh += seqint.tm_dh_m[j-1];
-      dg += seqint.tm_dg_m[j-1];
-      dh_u += seqint.tm_dh_u[j-1];
-      dg_u += seqint.tm_dg_u[j-1];
-
-      Value& v = cs.get(i,n);
-      v.valid = false;
-    }
-    for(; n<=min(length-i, primer_len_max); n++){
-      assert( i+n <= length );
-      assert( primer_cond.length.within(n) );
-      const int j = i+n-1;
-
-      // calc state of the primer seq[i:j]
-      if(seqint.is_cpg(j)) cpg++;
-      if(seqint.is_gc(j)) gc++;
-      dh += seqint.tm_dh_m[j-1];
-      dg += seqint.tm_dg_m[j-1];
-      dh_u += seqint.tm_dh_u[j-1];
-      dg_u += seqint.tm_dg_u[j-1];
-
-      Value& v = cs.get(i,n);
-      
-      // num of CpG in primer
-      v.gc = 100.0*gc/n;
-      v.cpg = cpg;
-      if(cpg>1){
-        v.valid = false;
-        continue;
-      }
-      // GC ratio;
-      // TODO switch according to bsp or not.
-      if( ! primer_cond.gc.within(v.gc) ){
-        v.valid = false;
-        continue;
-      }
-
-      // Tm(methylated) conditions
-      float tm_m = mt.calc_tm(dh, dg);
-      float tm_u = mt.calc_tm(dh_u, dg_u);
-      v.tm_m = tm_m;
-      v.tm_u = tm_u;
-      if( ! (primer_cond.tm.within(tm_m) && primer_cond.tm.within(tm_u)) ){
-        v.valid = false;
-        continue;
-      }
-  
-      // if no cpg, no tm difference.
-      assert(cpg>0 || abs(tm_m-tm_u)<0.001);
-      if(cpg>0 && (abs(tm_m-tm_u) > max_met_tm_diff)){
-        v.valid = false;
-        continue;
-      }
-
-      assert(v.valid);
-      v.len = n;
-    }
-  }
-
-  // self annealing calculation
-  // sa(i...i+n-1) = max{k from -(n-1) to n-1} sa_k(i...i+n-1)
-  // sa_k(i...i+n-1) = k<0 | sa_0(i.....i+n-1+k)
-  //                   k=0 | sa_0(i.....i+n-1)
-  //                   k>0 | sa_0(i+k...i+n-1)
-  // sa first step, store all sa_0 value for sa
-  // sa_0(i...i+n-1) = n=1 | score_c(i,i)
-  //                   n=2 | 2*score_c(i,i+1)
-  //                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
-
-  //output << "# SA first step" << endl;
-  // SA first step
-  array_sa sa_0(length, primer_len_max+1, -1);
-  for(int end=0; end<length; end++){
-    for(int n=1; n<=min(end+1, primer_len_max); n++){
-      const int i = end-n+1;
-      assert(i+n <= length);
-
-      if(n==1){
-        assert(i==end);
-        sa_0.get(i,n) = seqint.s_c(i,i);
-      }
-      else if(n==2){
-        sa_0.get(i,n) = 2 * seqint.s_c(i,end);
-      }
-      else{
-        assert(sa_0.get_se(i+1, end-1) >=0);
-        sa_0.get(i,n) = sa_0.get_se(i+1, end-1) + 2 * seqint.s_c(i,end);
-      }
-      assert(sa_0.get(i,n) >=0);
-    }
-  }
-  // SA second step
-  //output << "# SA 2nd step" << endl;
-  for(int i=0; i<length; i++){
-    for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
-      assert( i+n <= length );
-      Value& v = cs.get(i,n);
-      // for debug, comment out
-      //if(!v.valid) continue;
-
-      AnnealStore sa;
-      for(int k=-(n-1);k<=n-1; k++){
-        int v = (k<0) ? sa_0.get(i,n+k) : sa_0.get(i+k,n-k);
-        sa.store(v, k);
-      }
-      assert(sa.value >= 0);
-      v.sa = sa.value;
-      v.sa_k = sa.index;
-      if(! primer_cond.sa.within(sa.value) )
-        v.valid = false;
-    }
-  }
-
-  // Self End Annealing calculation
-  // sea(i...i+n-1) = max{k from 0 to n-1} sea_k(i...i+n-1)
-  // sea_k(i...i+n-1) = sea_0(i+k...i+n-1)
-  // sea_0(i...i+n-1) = n=1 | score_c(i,i)
-  //                    n=2 | 2*score_c(i,i+1)
-  //                    n=n | 
-
-  // SEA first step
-  //output << "# SEA 1st step" << endl;
-  array_sa sea_0(length, primer_len_max+1, -1);
-  array_sa sea_0_full(length, primer_len_max+1, 0);
-
-  // TODO: combine SA and SEA loop.
-  for(int end=0; end<length; end++){
-    for(int n=1; n<=min(end+1, primer_len_max); n++){
-      const int i = end-n+1;
-      assert(0<= i && i<= end);
-      assert(i+n <= length);
-      // fill sea_0.get(i,n)
-      if(n==1){
-        assert(i==end);
-        sea_0.get(i,n) = seqint.s_c(i,i);
-        sea_0_full.get(i,n) = true;
-      }
-      else if(n==2){
-        int s = seqint.s_c(i,end);
-        sea_0.get(i,n) = 2 * s;
-        sea_0_full.get(i,n) = int(s!=0);
-      }
-      else{
-        int base = sea_0.get_se(i+1, end-1);
-        assert(base>=0);
-        int s = seqint.s_c(i,end);
-        bool full = base>0 && s>0 && sea_0_full.get_se(i+1,end-1);
-        sea_0_full.get(i,n) = int(full);
-        if(full)
-          sea_0.get(i,n) = base + 2*s;
-        else if(s!=0)
-          sea_0.get(i,n) = base + s;
-        else
-          sea_0.get(i,n) = 0;
-      }
-    }
-  }
-
-  // SEA second step
-  //output << "# SEA 2nd step" << endl;
-  for(int i=0; i<length; i++){
-    for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
-      assert( i+n <= length );
-      Value& v = cs.get(i,n);
-      if(!v.valid)
-        continue;
-
-      AnnealStore pos;
-      for(int k=0;k<=n-1; k++){
-        pos.store(sea_0.get(i+k,n-k), k);
-      }
-      AnnealStore neg;
-      for(int k=-(n-1);k<=0; k++){
-        neg.store(sea_0.get(i, n+k), k);
-      }
-      assert(neg.value >= 0 && pos.value>=0);
-      
-      v.sea_pos = pos.value;
-      v.sea_pos_k = pos.index;
-      v.sea_neg = neg.value;
-      v.sea_neg_k = neg.index;
-      
-      if(!primer_cond.sea.within(pos.value) || !primer_cond.sea.within(neg.value)){
-        v.valid = false;
-        continue;
-      }
-
-      float c = primer_cond.length.score(n)
-        + primer_cond.gc.score(v.gc)
-        + primer_cond.sa.score(v.sa)
-        + primer_cond.tm.score(v.tm_m);
-      v.s_pos = c + primer_cond.sea.score(v.sea_pos);
-      v.s_neg = c + primer_cond.sea.score(v.sea_neg);
-
-      if( v.s_pos > score_threshold ||  v.s_neg > score_threshold )
-        v.valid = false;
-    }
-  }
-
-
-  if(debug){
-    int c = 0;
-    for(int i=0; i<length; i++){
-      for(int n=primer_len_min; n<min(length-i, primer_len_max); n++){
-        Value& v = cs.get(i,n);
-        if(v.valid){
-          output << seq.substr(i,n) << " " << v.to_str() << endl;
-      
-          c++;}
-      }
-    }
-    //output << "# Valid Primers: " << c << endl;
-  }
-
-  // Pair Annealing
-  //output << "# PA 1st step" << endl;
-
-  array3<int> pa_0(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_l(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_r(length, length, primer_len_max+1, -1);
-  array3<int> pea_0_l_full(length, length, primer_len_max+1, 1);
-
-  /*
-    pa0(i,j,k) means, anneal score of seq[i,k] and reverse_complement(seq[j,k])
-
-    i         i+k-1          j       j+k-1
-    |----------->------------<---------|
-    <-----k----->            <----k---->
-
-    seq[i,k] means seq.substr(i,k), [seq[x] for x in i <= x < i+k]
-
-    k=1
-     seq[j,1]     |
-     seq[i,1]     |
-
-    1 < k <= primer_len_max
-     seq[j,k]   <----|-|
-     seq[i,k]   |---->->
-
-     seq[j,k-1] <----|
-     seq[i,k-1] |---->
-
-  
-    pea0_l means, end score of 5' side of seq[i,i+k], termed left side.
-    pea0_r means, end score of 5' side of reverse_complement(seq[j,j+k])), termed right side.
-
-     seq[j,k]   <-------------|-|
-     seq[i,k]   |------------->->
-     seq[j,k-1] <-------------|
-     seq[i,k-1] |------------->
-
-     if s>0
-      rt              |------|-|
-     else
-      rt                       |
-
-     if full(i,j,k-1)
-      lt       |-------------|-|
-     else
-      lt       |---------|      
-  */
-
-  // fill pa0
-  for(int i=0; i<length; i++){
-    for(int j=i; j<length; j++){
-      const int primer_len = min(length-j+1, primer_len_max);
-      
-      // fill pa_0
-      pa_0.get(i,j,1) = seqint.s_c_c(i,j);
-      for(int k=2; k<=primer_len; k++){
-          pa_0.get(i,j,k) = pa_0.get(i,j,k-1) + seqint.s_c_c(i+k-1, j+k-1);
-      }
-
-      // fill pea
-      // k=1
-      int s = seqint.s_c_c(i,j);
-      pea_0_l_full.get(i,j,1) = static_cast<int>(s>0);
-      pea_0_l.get(i,j,1) = s;
-      pea_0_r.get(i,j,1) = s;
-      assert(s>=0);
-
-      for(int k=2; k<=primer_len; k++){
-        int lt = pea_0_l.get(i,j,k-1);
-        int rt = pea_0_r.get(i,j,k-1);
-        
-        //cout << lt << " " << rt << " " << i << " " << j << " " << k << " " << endl;;
-        assert( lt>=0 && rt>=0 );
-
-        bool full = pea_0_l_full.get(i,j,k-1);
-        int s = seqint.s_c_c(i+k-1, j+k-1);
-
-        // for left side, add s if full.
-        pea_0_l_full.get(i,j,k) = static_cast<int>(full && (s>0));
-        pea_0_l.get(i,j,k) = lt + (full ? s : 0);
-
-        // for right side, reset if s==0
-        pea_0_r.get(i,j,k) = (s==0)? 0 : rt+s;       
-      }
-
-    }
-  }
-
-  // Pair End Annealing
-
-  /*
-   pair annealing values for each pair 
-
-   fw = seq.substr(i,n)
-   rv = reverse_complement(seq.substr(j,m)
-
-   n >= m
-
-  (k=-(m-1)) nn=1
-   rv <------|
-   fw        |---------->
-  
-  (A) nn=m-k
-   rv   <------|
-   fw        |---------->
-  
-  (k=0) nn=m
-   rv        <------|
-   fw        |---------->
-
-  (B) nn=m
-   rv          <------|
-   fw        |---------->
-
-  (k=n-m) nn=m
-   rv            <------|
-   fw        |---------->
-
-  (C) nn=n-k
-   rv               <------|
-   fw        |---------->
-
-  (k=n-1) nn=1
-   rv                   <------|
-   fw        |---------->
-
-  (A) -(m-1) < k < 0
-   nn=m-k
-   seq[j,m]  <------|
-   seq[i,n]       |---------->
-   -> pa(i, j-k, nn)
-
-  (B) 0 < k < n-m
-   nn=m
-   seq[j,m]         <------|
-   seq[i,n]       |---------->
-   -> pa(i+k, j, nn)
-
-  (C) n-m < k < n-1
-   nn=n-k
-   seq[j,m]              <------|
-   seq[i,n]       |---------->
-   -> pa(i+k, j, nn)
-
-
-  n <= m
-
-  (k=-(m-1)) nn=1
-   rv <----------|
-   fw            |------>
-  
-  (A) nn=m-k
-   rv   <----------|
-   fw            |------>
-  
-  (k=n-m) nn=n
-   rv        <----------|
-   fw            |------>
-
-  (B) nn=n
-   rv          <----------|
-   fw            |------>
-
-  (k=0) nn=n
-   rv            <----------|
-   fw            |------>
-
-  (C) nn=n-k
-   rv                <----------|
-   fw            |------>
-
-  (k=n-1) nn=1
-   rv                   <----------|
-   fw            |------>
-
-  (A) -(m-1) < k < n-m
-   nn=m-k
-   seq[j,m]   <----------|
-   seq[i,n]            |------>
-   -> pa(i, j-k, nn)
-
-  (B) n-m < k < 0
-   nn=n
-   seq[j,m]        <----------|
-   seq[i,n]          |------>
-   -> pa(i, j-k, nn)
-
-  (C) 0 < k < n-1
-   nn=n-k
-   seq[j,m]            <----------|
-   seq[i,n]       |------>
-   -> pa(i+k, j, nn)
-  */
-
-  // TODO: max_results
-  Results results(length, length/100, 5);
-
-  //output << "# PA 2st step" << endl;
-  for(int i=0; i<length; i++){
-    for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
-      assert( i+n <= length );
-      Value& fw = cs.get(i,n);
-      if(!fw.valid) continue;
-
-      for(int j=i+product_len_min; j<min(i+product_len_max,length-1); j++){
-        for(int m=primer_len_min; m<=min(length-j,primer_len_max); m++){
-          const int product_len = j+m-i+1;
-          if( !product_cond.within(product_len) )
-            continue;
-
-          // rv primer is reverse_complement(seq[j:j+m])
-          Value& rv = cs.get(j,m);
-
-          if(!rv.valid) continue;
-          if(abs(fw.tm_m-rv.tm_m) > max_tm_diff) continue;
-
-          float score = fw.s_pos + rv.s_neg;
-          if( score > score_threshold ) continue;
-
-          const int position = (i+j+m)/2;
-          if(results.lowest(position) < score ) continue;
-          //if( score > results.lowest()) continue;
-          // rank in check
-                    
-          AnnealStore pa;
-          if(n>=m){
-            int k = -(m-1);
-            for(; k<0; k++)
-              pa.store( pa_0.get(i, j-k, m-k), k);
-            for(; k<n-m; k++)
-              pa.store( pa_0.get(i+k, j, m), k);
-            for(; k<n-1; k++ )
-              pa.store( pa_0.get(i+k, j, n-k), k);
+        ///cout <<  first()->score() <<  " < " <<  last()->score() << endl;
+        assert(first()->score() <=  last()->score());
+        assert(set_.size() <=  size_);
+         return true;
+       }
+     }
+     return false;
+   }
+ private:
+   container set_;
+   int size_;
+   float lowest_;
+ };
+
+ class Results{
+ public:
+   typedef vector<ResultChunk> container;
+   container::iterator begin(){return list_.begin();}
+   container::iterator end(){return list_.end();}
+
+   Results(int length, int chunk, int coverage){
+     length_ = length;
+     chunk_ = chunk;
+     coverage_ = coverage;
+
+     clength_ = length/chunk + ((length%chunk)?1:0);
+     list_.resize(clength_);
+     for(auto& i : list_){
+       i.resize(coverage_);
+     }
+   }
+
+   float lowest(int pos){
+     int ii = pos/chunk_;
+     assert(ii < clength_);
+     return list_.at(ii).lowest();
+   };
+   void add(int pos, const PrimerPairResult & ppr){
+     int ii = pos/chunk_;
+     assert(ii < clength_);
+     list_.at(ii).add(ppr);
+   }
+ private:
+   container list_;
+   int length_;
+   int clength_;
+   int chunk_;
+   int coverage_;
+ };
+
+
+ // Store highest score and k value.
+ class AnnealStore{
+ public:
+   AnnealStore():value(-1), index(0){}
+   inline void store(float v, int i){
+     if(v > value){
+       value = v;
+       index = i;
+     }
+   }
+   float value;
+   int index;
+ };
+
+ void bisearch(const char* input, ostream& output, std::ostream& logging,
+                   const PCRCondition& cond,
+                   int product_len_min, int product_len_max,
+                   int primer_len_min, int primer_len_max,
+                   float max_tm_diff,
+                   float max_met_tm_diff,
+                   int max_cpg_in_primer,
+                   float score_threshold,
+                   int max_results)
+ {
+   PrimerCondition primer_cond(primer_len_min, primer_len_max, true);
+   Condition product_cond(0, 0, product_len_min, product_len_max);
+   melt_temp::MeltTemp mt(cond);
+   
+   const string genomic(input);
+   string seq;
+   bisulfite<true>(seq, genomic);
+
+   const int length = seq.length();
+   Seqint seqint(seq);
+
+   logging << "// bisearch length=" << length << " primer_len=" << primer_len_max << endl;
+
+   // TODO: I dont need a field for primer_len_max<minimum. DROP IT OUT.
+   array2<Value> cs(length, primer_len_max);
+
+   logging << "// Tm, length, GC calculation" << endl;
+
+   // TM of fw primer and rv primer is identical.
+   // TODO. dynamic programming for TM calculation.
+   for(int i=0; i<length; i++){
+     int cpg=0;
+     int gc=0;
+     if(seqint.is_cpg(i)) cpg++;
+     if(seqint.is_gc(i)) gc++;
+     float dh_m = 0;
+     float dg_m = 0; 
+     float dh_u = 0;
+     float dg_u = 0;
+
+     int n=2;
+     for(; n<=min(length-i, primer_len_min-1); n++){
+       assert( i+n <= length );
+       assert( ! primer_cond.length.within(n) );
+       const int j = i+n-1;
+
+       // calc state of the primer seq[i:j]
+       if(seqint.is_cpg(j)) cpg++;
+       if(seqint.is_gc(j)) gc++;
+       dh_m += seqint.tm_dh_m[j-1];
+       dg_m += seqint.tm_dg_m[j-1];
+       dh_u += seqint.tm_dh_u[j-1];
+       dg_u += seqint.tm_dg_u[j-1];
+
+       Value& v = cs.get(i,n);
+       v.valid = false;
+     }
+     for(; n<=min(length-i, primer_len_max); n++){
+       assert( i+n <= length );
+       assert( primer_cond.length.within(n) );
+       const int j = i+n-1;
+
+       // calc state of the primer seq[i:j]
+       if(seqint.is_cpg(j)) cpg++;
+       if(seqint.is_gc(j)) gc++;
+       dh_m += seqint.tm_dh_m[j-1];
+       dg_m += seqint.tm_dg_m[j-1];
+       dh_u += seqint.tm_dh_u[j-1];
+       dg_u += seqint.tm_dg_u[j-1];
+
+       Value& v = cs.get(i,n);
+
+       // num of CpG in primer
+       v.gc = 100.0*gc/n;
+       v.cpg = cpg;
+       if(cpg>max_cpg_in_primer){
+         v.valid = false;
+         continue;
+       }
+       // GC ratio;
+       // TODO switch according to bsp or not.
+       if( ! primer_cond.gc.within(v.gc) ){
+         v.valid = false;
+         continue;
+       }
+
+       // Tm(methylated) conditions
+       float tm_m = mt.calc_tm(dh_m, dg_m);
+       float tm_u = mt.calc_tm(dh_u, dg_u);
+       v.tm_m = tm_m;
+       v.tm_u = tm_u;
+       if( ! (primer_cond.tm.within(tm_m) && primer_cond.tm.within(tm_u)) ){
+         v.valid = false;
+         continue;
+       }
+
+       // if no cpg, no tm difference.
+       assert(cpg>0 || abs(tm_m-tm_u)<0.001);
+       if(cpg>0 && (abs(tm_m-tm_u) > max_met_tm_diff)){
+         v.valid = false;
+         continue;
+       }
+
+       assert(v.valid);
+       v.len = n;
+     }
+   }
+
+   // self annealing calculation
+   // sa(i...i+n-1) = max{k from -(n-1) to n-1} sa_k(i...i+n-1)
+   // sa_k(i...i+n-1) = k<0 | sa_0(i.....i+n-1+k)
+   //                   k=0 | sa_0(i.....i+n-1)
+   //                   k>0 | sa_0(i+k...i+n-1)
+   // sa first step, store all sa_0 value for sa
+   // sa_0(i...i+n-1) = n=1 | score_c(i,i)
+   //                   n=2 | 2*score_c(i,i+1)
+   //                   n=n | sa_0(i+1,i+n-1-1) + 2*score_c(i,i+n-1)
+
+   logging << "// SA first step" << endl;
+   // SA first step
+   array_sa sa_0(length, primer_len_max+1, -1);
+   for(int end=0; end<length; end++){
+     for(int n=1; n<=min(end+1, primer_len_max); n++){
+       const int i = end-n+1;
+       assert(i+n <= length);
+
+       if(n==1){
+         assert(i==end);
+         sa_0.get(i,n) = seqint.s_c(i,i);
+       }
+       else if(n==2){
+         sa_0.get(i,n) = 2 * seqint.s_c(i,end);
+       }
+       else{
+         assert(sa_0.get_se(i+1, end-1) >=0);
+         sa_0.get(i,n) = sa_0.get_se(i+1, end-1) + 2 * seqint.s_c(i,end);
+       }
+       assert(sa_0.get(i,n) >=0);
+     }
+   }
+   // SA second step
+   logging << "// SA 2nd step" << endl;
+   for(int i=0; i<length; i++){
+     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
+       assert( i+n <= length );
+       Value& v = cs.get(i,n);
+       // for debug, comment out
+       //if(!v.valid) continue;
+
+       AnnealStore sa;
+       for(int k=-(n-1);k<=n-1; k++){
+         int v = (k<0) ? sa_0.get(i,n+k) : sa_0.get(i+k,n-k);
+         sa.store(v, k);
+       }
+       assert(sa.value >= 0);
+       v.sa = sa.value;
+       v.sa_k = sa.index;
+       if(! primer_cond.sa.within(sa.value) )
+         v.valid = false;
+     }
+   }
+
+   // Self End Annealing calculation
+   // sea(i...i+n-1) = max{k from 0 to n-1} sea_k(i...i+n-1)
+   // sea_k(i...i+n-1) = sea_0(i+k...i+n-1)
+   // sea_0(i...i+n-1) = n=1 | score_c(i,i)
+   //                    n=2 | 2*score_c(i,i+1)
+   //                    n=n | 
+
+   // SEA first step
+   logging << "// SEA 1st step" << endl;
+   array_sa sea_0(length, primer_len_max+1, -1);
+   array_sa sea_0_full(length, primer_len_max+1, 0);
+
+   // TODO: combine SA and SEA loop.
+   for(int end=0; end<length; end++){
+     for(int n=1; n<=min(end+1, primer_len_max); n++){
+       const int i = end-n+1;
+       assert(0<= i && i<= end);
+       assert(i+n <= length);
+       // fill sea_0.get(i,n)
+       if(n==1){
+         assert(i==end);
+         sea_0.get(i,n) = seqint.s_c(i,i);
+         sea_0_full.get(i,n) = true;
+       }
+       else if(n==2){
+         int s = seqint.s_c(i,end);
+         sea_0.get(i,n) = 2 * s;
+         sea_0_full.get(i,n) = int(s!=0);
+       }
+       else{
+         int base = sea_0.get_se(i+1, end-1);
+         assert(base>=0);
+         int s = seqint.s_c(i,end);
+         bool full = base>0 && s>0 && sea_0_full.get_se(i+1,end-1);
+         sea_0_full.get(i,n) = int(full);
+         if(full)
+           sea_0.get(i,n) = base + 2*s;
+         else if(s!=0)
+           sea_0.get(i,n) = base + s;
+         else
+           sea_0.get(i,n) = 0;
+       }
+     }
+   }
+
+   // SEA second step
+   logging << "// SEA 2nd step" << endl;
+   for(int i=0; i<length; i++){
+     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
+       assert( i+n <= length );
+       Value& v = cs.get(i,n);
+       if(!v.valid)
+         continue;
+
+       AnnealStore pos;
+       for(int k=0;k<=n-1; k++){
+         pos.store(sea_0.get(i+k,n-k), k);
+       }
+       AnnealStore neg;
+       for(int k=-(n-1);k<=0; k++){
+         neg.store(sea_0.get(i, n+k), k);
+       }
+       assert(neg.value >= 0 && pos.value>=0);
+
+       v.sea_pos = pos.value;
+       v.sea_pos_k = pos.index;
+       v.sea_neg = neg.value;
+       v.sea_neg_k = neg.index;
+
+       if(!primer_cond.sea.within(pos.value) || !primer_cond.sea.within(neg.value)){
+         v.valid = false;
+         continue;
+       }
+
+       float c = primer_cond.length.score(n)
+         + primer_cond.gc.score(v.gc)
+         + primer_cond.sa.score(v.sa)
+         + primer_cond.tm.score(v.tm_m);
+       v.s_pos = c + primer_cond.sea.score(v.sea_pos);
+       v.s_neg = c + primer_cond.sea.score(v.sea_neg);
+
+       if( v.s_pos > score_threshold ||  v.s_neg > score_threshold )
+         v.valid = false;
+     }
+   }
+
+
+   if(debug){
+     int c = 0;
+     for(int i=0; i<length; i++){
+       for(int n=primer_len_min; n<min(length-i, primer_len_max); n++){
+         Value& v = cs.get(i,n);
+         if(v.valid){
+           logging << seq.substr(i,n) << " " << v.to_str() << endl;
+
+           c++;}
+       }
+     }
+     logging << "// Valid Primers: " << c << endl;
+   }
+
+   // TODO: max_results
+   Results results(length, length/100, 5);
+
+   logging << "// PA" << endl;
+   array2<char> pag(length, length);
+   /*
+       i     i+n
+       |------>
+       <---------|
+       j        j+m
+
+       */
+   for(int i=0; i<length; i++){
+     for(int g=0; g<length; g++){
+         const int j = i+g;
+         if(!(j<length))
+             continue;
+
+         pag.get(i,g) = seqint.s_c_c(i, j);
+     }
+   }
+
+   for(int i=0; i<length; i++){
+     for(int n=primer_len_min; n<=min(length-i, primer_len_max); n++){
+       assert( i+n <= length );
+       Value& fw = cs.get(i,n);
+       if(!fw.valid) continue;
+
+       for(int j=i+product_len_min; j<min(i+product_len_max,length-1); j++){
+         for(int m=primer_len_min; m<=min(length-j,primer_len_max); m++){
+           const int product_len = j+m-i+1;
+           if( !product_cond.within(product_len) )
+             continue;
+
+           // rv primer is reverse_complement(seq[j:j+m])
+           Value& rv = cs.get(j,m);
+
+           if(!rv.valid) continue;
+           if(abs(fw.tm_m-rv.tm_m) > max_tm_diff) continue;
+
+           float score = fw.s_pos + rv.s_neg;
+           if( score > score_threshold ) continue;
+
+           const int position = (i+j+m)/2;
+           if(results.lowest(position) < score ) continue;
+           //if( score > results.lowest()) continue;
+           // rank in check
+
+           /*
+             g_u 1
+                 11
+             g_1 111
+                 111
+                 111
+             g_0 111
+                  11
+             g_d   1
+           */
+
+           const int g_u = (j+m)-(i);   // j-i +m == g+m
+           const int g_1 = (j+m)-(i+n);
+           const int g_0 = j-i;
+           const int g_d = (j)-(i+n-1); // j-i -(n+1) == g-n
+           //const int g_min = min(g_0,g_1);
+           //const int g_max = max(g_0,g_1);
+
+           AnnealStore pa;
+          AnnealStore pea;
+          for(int gg=g_d; gg<g_u; gg++){
+            const int ii_l = max(i,j-gg);
+            const int ii_r = min(i+n, j+m-gg);
+            assert(ii_l<ii_r);
+            const int k = gg-g_0;
+            
+            int pav = 0;
+            for(int ii=ii_l; ii<ii_r; ii++){
+              pav += pag.get(ii,gg);
+            }
+            pa.store(pav, k);
+
+            if(gg<=g_0){
+              int peav_l = 0;
+              for(int ii=ii_l; ii<ii_r; ii++){
+                int v = pag.get(ii,gg);
+                if(v==0) break;
+                peav_l += v;
+              }
+              pea.store(peav_l, k);
+            }
+            if(gg<=g_1){
+              int peav_r = 0;
+              for(int ii=ii_r-1; ii_l<=ii; ii--){
+                int v = pag.get(ii,gg);
+                if(v==0) break;
+                peav_r += v;
+              }
+              pea.store(peav_r, k);
+            }
           }
-          else{
-            int k = -(m-1);
-            for(; k<n-m; k++)
-              pa.store( pa_0.get(i, j-k, m-k), k);
-            for(; k<0; k++)
-              pa.store( pa_0.get(i, j-k, n), k);
-            for(; k<n-1; k++ )
-              pa.store( pa_0.get(i+k, j, n-k), k);            
+
+          if(debug){
+            string fw_str = seq.substr(i,n);
+            string rv_str = reverse_complement(seq.substr(j,m));
+            auto pa_ = annealing_score(fw_str,rv_str);
+            auto pea_ = end_annealing_score(fw_str,rv_str);
+
+            if(pa.value != get<0>(pa_)){
+                cout << "//pa mismatch" << endl;
+                cout << "//ref: " << get<0>(pa_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pa_));
+                cout << "//now: " << pa.value << endl;
+                print_primer_bar(fw_str,rv_str, pa.index);
+            }
+            if(pea.value != get<0>(pea_)){
+                cout << "//pea mismatch" << endl;
+                cout << "//ref: " << get<0>(pea_) << endl;
+                print_primer_bar(fw_str,rv_str, get<1>(pea_));
+                cout << "//now: " << pea.value << endl;
+                print_primer_bar(fw_str,rv_str, pea.index);
+            }
           }
 
           if(! primer_cond.pa.within(pa.value) )
             continue;
           score += primer_cond.pa.score(pa.value);
-
-          AnnealStore pea;
-          if(n>=m){
-            int k=0;
-            for(; k<n-m; k++)
-              pea.store( pea_0_l.get(i+k, j, m), k);
-            for(; k<n-1; k++ ){
-              pea.store( pea_0_l.get(i+k, j, n-k), k);
-              pea.store( pea_0_r.get(i+k, j, n-k), k);
-            }
-          }
-          else{
-            int k = n-m;
-            for(; k<0; k++)
-              pea.store( pea_0_r.get(i, j-k, n), k);
-            for(; k<n-1; k++ ){
-              pea.store( pea_0_r.get(i+k, j, n-k), k);            
-              pea.store( pea_0_l.get(i+k, j, n-k), k);            
-            }
-          }
 
           if(! primer_cond.pea.within(pea.value) )
             continue;
@@ -799,16 +663,17 @@ void bisearch(const char* input, ostream& output,
 
           // cs.get(i,n), cs.get(j,m) for sa, sea
           results.add(position, PrimerPairResult(score, i, n, j, m, pa.value, pa.index, pea.value, pea.index));
+
         }
       }
     }
   }
-  
 
-  output << "> general" << endl;
-  output << "sequence: " << genomic << endl;
+  output << "general:" << endl;
+  output << "    sequence: " << genomic << endl;
+  output << "    show_bisulfite: True" << endl;
   output << endl;
-  output << "> bs_pcr" << endl;
+  output << "bs_pcr:" << endl;
 
   vector<PrimerPairResult> all;
   for(auto& rc: results){
@@ -823,20 +688,25 @@ void bisearch(const char* input, ostream& output,
 
   for(auto& ppr: all){
     count++;
+    //if(max_results < count){
+    //  continue;
+    //}
     string fw_str = seq.substr(ppr.i_,ppr.n_);
     string rv_str = reverse_complement(seq.substr(ppr.j_,ppr.m_));
     replace(fw_str.begin(), fw_str.end(), 'C', 'Y'); // Y = C or T
     replace(rv_str.begin(), rv_str.end(), 'G', 'R'); // R = G or A
 
+    output << "    Bi-" << right << setfill('0') << setw(3) << count;
+    output << ": " << fw_str << ", " << rv_str << endl;
+
     output << "// rank=" << count << " score=" << ppr.score_;
     output << " pea=" << ppr.pea_ << " pea_k=" << ppr.pea_k_ << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
+    output << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+fw_str+"-3'");
     output << ": " << cs.get(ppr.i_,ppr.n_).to_str() << endl;
-    output << "//   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
-    output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
-    output << "Bi-" << right << setfill('0') << setw(3) << count << ": " << fw_str << ", " << rv_str << endl;
+    output << "        //   " << left << setfill(' ') << setw(35) << ("5'-"+rv_str+"-3'");
+   output << ": " << cs.get(ppr.j_,ppr.m_).to_str() << endl;
   }
-  output << "// Total: " << count << " Results." << endl;
+  logging << "// Total: " << count << " Results." << endl;
 }
 
 

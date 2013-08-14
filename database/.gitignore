@@ -1,0 +1,6 @@
+*.tab
+*.bed
+*.gz
+/dbtss
+table
+

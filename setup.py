@@ -1,7 +1,16 @@
-import os
+import os,sys
+#import ez_setup
+#ez_setup.use_setuptools()
+
 from setuptools import setup, find_packages
 
-version = '0.2.1'
+import numpy
+from Cython.Build import cythonize
+# not compatible with distribute
+#from distutils.extension import Extension
+#from Cython.Distutils import build_ext
+
+version = '0.4.0'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'
@@ -16,30 +25,43 @@ Programming Language :: Python
 Operating System :: Unix
 """
 
-setup(name='seqtool',
-      version=version,
-      description=("small scripts visualizing PCR products for molecular biology experimetnts."),
-      classifiers = filter(None, classifiers.split("\n")),
-      keywords='pcr biology bisulfite',
-      author='mizuy',
-      author_email='mizugy@gmail.com',
-      url='http://github.com/mizuy/seqtool',
-      license='MIT',
-      packages=find_packages(),
-      install_requires=['biopython','numpy'],
-      test_suite='nose.collector',
-      test_requires=['Nose'],
-      entry_points=\
-"""
+entry_points = """
 [console_scripts]
-seqview = seqtool.command:seqview
-get_genbank = seqtool.command:get_genbank
-geneview = seqtool.command:geneview
-tssview = seqtool.command:tssview
-primers = seqtool.command:primers
-seqvcmd = seqtool.seqvcmd:main
-bisearch = seqtool.bisearch:main
-convert_bs = seqtool.convert_bs:main
-virtualpcr = seqtool.virtualpcr:main
-seqtool_loadsql = seqtool.db.sql:load_all
-""")
+seqview = seqtool.frontend.command:seqview
+get_genbank = seqtool.frontend.command:get_genbank
+geneview = seqtool.frontend.command:geneview
+tssview = seqtool.frontend.command:tssview
+primers = seqtool.frontend.command:primers
+sequencing = seqtool.frontend.command:sequencing
+seqdb = seqtool.frontend.command:seqdb_command
+abiraw = seqtool.frontend.command:abiraw
+
+convert_bs = seqtool.bowtie.convert_bs:main
+virtualpcr = seqtool.bowtie.virtualpcr:main
+
+primer = seqtool.nucleotide.primer:main
+
+pdesign = seqtool.script.pdesign:main
+bisulfite = seqtool.script.bisulfite:main
+rpm = seqtool.script.cf:main
+align = seqtool.script.align:main
+translate = seqtool.script.translate:main
+server = seqtool.server.server:main
+"""
+setup(
+    name='seqtool',
+    version=version,
+    description=("small scripts visualizing PCR products for molecular biology experimetnts."),
+    classifiers = filter(None, classifiers.split("\n")),
+    keywords='pcr biology bisulfite',
+    author='mizuy',
+    author_email='mizugy@gmail.com',
+    url='http://github.com/mizuy/seqtool',
+    license='MIT',
+    packages=find_packages(),
+    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs'],
+    test_suite='nose.collector',
+    ext_modules = cythonize('seqtool/seqtool/nucleotide/sw_c.pyx'),
+    include_dirs = [numpy.get_include()],
+    entry_points=entry_points
+)
