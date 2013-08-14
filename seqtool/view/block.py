@@ -61,15 +61,16 @@ class PcrsBlock(BaseBlock):
     def svg_genome(self, t):
         t.add_pcrs_track(self.title, self.pcrsholder.pcrs)
 
-    def html_content(self, b, toc, subfs):
+    def html_content(self, b, toc, subfs, callback = None):
         w = b.get_writer()
         if not len(self.pcrsholder):
             return
 
         with report.section(b, toc, self.title):
             for pcr in self.pcrsholder:
+                print('pcr {}'.format(pcr.name))
                 with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
-                    pcr.write_html(w)
+                    pcr.write_html(w, callback)
 
 class BsPcrsBlock(PcrsBlock):
     """

@@ -1,15 +1,15 @@
+import os
 from Bio import SeqIO
 
-import os
-from seqtool.nucleotide import to_seq
-from seqtool.nucleotide.cpg import bisulfite_conversion, c2t_conversion
-from seqtool.nucleotide import sw
-#from Bio import SeqIO
-from seqtool.view.baseseq_renderer import BaseseqRenderer
-from ..util.subfs import SubFileSystem
-from ..util import xmlwriter
+from ..nucleotide import to_seq, sw
+from ..nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from ..nucleotide.primer import Primer
 from ..util import report
+from ..view.baseseq_renderer import BaseseqRenderer
+from .. import format
+from ..format.abi import AbiFormat
+from ..format.render import SvgPeaksAlignment
+
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -37,16 +37,6 @@ class TemplateCandidate(object):
         self.add_template(name+' C2T+', c2t_conversion(seq, True))
         self.add_template(name+' C2T-', c2t_conversion(seq, False))
 
-    def __iter__(self):
-        for name, seq in self._templates:
-            for sense in [True,False]:
-                if sense:
-                    s = seq
-                else:
-                    s = seq.reverse_complement()
-
-                yield name+' '+('sense' if sense else 'asense'), s
-
     def load_fasta(self, filename):
         for record in SeqIO.parse(open(filename,'r'), "fasta"):
             name, sep, conv = record.description.partition(':')
@@ -65,11 +55,18 @@ class TemplateCandidate(object):
 
     def alignments(self, target):
         ret = []
-        for name, template in self:
-            al = sw.Alignment(target, template)
-            p,q = al.aseq0.location
-            tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
-            ret.append((al, p, q, tempname))
+        for name, template in self._templates:
+            for sense in [True,False]:
+                if sense:
+                    name = name+'(original)'
+                    st = template
+                else:
+                    name = name+'(reverse)'
+                    st = str(to_seq(template).reverse_complement())
+                al = sw.Alignment(target, st)
+                p,q = al.aseq0.location
+                tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
+                ret.append((al, p, q, tempname))
         return ret
 
 class SeqFile(object):
@@ -77,7 +74,13 @@ class SeqFile(object):
         self.name = name
         self.filename = filename
         self.tc = template_candidate
-        self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+        base,ext = os.path.splitext(self.filename)
+        if ext=='.seq':
+            self.abi = None
+            self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+        elif ext=='.ab1':
+            self.abi = AbiFormat(filename)
+            self.seq = self.abi.get_sequence()
         self._alignment = self.tc.alignments(self.seq)
 
     def svg(self):
@@ -95,10 +98,26 @@ class SeqFile(object):
 
         return render.track(len(self.seq)+10).svg()
 
+    def svg_peak(self):
+        render = SvgPeaksAlignment()
+
+        for al, p, q, tempname in self._alignment:
+            if al.score_density() < SCORE_THRESHOLD:
+                continue
+
+            locs = al.get_mid_loc(self.abi.get_sequence_loc(),0)
+            texts = [tempname, al.aseq1.mid_gap, al.match_bar(), al.aseq0.mid_gap]
+            render.add_texts(texts, locs)
+
+        render.add_peaks(200, self.abi.get_peaks())
+
+        return render.svg()
+
     def html(self, b):
         #b.h3(self.name)
         for al, p, q, tempname in self._alignment:
             b.h4(tempname)
+            
             if al.score_density() < SCORE_THRESHOLD:
                 continue
 
@@ -123,6 +142,7 @@ class SequencingAnalysis(object):
     def __init__(self):
         self.tc = TemplateCandidate()
         self._seqfiles = []
+        self.name = 'Sequencing Analysis Result'
 
     def load_fasta(self, fasta_file):
         self.tc.load_fasta(fasta_file)
@@ -137,13 +157,17 @@ class SequencingAnalysis(object):
         b.h2('Sequencing Analysis:')
         b.h3('Alignment View')
         for sf in self._seqfiles:
-            filename = sf.name+'.svg'
-            subfs.write(filename, sf.svg())
-            link = subfs.get_link_path(filename)
+            fs = [(sf.name+'.svg', sf.svg())]
+            if sf.abi:
+                fs.append((sf.name+'_peak.svg', sf.svg_peak()))
 
             b.h3(sf.name)
             with b.div(cls='products'):
-                with b.a(href=link):
-                    b.img(src=link, width='1000px')
+                for filename, content in fs:
+                    link = subfs.get_link_path(filename)
+                    subfs.write(filename, content)
+                    
+                    with b.a(href=link):
+                        b.img(src=link, width='1000px')
                 sf.html(b)
 

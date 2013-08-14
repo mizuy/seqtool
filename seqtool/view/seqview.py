@@ -19,7 +19,7 @@ from . import block, bsa_block, dbtss_block
 from .baseseq_renderer import BaseseqRenderer
 from .outline_renderer import OutlineRenderer
 
-LENGTH_THRESHOLD = 800
+LENGTH_THRESHOLD = 20000
 
 __all__ = ['Seqview']
 
@@ -97,7 +97,8 @@ class Seqview(object):
 
             kv = tree.get_one('general/primers')
             if kv:
-                e.primers.load_file(relative_path(kv.value))
+                for v in kv.value_list():
+                    e.primers.load_file(relative_path(v))
 
             kv = tree.get_one('general/tss')
             if kv:
@@ -225,25 +226,50 @@ class Seqview(object):
             self.rt_pcrs.svg_transcript(t, tr)
         return t.svg()
 
-    def svg_baseseq(self):
+    def baseseq_renderer(self):
         aseq = BaseseqRenderer(self.template.seq, self.show_bisulfite)
 
         for p in self.primers:
             aseq.add_primer(p)
 
         aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
+        return aseq
 
-        return aseq.track(width=None).svg()
+    def fasta(self):
+        ret = '>{} : {}\n'.format(self.template.name, self.template.description)
+        ss = str(self.template.seq)
+        l = len(ss)
+
+        for i in range(0, l, 70):
+            ret += ss[i:i+100]
+            ret += '\n'
+
+        return ret
 
     def has_transcripts(self):
         return not not self.template.transcripts
 
     def html_content(self, b, toc, subfs):
+        bsr =  self.baseseq_renderer()
         svgs = [('genome.svg', 'Outline', self.svg_genome(), True),
-                ('baseseq.svg', 'Base Sequence', self.svg_baseseq(), False)]
+                ('baseseq.svg', 'Base Sequence', bsr.track(width = 120).svg(), False),
+                ('seq.seq', 'sequence file', str(self.template.seq), False)]
         if self.has_transcripts():
             svgs.insert(1, ('transcript.svg', 'Transcript', self.svg_transcript(), True))
 
+        def product_callback(product):
+            p = product.start_0 - 20
+            q = product.end_0 + 20
+            s = bsr.track_partial(p, q, width = None).svg()
+
+            filename = 'pcr{}.svg'.format(product_callback.count)
+            product_callback.count += 1
+
+            subfs.write(filename, s)
+
+            b.a('Primer alignment view', href = subfs.get_link_path(filename))
+        product_callback.count = 0
+    
         with toc.section(self.name):
             for filename, name, svg, show in svgs:
                 subfs.write(filename, svg)
@@ -261,7 +287,7 @@ class Seqview(object):
 
             for block in self.blocks:
                 if 'html_content' in dir(block):
-                    block.html_content(b, toc, subfs)
+                    block.html_content(b, toc, subfs, product_callback)
 
     def write_html(self, outputp):
         report.write_html(outputp, self.name, self.html_content)

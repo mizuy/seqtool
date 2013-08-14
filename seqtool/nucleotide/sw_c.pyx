@@ -1,3 +1,4 @@
+# -*- mode: Python -*-
 # distutils: extra_compile_args = -w
 
 import numpy as np

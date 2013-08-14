@@ -6,6 +6,16 @@ from ..util import xmlwriter
 
 seqfilter = str.maketrans({' ':None, '-':None})
 
+def to_ambiguous_seq(st):
+    return Seq.Seq(st,IUPAC.ambiguous_dna)
+def to_unambiguous_seq(st):
+    return Seq.Seq(st,IUPAC.unambiguous_dna)
+
+def is_sequence_like(s):
+    t = str(s).upper().translate(seqfilter)
+    if all(n in IUPAC.ambiguous_dna.letters for n in t):
+        return True
+
 def to_seq(s):
     if isinstance(s, Seq.Seq):
         return s
@@ -110,3 +120,8 @@ def no_stop_in_frame(seq):
     stopped = stopped and all('*' in s[i:].translate() for i in range(3))
     return not stopped
 
+def reverse(seq):
+    return str(seq)[::-1]
+
+def complement(seq):
+    return seq.complement()

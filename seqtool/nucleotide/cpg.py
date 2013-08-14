@@ -1,21 +1,21 @@
-from Bio.SeqUtils import GC
+from . import to_unambiguous_seq
 
 def drop_small_region(items, length):
     ret = []
-    for p,q in items:
+    for p, q in items:
         if q-p >= length:
-            ret.append((p,q))
+            ret.append((p, q))
     return ret
 
 def region_growing(items, gap=0):
-    if len(items)<2:
+    if len(items) < 2:
         return items
-    p,q = items[0]
+    p, q = items[0]
     rest = items[1:]
     for i in range(len(rest)):
-        r,s = rest[i]
-        if r<q+gap:
-            q = max(q,s)
+        r, s = rest[i]
+        if r < q + gap:
+            q = max(q, s)
             continue
         else:
             return [(p,q)]+region_growing(rest[i:],gap)
@@ -44,7 +44,7 @@ class cpgisland_searcher(object):
     def finish(self):
         self.p(self.length, False)
         h = self.window/2
-        
+
         connected = region_growing([(p-h, q+h) for p,q in self.islands])
         # Two individual CpG islands were connected if they were separated by less than 100 bp
         gap_connected = region_growing(connected, 100)
@@ -75,7 +75,7 @@ def seq_cpg_analysis(seq, window):
 
         gc_per.append(gcp)
         obs.append(oe)
-    
+
         island = (gcp > 0.55) and (oe > 0.65)
         sr.p(i, island)
 
@@ -116,10 +116,10 @@ def cpg_sites(seq, range_=(None,None)):
     """
     return all cpg location of seq
 
-    >>> cpg_sites('ATGCCGCGATCG')
-    [4,6,10]
-    >>> cpg_sites('ATGCCGCGATCG',(2,6))
-    [4,6]
+    >>> list(cpg_sites('ATGCCGCGATCG'))
+    [4, 6, 10]
+    >>> list(cpg_sites('ATGCCGCGATCG',(2,6)))
+    [4, 6]
     """
     seqstr = str(seq)
     length = len(seq)
@@ -158,38 +158,55 @@ def count_cpg(seq, range_=(None,None)):
     """
     >>> count_cpg('ATGCCGCGATCG')
     3
-    >>> count_cpg('ATGCCGCGATCG',(2,6))
+    >>> count_cpg('ATGCCGCGATCG'[2:7])
+    1
+    >>> count_cpg('ATGCCGCGATCG',(2,7))
     2
     """
     p,q = range_
     p = p or 0
-    q = q or -1
+    if q:
+        q += 1
+    else:
+        q = len(seq)
 
     return str(seq).count('CG',p,q)
 
 
 def _bisulfite_conversion(seq):
     """
-    >>> _bisulfite_conversion_ambiguous('ATGCCGATGC')
-    Seq.Seq('ATGTYGATGT')
+    >>> import Bio.Seq as Seq
+    >>> _bisulfite_conversion(Seq.Seq('ATGCCGATGC'))
+    Seq('ATGTYGATGT', Alphabet())
     """
     seqstr = str(seq)
     l = len(seqstr)
     muta = seq.tomutable()
 
     j = 0
-    while j+1<l:
+    while j<l:
         j = seqstr.find('C', j)
 
-        if not (0<j and j+1<l):
+        if not (0<=j and j<l):
             break
-        muta[j] = 'Y' if muta[j+1]=='G' else 'T'
+        if j + 1<l and seqstr[j+1]=='G':
+            muta[j] = 'Y'
+        else:
+            muta[j] = 'T'
 
         j += 1
+
     return muta.toseq()
 
 def bisulfite_conversion(seq, sense=True):
-    return asymmetric_conversion(seq, lambda x: _bisulfite_conversion(x), sense)
+    """
+    >>> import Bio.Seq as Seq
+    >>> bisulfite_conversion(Seq.Seq('ATGCGC'), sense=True)
+    Seq('ATGYGT', Alphabet())
+    >>> bisulfite_conversion(Seq.Seq('ATGCGC'), sense=False)
+    Seq('ATACRC', Alphabet())
+    """
+    return asymmetric_conversion(seq, _bisulfite_conversion, sense=sense)
 
 def asymmetric_conversion(seq, conv, sense):
     if sense:
@@ -198,20 +215,25 @@ def asymmetric_conversion(seq, conv, sense):
         return conv(seq.reverse_complement()).reverse_complement()
 
 def to_unambiguous(bsseq, methyl=True):
-    seqstr = str(bsseq)
+    """
+    >>> str(to_unambiguous('ATGTYG',True))
+    'ATGTCG'
+    >>> str(to_unambiguous('ATGTYG',False))
+    'ATGTTG'
+    """
     trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
-    return seqstr.translate(trans)
+    return to_unambiguous_seq(str(bsseq).translate(trans))
 
 def bisulfite_conversion_unambiguous(seq, sense, methyl):
-    return to_unambiguous(bisulfite_conversion(seq, sense), methyl)
+    return to_unambiguous(bisulfite_conversion(seq, sense=sense), methyl=methyl)
 
 def bisulfite(seq, methyl, sense=True):
     """
     >>> import Bio.Seq as Seq
-    >>> bisulfite(Seq.Seq('ATGCGC'), True)
-    Seq('ATGCGT', Alphabet())
-    >>> bisulfite(Seq.Seq('ATGCGC'), False)
-    Seq('ATGTGT', Alphabet())
+    >>> str(bisulfite(Seq.Seq('ATGCGC'), methyl=True))
+    'ATGCGT'
+    >>> str(bisulfite(Seq.Seq('ATGCGC'), methyl=False))
+    'ATGTGT'
     """
     key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
 
@@ -222,7 +244,15 @@ def bisulfite(seq, methyl, sense=True):
     return getattr(seq, key)
 
 def gc_ratio(seq):
-    return GC(seq)
+    """
+    >>> gc_ratio('ATGCCGGATT')
+    50.0
+    """
+    c = seq.count('C')
+    c += seq.count('G')
+    c += seq.count('Y')
+    c += seq.count('R')
+    return 100. * c/len(seq)
 
 def _c2t_conversion(seq):
     muta = seq.tomutable()

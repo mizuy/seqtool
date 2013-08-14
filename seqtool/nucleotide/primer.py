@@ -1,6 +1,6 @@
 import re
 
-from . import to_seq, melt_temp, tm_gc
+from . import to_seq, melt_temp, tm_gc, is_sequence_like
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from ..util.parser import TreekvParser
@@ -8,7 +8,6 @@ from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
 from . import primer_cond as pcond
-from . import melt_temp
 
 __all__ = ['Primer', 'PrimerPair']
 
@@ -130,6 +129,14 @@ class PrimerAnnealing:
         w.pop()
 
 def count_while(iteration):
+    '''
+    >>> count_while([1,2,3,4,0])
+    4
+    >>> count_while([])
+    0
+    >>> count_while([0])
+    0
+    '''
     count = 0
 
     for i in iteration:
@@ -157,6 +164,26 @@ class PrimerTemplateAnnealing:
             |       |
            left    right
 
+
+        if strand
+
+            a_l  a_r
+             |    |
+          5'-ATGCTCCGTATG-3'
+                  CCGTATG
+                  |      |
+                left    right
+
+        if not strand
+
+                left    right
+                  |       |
+                  ATGCCATG
+                  ATGCCATGAACAT-5'
+                          |   |
+                         a_l a_r
+
+
         """
         self.primer = primer
         self.template = template
@@ -168,22 +195,43 @@ class PrimerTemplateAnnealing:
             p = primer.seq
             l = min(len(p), loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p-i],p[len(p)-1-i]) for i in range(l))
-            assert(self.length > 0)
-
             self.loc_5p = self.loc_3p - self.length + 1
             self.left =  self.loc_5p
             self.right = self.loc_3p + 1
+
+            assert(self.length > 0)
+            pp =  str(primer.seq)
+            self.adapter_length = len(p)-self.length
+            self.primer_match =  pp[self.adapter_length:]
+            self.display_match = pp[self.adapter_length:]
+            self.display_adapter = pp[:self.adapter_length]
+
+            self.a_l = self.left -  self.adapter_length
+            self.a_r = self.left
+            self.leftmost =  self.a_l
         else:
             p = primer.seq.reverse_complement()
             l = min(len(p), len(template)-loc_3p)
             self.length = count_while(iupac.base_match(template[loc_3p+i],p[i]) for i in range(l))
-            assert(self.length > 0)
-
             self.loc_5p = self.loc_3p + self.length - 1
             self.left =  self.loc_3p
             self.right = self.loc_5p + 1
-        self.full = self.length == len(self.primer)
+
+            assert(self.length > 0)
+            pp =  str(primer.seq)
+            self.adapter_length = len(p)-self.length
+            self.primer_match =  pp[self.adapter_length:]
+            self.display_match = pp[self.adapter_length:][::-1]
+            self.display_adapter = pp[:self.adapter_length][::-1]
+
+            self.a_l = self.right
+            self.a_r = self.right + self.adapter_length
+            self.leftmost =  self.left
+
+
+        self.full = (self.length == len(self.primer))
         self.match = self.template[self.left:self.right]
+
 
     def __le__(self, rhs):
         return (self.left <= rhs.left) and (self.right <= rhs.right)
@@ -192,8 +240,8 @@ class PrimerTemplateAnnealing:
         count = self.template[self.left:self.right].count('N')
         return 1.*count/(self.right-self.left)
 
-    def tm(self):
-        return melt_temp.melting_temperature_unmethyl(self.template[self.left:self.right])
+    def tm(self, pcr_mix=melt_temp.STANDARD_MIX):
+        return melt_temp.melting_temperature_unmethyl(self.primer_match, pcr_mix)
 
 
 class Primer:
@@ -216,7 +264,7 @@ class Primer:
     def gc_ratio(self):
         return gc_ratio(self.seq)
 
-    def melting_temperature(self, pcr_mix=melt_temp.DEFAULT_MIX, unmethyl=True):
+    def melting_temperature(self, pcr_mix=melt_temp.STANDARD_MIX, unmethyl=True):
         return melt_temp.melting_temperature_unmethyl(self.seq, pcr_mix, unmethyl)
 
     @property
@@ -231,7 +279,7 @@ class Primer:
     sa = self_annealing
     sea = self_end_annealing
 
-    def search(self, template, template_ambiguous=False, min_length=10):
+    def search(self, template, template_ambiguous=False, min_length=16):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)
@@ -243,7 +291,12 @@ class Primer:
             seq = self.seq
         primer = seq
         cprimer = seq.reverse_complement()
-        reg = re.compile('(%s)|(%s)'%(iupac.oligo_regex(primer),iupac.oligo_regex(cprimer)))
+        if template_ambiguous:
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_partial)
+        else:
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_unambiguous)
+            
+        reg = re.compile('(%s)|(%s)'%(oregex(primer),oregex(cprimer)))
 
         template = str(template).upper()
         pp = []
@@ -270,8 +323,13 @@ class Primer:
                 pc.append(pta)
         return pp,pc
 
-    def debugprint(self):
-        #print("%s: %s, len=%2d, Tm=%.2f, oTm=%.2f, MarmurTm: %s, GC=%.2f, sa=%2d, sea=%2d" % (**self.get_table_row()))
+    def write_text(self):
+        print("-"*20)
+        print("{}: 5'-{}-3'".format(self.name,self.seq))
+        h = self.get_table_head()[2:8]
+        r = self.get_table_row()[2:8]
+        for n,v in zip(h,r):
+            print('{}: {}'.format(n,v))
         print('sa=%s, index=%s'%(self.sa.score, self.sa.index))
         print('\n'.join(self.sa.get_bar()))
         print('sea=%s, index=%s'%(self.sea.score, self.sea.index))
@@ -351,17 +409,19 @@ class PrimerPair:
     def score_bisulfite(self):
         return pcond.BISULFITE_PCR.score_primerpair(self)
 
-    def debugprint(self):
+    def write_text(self):
+        print('PrimerPair: {} {}'.format(self.fw.name, self.rv.name))
         print('score=', self.score)
         print('bisulfite score=', self.score_bisulfite)
-        for r in [self.fw, self.rv]:
-            r.debugprint()
+        print('pair-annealing:')
         pa = self.pair_annealing
         print('pa=%s, index=%s'%(pa.score,pa.index))
         print('\n'.join(pa.get_bar()))
         pea = self.pair_end_annealing
         print('pea=%s, index=%s'%(pea.score,pea.index))
         print('\n'.join(pea.get_bar()))
+        for r in [self.fw, self.rv]:
+            r.write_text()
 
 
     def write_html(self, w, pair_values=True, annealings=False):
@@ -437,10 +497,20 @@ class Primers(NamedList):
         try:
             return self[name]
         except KeyError:
-            r = Primer(default_name, name)
-            self.append(r)
-            return r
+            if is_sequence_like(name):
+                r = Primer(default_name, name)
+                self.append(r)
+                return r
+        raise KeyError('no such primer and this is not valid sequence: {}'.format(name))
 
-def test_pp(a,b):
-    PrimerPair(Primer('fw',a),Primer('rv',b)).debugprint()
 
+def main():
+    import sys
+    ps = sys.argv[1:]
+
+    if len(ps)==2:
+        PrimerPair(Primer('fw',ps[0]),Primer('rv',ps[1])).write_text()
+    else:
+        for i,p in enumerate(ps):
+            Primer('Primer{}'.format(i),p).write_text()
+        

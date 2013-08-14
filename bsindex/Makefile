@@ -1,21 +1,15 @@
-BIN = ../bin
+BIN = .
 CPP = clang++
 CFLAGS = -Wall -std=c++0x -stdlib=libc++ -I/usr/local/include
-LIBS = -L/usr/local/lib -lboost_program_options
+LIBS = -L/usr/local/lib
 
 INPUT = $(wildcard *.cpp)
 OBJS  = $(INPUT:.cpp=.o)
-TARGET = $(BIN)/bisearch $(BIN)/tm $(BIN)/convert
+TARGET = $(BIN)/convert
 
 all: $(TARGET) 
 
 include Makefile.deps
-
-$(BIN)/bisearch: bisearch.o primer.o main.o
-	$(CPP) $(CFLAGS) $(LIBS) bisearch.o primer.o main.o -o $@
-
-$(BIN)/tm: tm.o
-	$(CPP) $(CFLAGS) $(LIBS) tm.o bisearch.o -o $@
 
 $(BIN)/convert: convert.o
 	$(CPP) $(CFLAGS) $(LIBS) convert.o -o $@
