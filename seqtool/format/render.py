@@ -65,7 +65,7 @@ class SvgPeaks(svg.SvgItemsFixedHeight):
             color = base_color(base)
             style = 'stroke:{}'.format(color)
 
-            v = ['{:.2f} {:.2f}'.format(x * self.scalex, self.height - y * self.scaley) for x, y in enumerate(values)]
+            v = ['{:.1f} {:.1f}'.format(x * self.scalex, self.height - y * self.scaley) for x, y in enumerate(values)]
             
             b.polyline(points = ','.join(v), style = style)
 

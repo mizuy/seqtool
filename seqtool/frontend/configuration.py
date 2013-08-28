@@ -14,10 +14,13 @@ class GeneralConfiguration(object):
         dirs = AppDirs("seqtool", "mizugy", version)
         self.configfile = os.path.join(dirs.user_data_dir,'config.cfg')
         self.cache_dir = dirs.user_cache_dir
+        print('configfile: ',self.configfile)
+        print('cache_dir: ',self.cache_dir)
 
         if not os.path.exists(self.configfile):
             os.makedirs(dirs.user_data_dir)
             with open(self.configfile, 'w') as f:
+                print('creating...',self.configfile)
                 f.write(DEFAULT)
 
         if not os.path.exists(self.cache_dir):

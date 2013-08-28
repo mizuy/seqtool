@@ -40,6 +40,7 @@ convert_bs = seqtool.bowtie.convert_bs:main
 virtualpcr = seqtool.bowtie.virtualpcr:main
 
 primer = seqtool.nucleotide.primer:main
+probe = seqtool.nucleotide.primer:probe
 
 pdesign = seqtool.script.pdesign:main
 bisulfite = seqtool.script.bisulfite:main
