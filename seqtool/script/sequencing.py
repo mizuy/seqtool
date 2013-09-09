@@ -101,15 +101,20 @@ class SeqFile(object):
     def svg_peak(self):
         render = SvgPeaksAlignment()
 
+        seq_loc = self.abi.get_sequence_loc()
+
         for al, p, q, tempname in self._alignment:
             if al.score_density() < SCORE_THRESHOLD:
                 continue
 
-            locs = al.get_mid_loc(self.abi.get_sequence_loc(),0)
-            texts = [tempname, al.aseq1.mid_gap, al.match_bar(), al.aseq0.mid_gap]
-            render.add_texts(texts, locs)
+            locs = list(al.get_mid_loc(seq_loc))
+            render.add_text(tempname, start=locs[0])
+            render.add_text_loc(al.aseq1.mid_gap, locs)
+            render.add_text_loc(al.match_bar(), locs)
+            render.add_text_loc(al.aseq0.mid_gap, locs)
 
-        render.add_peaks(200, self.abi.get_peaks())
+        render.add_text_loc(self.abi.get_sequence(), seq_loc)
+        render.add_peaks(200, self.abi.get_peaks(), seq_loc)
 
         return render.svg()
 

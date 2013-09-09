@@ -151,10 +151,15 @@ class AbiFormat:
 
 def svg_raw(filename, output):
     with debug.report_exceptions():
-        a = AbiFormat()
-        a.read(filename)
-        open(output, 'w').write(a.svg_raw())
-    
+        a = AbiFormat(filename)
+        open(output, 'w').write(a.svg())
+        #open(output, 'w').write(a.svg_raw())
+
+def svg_peaks(filename, output):
+    with debug.report_exceptions():
+        a = AbiFormat(filename)
+        open(output, 'w').write(a.svg())
+        
 if __name__ == '__main__':
     with debug.report_exceptions():
         a = AbiFormat()

@@ -3,6 +3,93 @@ from collections import defaultdict
 
 __all__ = ['Alignment']
 
+
+class GappedSequence:
+    def __init__(self, gapseq):
+        assert(isinstance(gapseq, str))
+        self.gapseq = gapseq
+        self.length = len(gapseq)
+        
+        self.gap_num = gapseq.count('-')
+        self.seq = gapseq.replace('-','')
+        self.index = list(self.calc_gap_index(gapseq))
+
+        self.seq2mid = {}
+        for i,(s,g,gl,gapleft) in enumerate(self.index):
+            if s is not None:
+                self.seq2mid[s] = i
+
+    def __str__(self):
+        return self.gapseq
+    def __len__(self):
+        return len(self.gapseq)
+
+    def get_seqindex(self,i):
+        return self.index[0][i]
+        
+    @classmethod
+    def calc_gap_index(cls, midgap):
+        """
+            midgap      A--A---A-A
+            midindex    0123456789
+            seqindex    0  1   2 3
+            gapindex     01 012 1
+            gaplen       22 333 1
+            gapleft      00 111 2
+            (gapright)   11 222 3
+        
+        
+        >>> calc_gap_index("A--A---A-A")
+        [(0,0), (1,2), (2,2), (0,0), (1,3), (2,3), (3,3), (0,0), (1,1), (0,0)]
+        """
+        l = len(midgap)
+        gap_num = midgap.count('-')
+
+        seqindex = [None for x in range(l)]
+        gapindex = [None for x in range(l)]
+        gaplen = [None for x in range(l)]
+        gapleft = [None for x in range(l)]
+
+        seqindex_i = 0
+        gapindex_i = 0
+        
+        gap_flag = False
+        gap_from = 0
+
+        for i in range(l):
+            if midgap[i]=='-':
+                if gap_flag:
+                    pass
+                else:
+                    # gap start
+                    gap_flag = True
+                    gapindex_i = 0
+                    gap_from = i
+                    
+                gapindex[i] = gapindex_i
+                gapindex_i += 1
+            else:
+                if gap_flag:
+                    # gap end
+                    ll = i - gap_from
+                    gaplen[gap_from:i] = [ll for i in range(ll)]
+                    gap_flag = False
+                else:
+                    pass
+
+                seqindex[i] = seqindex_i
+                seqindex_i += 1
+
+        seqindex_i = 0
+        for i in range(l):
+            if midgap[i]=='-':
+                pass
+            else:
+                seqindex_i += 1
+            gapleft[i] = seqindex_i
+
+        return zip(seqindex, gapindex, gaplen, gapleft)
+
 class AlingnedSeq(object):
     def __init__(self, seq, first, last, mid_gap):
         self.seq = seq
@@ -11,15 +98,15 @@ class AlingnedSeq(object):
         self.mid = seq[first:last]
         self.last = seq[last:]
 
-        self.mid_gap = mid_gap
+        self.mid_gap = GappedSequence(mid_gap)
 
         self.adjust = len(self.first)
 
     def combined(self):
-        return self.first + self.mid_gap + self.last
+        return self.first + str(self.mid_gap) + self.last
 
     def local(self, upstream, downstream):
-        return self.first[-upstream:].rjust(upstream) + self.mid_gap + self.last[:downstream].ljust(downstream)
+        return self.first[-upstream:].rjust(upstream) + str(self.mid_gap) + self.last[:downstream].ljust(downstream)
 
 M_MATCH = 0
 M_MISMATCH = 1
@@ -51,8 +138,11 @@ def does_match(i,j):
 
 def match_bar(s0, s1):
     assert(len(s0)==len(s1))
-    return ''.join('|-:-'[does_match(s0[i],s1[i])] for i in range(len(s0)))
+    return ''.join('| : '[does_match(s0[i],s1[i])] for i in range(len(s0)))
 
+def dividing_point(left, right, ratio):
+    return left + (right-left)*ratio
+    
 class Alignment(object):
     def __init__(self, seq_s0, seq_s1):
         s, first, last, mid, mv = smith_waterman(str(seq_s0),str(seq_s1))
@@ -73,15 +163,15 @@ class Alignment(object):
                                self.aseq0.local(upstream,downstream) )
 
     def match_bar(self):
-        return match_bar(self.aseq0.mid_gap, self.aseq1.mid_gap)
+        return match_bar(str(self.aseq0.mid_gap), str(self.aseq1.mid_gap))
 
     def correspondance_map(self):
         m = defaultdict(lambda: defaultdict(int))
 
-        length = len(self.aseq0.mid_gap)
+        length = len(str(self.aseq0.mid_gap))
         for i in range(length):
-            p = self.aseq0.mid_gap[i]
-            q = self.aseq1.mid_gap[i]
+            p = str(self.aseq0.mid_gap)[i]
+            q = str(self.aseq1.mid_gap)[i]
             m[q][p] += 1
 
         return m
@@ -89,55 +179,28 @@ class Alignment(object):
     def correspondance_str(self):
         m = defaultdict(str)
 
-        length = len(self.aseq0.mid_gap)
+        length = len(str(self.aseq0.mid_gap))
         for i in range(length):
-            p = self.aseq0.mid_gap[i]
-            q = self.aseq1.mid_gap[i]
+            p = str(self.aseq0.mid_gap)[i]
+            q = str(self.aseq1.mid_gap)[i]
             m[q] += p
 
         return m
 
-    def get_mid_loc(self, loc_full, index):
-        if index == 0:
-            p,q = self.aseq0.location
-            loc = loc_full[p:q]
-            base = self.aseq0.mid_gap
-            targ = self.aseq1.mid_gap
-        else:
-            p,q = self.aseq1.location
-            loc = loc_full[p:q]
-            base = self.aseq1.mid_gap
-            targ = self.aseq0.mid_gap
-
-        l = len(base)
-        assert(l == len(targ))
-
-        ret = []
-        b_i = -1
-        t_i = -1
-        for i in range(l):
-            b = base[i]
-            t = targ[i]
-            if b == '-' and t == '-':
-                continue
-            elif b == '-':
-                t_i += 1
-                if b_i<0:
-                    lo = loc[0]
-                elif 0 < b_i and b_i+1 < l:
-                    lo = .5*(loc[b_i]+loc[b_i+1])
-                else:
-                    lo = loc[b_i]
-                ret.append(lo)
-            elif t == '-':
-                b_i += 1
+    def get_mid_loc(self, refe_location):
+        p,q = self.aseq0.location
+        loc = refe_location[p:q]
+        refe = self.aseq0.mid_gap
+        targ = self.aseq1.mid_gap
+        for i,base in enumerate(targ.gapseq):
+            seqindex,gapindex,gaplen,gapleft = refe.index[i]
+            if seqindex is not None:
+                yield loc[seqindex]
             else:
-                b_i += 1
-                t_i += 1
-                ret.append(loc[b_i])
-
-        return ret
-
+                # gap
+                ratio = (gapindex + 1) / (gaplen + 1)
+                yield dividing_point(loc[gapleft], loc[gapleft+1], ratio)
+                
     def compare_bar(self, index):
         """
         view   : ATTTG-CA
@@ -149,13 +212,13 @@ class Alignment(object):
         base'  : AAACN
         """
         if index == 0:
-            base = self.aseq1.mid_gap
+            base = str(self.aseq1.mid_gap)
             based = self.aseq1.mid
-            view = self.aseq0.mid_gap
+            view = str(self.aseq0.mid_gap)
         else:
-            base = self.aseq0.mid_gap
+            base = str(self.aseq0.mid_gap)
             based = self.aseq0.mid
-            view = self.aseq1.mid_gap
+            view = str(self.aseq1.mid_gap)
 
         compare = []
         gap = []
