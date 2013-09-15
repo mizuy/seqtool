@@ -30,7 +30,7 @@ class Annotation:
 class AnnotationTexts(Annotation):
     def __init__(self, name, left, right, texts=[]):
         super().__init__(name, left, right)
-        self.texts = [name]+texts
+        self.texts = texts
 
     def svg_item(self, r=None):
         if r and not self.range.has_intersect(r):
@@ -195,7 +195,7 @@ class BaseseqRenderer:
 
     def add_alignment(self, name, p, q, bars):
         for ds in self.doublestrands:
-            ds.pos.append(AnnotationTexts(ds.name, p, q, bars))
+            ds.pos.append(AnnotationTexts(name, p, q, bars))
 
     def track_partial(self, start, end, width = None):
         start = max(start, 0)

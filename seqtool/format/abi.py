@@ -8,6 +8,10 @@ from ..nucleotide import to_seq
 base_index = {0:'G', 1:'A', 2:'T', 3:'C'}
 rc = {'G':'C', 'C':'G', 'A':'T', 'T':'A'}
 
+"""
+see ABIF_File_Format.pdf
+Applied Biosystems 3500/3500xl Genetic Analyzer tags
+"""
 
 class InvalidFormat(Exception):
     pass
@@ -29,13 +33,12 @@ class Entry:
 
         self.name =  buffer[:4].decode('utf-8')
         self.number, self.elementtype, self.elementsize, self.numelements, self.datasize = struct.unpack('>lhhll', buffer[4:20])
-
+        
         assert(0 < self.elementtype)
         assert(0 < self.elementsize)
         assert(0 < self.numelements)
         assert(0 < self.datasize)
         assert(self.numelements * self.elementsize <= self.datasize)
-
 
         if self.datasize > 4:
             self.dataoffset = struct.unpack('>l', buffer[20:24])[0]
@@ -46,14 +49,16 @@ class Entry:
             self.dataoffset = None
             content =  buffer[20:24]
 
-
         self.entries = []
+        self.string = None
 
         if self.elementtype == 18:
             #pascal string
             assert(self.elementsize == 1)
             assert(self.numelements == content[0] + 1)
-            self.entries.append(str(content[1:]))
+            s = content[1:].decode('utf-8')
+            self.entries.append(s)
+            self.string = s
         elif self.elementtype == 19:
             #zero-end string
             assert(self.elementsize == 1)
@@ -61,12 +66,12 @@ class Entry:
             content =  content[:l]
             s =  struct.unpack('{}s'.format(l), content)[0]
             self.entries.append(s)
+            self.string = s
         else:
             i = 0
             for t in range(self.numelements):
                 self.entries.append(self.read_entry(content[i:i + self.elementsize]))
                 i += self.elementsize
-
 
     def __repr__(self):
         return 'Entry({},number:{},num:{})'.format(self.name, self.number, self.numelements)
@@ -119,10 +124,8 @@ class AbiPeakViewBase:
 class AbiPeakView(AbiPeakViewBase):
     def __init__(self, abifile):
         self.abifile = abifile
-        pbas = abifile.get('PBAS').entries
-        pbas = ''.join(p.decode('utf-8') for p in pbas)
-        self.pbas = pbas
-        self.ploc = abifile.get('PLOC').entries
+        self.pbas = abifile.get_pbas()
+        self.ploc = abifile.get_ploc()
 
         self.peaks = {}
         self.peaks_len = 0
@@ -130,9 +133,9 @@ class AbiPeakView(AbiPeakViewBase):
         self.raw_len = 0
         for i in range(4):
             base = base_index[i]
-            self.peaks[base] = abifile.get('DATA', 9 + i).entries
+            self.peaks[base] = abifile.get_peaks(i)
             self.peaks_len = max(self.peaks_len, len(self.peaks[base]))
-            self.raw[base] = abifile.get('DATA', 1 + i).entries
+            self.raw[base] = abifile.get_raw_peaks(i)
             self.raw_len = max(self.raw_len, len(self.raw[base]))
 
     def get_reverse_complement(self):
@@ -143,9 +146,6 @@ class AbiPeakRcView(AbiPeakViewBase):
         self.original = original
         self.pbas = str(to_seq(self.original.pbas).reverse_complement())
         self.ploc = [(self.original.peaks_len - 1) - i for i in self.original.ploc][::-1]
-        #print(self.original.ploc)
-        #print(self.ploc)
-        #print(self.original.peaks_len)
         assert(len(self.pbas)==len(self.ploc))
         self.peaks = {}
         self.peaks_len = self.original.peaks_len
@@ -168,6 +168,9 @@ class AbiFormat:
         self.view = AbiPeakView(self)
         self.rc_view = self.view.get_reverse_complement()
 
+    def get_view(self, sense):
+        return self.view if sense else self.rc_view
+
     def readfp(self, fp):
         header =  fp.read(4)
         if header != b'ABIF':
@@ -183,25 +186,35 @@ class AbiFormat:
     def get(self, name, number = 1):
         return self._items.get((name, number))
 
+    def get_name(self):
+        return self.get('SMPL').string
+
+    def get_pbas(self):
+        return ''.join(p.decode('utf-8') for p in self.get('PBAS').entries)
+    def get_ploc(self):
+        return self.get('PLOC').entries
+    def get_peaks(self, i):
+        return self.get('DATA', 9 + i).entries
+    def get_raw_peaks(self, i):
+        return self.get('DATA', 1 + i).entries
+
     def svg(self):
         t = svg.SvgItemsVStack()
+        t.add(svg.SvgText(self.get_name()))
+        t.add(svg.SvgText('Original Sequencing Result:'))
         t.add(self.view.get_svg_base_peaks(200))
+        t.add(svg.SvgText('Reversed-Complemental Result:'))
         t.add(self.rc_view.get_svg_base_peaks(200))
-        t.add(self.view.get_svg_raw_peaks(200))
-        t.add(self.rc_view.get_svg_raw_peaks(200))
+
+        t.add(svg.SvgItemsFixedHeight(8))
+        t.add(svg.SvgText('Raw Data:'))
+        t.add(self.view.get_svg_raw_peaks(500))
         return svg.SvgPadding(20, 20, t).svg()
 
-def svg_raw(filename, output):
+def write_svg(filename, output):
     with debug.report_exceptions():
-        a = AbiFormat(filename)
-        open(output, 'w').write(a.svg())
-        #open(output, 'w').write(a.svg_raw())
+        open(output, 'w').write(AbiFormat(filename).svg())
 
-def svg_peaks(filename, output):
-    with debug.report_exceptions():
-        a = AbiFormat(filename)
-        open(output, 'w').write(a.svg())
-        
 if __name__ == '__main__':
     with debug.report_exceptions():
         a = AbiFormat('files/test.ab1')
