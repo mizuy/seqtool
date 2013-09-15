@@ -161,9 +161,14 @@ class AlignedSeq(object):
         self.adjust = len(self.first)
 
     def local(self, upstream, downstream):
+        return self.first_adjust(upstream) + self.mid_gap.seq_gap + self.last_adjust(downstream)
+
+    def first_adjust(self, length):
         fl = len(self.first)
-        r = self.first[fl-upstream:].rjust(upstream) + str(self.mid_gap) + self.last[:downstream].ljust(downstream)
-        return r
+        return self.first[fl-length:].rjust(length)
+    def last_adjust(self, length):
+        return self.last[:length].ljust(length)
+        
 
 M_MATCH = 0
 M_MISMATCH = 1
@@ -269,23 +274,35 @@ class Alignment(object):
         return match_bar(self.aseq0.mid_gap.seq_gap, self.aseq1.mid_gap.seq_gap)
 
     def correspondance_map(self):
-        p,q = len(self.aseq0.first),len(self.aseq0.last)
-        s0 = self.aseq0.local(p,q)
-        s1 = self.aseq1.local(p,q)
+        u,d = len(self.aseq0.first),len(self.aseq0.last)
+        s0 = self.aseq0.local(u,d)
+        s1 = self.aseq1.local(u,d)
         assert(len(self.aseq0.mid_gap)==len(self.aseq1.mid_gap))
         return CorrespondanceMap(s0,s1)
 
-    def get_mid_loc(self, refe_location):
+    def get_common_first_last_length(self):
+        u = min(len(self.aseq0.first),len(self.aseq1.first))
+        d = min(len(self.aseq0.last),len(self.aseq1.last))
+        return u,d
+        
+    def get_loc(self, seq0_location, upstream=0, downstream=0):
+        u,d = upstream,downstream
         p,q = self.aseq0.location
-        loc = refe_location[p:q]
+
+        yield from seq0_location[p-u:p]
+        
+        loc = seq0_location[p:q]
         refe = self.aseq0.mid_gap
         targ = self.aseq1.mid_gap
+
         for i,base in enumerate(targ.seq_gap):
             gapbase = refe[i]
             if gapbase.isgap:
                 yield dividing_point(loc[gapbase.gapleft], loc[gapbase.gapright], gapbase.gaplerp)
             else:
                 yield loc[gapbase.index_nongap]
+
+        yield from seq0_location[q:q+d]
                 
     def compare_bar(self):
         """

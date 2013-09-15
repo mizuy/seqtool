@@ -116,11 +116,14 @@ class SequencingResult(object):
                     if al.score_density() < SCORE_THRESHOLD:
                         continue
 
-                    locs = list(al.get_mid_loc(seq_loc))
-                    render.add_text(tempname, start=locs[0])
-                    render.add_text_loc(al.aseq1.mid_gap, locs)
-                    render.add_text_loc(al.match_bar(), locs)
-                    render.add_text_loc(al.aseq0.mid_gap, locs)
+                    u,d = al.get_common_first_last_length()
+                    tlocs = list(al.get_loc(seq_loc,u,d))
+                    render.add_text(tempname, start=tlocs[0])
+                    render.add_text_loc(al.aseq1.local(u,d), tlocs)
+                    
+                    mlocs = list(al.get_loc(seq_loc,0,0))
+                    render.add_text_loc(al.match_bar(), mlocs)
+                    render.add_text_loc(al.aseq0.mid_gap, mlocs)
 
                 render.add_text_loc(view.get_sequence(), seq_loc)
                 render.add_peaks(200, view.get_peaks(), seq_loc)
