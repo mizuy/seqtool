@@ -34,17 +34,17 @@ tssview = seqtool.frontend.command:tssview
 primers = seqtool.frontend.command:primers
 sequencing = seqtool.frontend.command:sequencing
 seqdb = seqtool.frontend.command:seqdb_command
-abiraw = seqtool.frontend.command:abiraw
+abiview = seqtool.frontend.command:abiview
 
 convert_bs = seqtool.bowtie.convert_bs:main
 virtualpcr = seqtool.bowtie.virtualpcr:main
 
 primer = seqtool.nucleotide.primer:main
+probe = seqtool.nucleotide.primer:probe
 
 pdesign = seqtool.script.pdesign:main
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
-align = seqtool.script.align:main
 translate = seqtool.script.translate:main
 server = seqtool.server.server:main
 """

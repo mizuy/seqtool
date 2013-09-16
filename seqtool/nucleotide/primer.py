@@ -292,7 +292,7 @@ class Primer:
         primer = seq
         cprimer = seq.reverse_complement()
         if template_ambiguous:
-            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_partial)
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_subset)
         else:
             oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_unambiguous)
             
@@ -326,6 +326,7 @@ class Primer:
     def write_text(self):
         print("-"*20)
         print("{}: 5'-{}-3'".format(self.name,self.seq))
+        print("reverse_complement: 5'-{}-3'".format(self.seq.reverse_complement()))
         h = self.get_table_head()[2:8]
         r = self.get_table_row()[2:8]
         for n,v in zip(h,r):
@@ -334,6 +335,12 @@ class Primer:
         print('\n'.join(self.sa.get_bar()))
         print('sea=%s, index=%s'%(self.sea.score, self.sea.index))
         print('\n'.join(self.sea.get_bar()))
+        print('check:')
+        print('   longest continuous seq: TODO')
+        print('   contains GGGG?: {}'.format(bool(self.seq.find('GGGG')>=0)))
+        p35 = self.seq[-4:]
+        p35gc = p35.count('C') + p35.count('G')
+        print("   5bases at 3'end has GC <= 2 ?: {} ({}bp)".format(bool(p35gc<=2),p35gc))
 
 
     @classmethod
@@ -381,6 +388,13 @@ class Primer:
         return i
 
 
+class TaqmanProbe(Primer):
+    def write_text(self):
+        super().write_text()
+        c = self.seq.count('C')
+        g = self.seq.count('G')
+        print('   Cs >Gs ?: {} ({} > {})'.format(c>g, c, g))
+        print("   5' not G?: {}".format(bool(self.seq[0]!='G')))
 
 class PrimerPair:
     def __init__(self, fw, rv):
@@ -513,4 +527,14 @@ def main():
     else:
         for i,p in enumerate(ps):
             Primer('Primer{}'.format(i),p).write_text()
-        
+
+
+def probe():
+    import sys
+    ps = sys.argv[1:]
+
+    for i,p in enumerate(ps):
+        s = to_seq(p)
+        TaqmanProbe('Probe_{}'.format(i),s).write_text()
+        TaqmanProbe('ProbeR_{}'.format(i),s.reverse_complement()).write_text()
+    

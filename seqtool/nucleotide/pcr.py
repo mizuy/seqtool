@@ -5,7 +5,7 @@ from collections import defaultdict
 from . import PPrintSequence, no_stop_in_frame
 from ..util.memoize import memoize
 from ..util import xmlwriter
-from .cpg import bisulfite, cpg_sites, count_cpg, bisulfite_conversion_unambiguous
+from .cpg import bisulfite, bisulfite_conversion, cpg_sites, count_cpg, bisulfite_conversion_unambiguous
 
 from .primer import PrimerPair, Primer
 
@@ -14,6 +14,8 @@ MAX_PRODUCT_SIZE = 1500
 __all__ = ['PCR', 'BisulfitePCR', 'RtPCR']
 
 class PCRProduct:
+    fcount = 0
+    
     def __init__(self, i, j):
         """
 
@@ -86,8 +88,8 @@ class PCRProduct:
     def __str__(self):
         return str(self.seq)
 
-    def write_html(self, w, callback = None):
-        b = xmlwriter.builder(w)
+    def write_html(self, b, toc, subfs, callback):
+        w = b.get_writer()
 
         with b.div:
             if self.partial_match:
@@ -119,10 +121,12 @@ class PCRProduct:
                 w.text('sequence ommitted. product length = {}'.format(len(self)))
 
             with b.span(**{'class':'length'}):
-                b.text('length=%d, CpG=%d, no stop=%s'%(len(seq), count_cpg(self.middle), no_stop_in_frame(seq)))
+                b.text('length=%d, CpG=%d'%(len(seq), count_cpg(self.middle)))
 
-            with b.textarea(cols='5', rows='1', cls='copybox'):
-                w.write(str(self.seq))
+            filename = 'pcr_product_{}.seq.txt'.format(PCRProduct.fcount)
+            PCRProduct.fcount += 1
+            subfs.write(filename, str(self.seq))
+            b.a('.seq file',href=subfs.get_link_path(filename))
 
 class PCRProducts:
     def __init__(self, products):
@@ -131,12 +135,12 @@ class PCRProducts:
     def __len__(self):
         return len(self.products)
 
-    def write_html(self, w, callback = None):
-        b = xmlwriter.builder(w)
+    def write_html(self, b, toc, subfs, callback = None):
+        w = b.get_writer()
         if len(self.products) > 0:
             with b.div(klass='products'):
                 for c in self.products:
-                    c.write_html(b.get_writer(), callback)
+                    c.write_html(b, toc, subfs, callback)
         else:
             with b.div(klass='products'):
                 b.p('no products')
@@ -172,9 +176,9 @@ class PCR:
     def primer_score(self):
         return self.primers.score
 
-    def _search(self, template):
-        fpp,fpc = self.fw.search(template)
-        rpp,rpc = self.rv.search(template)
+    def _search(self, template, template_ambiguous=False):
+        fpp,fpc = self.fw.search(template,template_ambiguous)
+        rpp,rpc = self.rv.search(template,template_ambiguous)
 
         for i in fpp:
             for j in fpc: # fw -> fw
@@ -198,9 +202,9 @@ class PCR:
             print('product: len=%d, detectable CpG=%d'%(len(c),c.detectable_cpg()))
             print(c.seq)
 
-    def write_html(self, w, callback = None):
-        self.primers.write_html(w)
-        self.products.write_html(w, callback)
+    def write_html(self, b, toc, subfs, callback = None):
+        self.primers.write_html(b.get_writer())
+        self.products.write_html(b, toc, subfs, callback)
 
 class PCRBand:
     """
@@ -222,10 +226,12 @@ list of tuples
 (full-name, abbr-name, conversion_function)
 """
 bisulfite_conversions = [
-    ("Bisulfite-Treated Sense Methyl", "M", lambda x: bisulfite(x, methyl=True, sense=True)),
-    ("Bisulfite-Treated Sense Unmethyl", "U", lambda x: bisulfite(x, methyl=False, sense=True)),
-    ("Bisulfite-Treated Antisense Methyl", "m", lambda x: bisulfite(x, methyl=True, sense=False)),
-    ("Bisulfite-Treated Antisense Unmethyl", "u", lambda x: bisulfite(x, methyl=False, sense=False)),
+    ("Bisulfite-Treated (+)", "+", lambda x: bisulfite_conversion(x, sense=True)),
+    ("Bisulfite-Treated (-)", "-", lambda x: bisulfite_conversion(x, sense=False)),
+#    ("Bisulfite-Treated Sense Methyl", "M", lambda x: bisulfite(x, methyl=True, sense=True)),
+#    ("Bisulfite-Treated Sense Unmethyl", "U", lambda x: bisulfite(x, methyl=False, sense=True)),
+#    ("Bisulfite-Treated Antisense Methyl", "m", lambda x: bisulfite(x, methyl=True, sense=False)),
+#    ("Bisulfite-Treated Antisense Unmethyl", "u", lambda x: bisulfite(x, methyl=False, sense=False)),
     ("Genome", "G", lambda x: x),
 ]
 
@@ -240,16 +246,16 @@ class PCRconv(PCR):
 
         for name, abbr, conv in conversions:
             temp = conv(original_template)
-            products = PCRProducts(self._search(temp))
+            products = PCRProducts(self._search(temp,True))
             self.converted_temp.append((name, abbr, temp, products))
 
-    def write_html(self, w, callback = None):
-        b = w.get_builder()
+    def write_html(self, b, toc, subfs, callback = None):
+        w = b.get_writer()
         self.primers.write_html(w)
 
         for name, abbr, temp, products in self.converted_temp:
             b.h5('template = {}'.format(name))
-            products.write_html(w, callback)
+            products.write_html(b, toc, subfs, callback)
 
     def bands(self):
         ret = defaultdict(lambda :PCRBand())
@@ -280,13 +286,13 @@ class PCRmulti(PCR):
             pcr = PCR(name, seq, primer_fw, primer_rv)
             self.multi_temp.append((tname, pcr))
 
-    def write_html(self, w, callback = None):
-        b = w.get_builder()
+    def write_html(self, b, toc, subfs, callback = None):
+        w = b.get_writer()
         self.primers.write_html(w)
 
         for tname, pcr in self.multi_temp:
             b.h5('template = {}'.format(tname))
-            pcr.products.write_html(w, callback)
+            pcr.products.write_html(b, toc, subfs, callback)
 
 class RtPCR(PCRmulti):
     def __init__(self, name, genome, transcripts, primer_fw, primer_rv):

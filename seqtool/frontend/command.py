@@ -143,18 +143,33 @@ def sequencing():
     inputps = [Filepath(i).path for i in args.inputs]
     outputp = Filepath(args.output)
     if check_update(outputp.path, inputps, args.force):
-        from ..script.sequencing import SequencingAnalysis
         with report_exceptions():
-            p = SequencingAnalysis()
-            p.load_fasta(args.template)
-            for input in inputps:
-                print(' processing:', input)
-                p.load_seqfile(input)
-            p.write_html(outputp)
+            from ..script.sequencing import sequencing_alignment
+            sequencing_alignment(args.template, inputps, outputp)
 
             if args.open:
                 mac_open(outputp)
 
+def abiview():
+    parser = ArgumentParser(prog='abiview', description='ABI sequencing output viewer')
+    parser.add_argument('ab1_filename', help=".ab1 file.")
+    parser.add_argument("-o", "--output", dest="output", help="output html filename")
+    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
+    parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
+
+    args = parser.parse_args()
+
+    inputp = Filepath(args.ab1_filename)
+    outputp = get_output_path(inputp.path, args.output, ext='.svg')
+    
+    if check_update(outputp.path, [inputp.path], args.force):
+        with report_exceptions():
+            from ..format.abi import write_svg
+            write_svg(inputp.path, outputp.path)
+
+            if args.open:
+                mac_open(outputp)
+                
 def get_genbank():
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
     parser.add_argument("gene", help="Gene ID or Gene Symbol")
@@ -198,24 +213,6 @@ def primers():
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
                 ps.write_html(html)
-
-def abiraw():
-    parser = ArgumentParser(prog='abiraw', description='Ab1 File Raw Signal Viewer')
-    parser.add_argument('filename', help='.ab1 file')
-    parser.add_argument("-o", "--output", dest="output", help="output html filename")
-    parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
-    parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
-
-    args = parser.parse_args()
-
-    inputp = Filepath(args.filename)
-    outputp = get_output_path(args.filename, args.output, '.svg')
-    if check_update(outputp.path, [inputp.path], args.force):
-        from seqtool.format import abi
-        abi.svg_raw(inputp.path, outputp.path)
-
-        if args.open:
-            mac_open(outputp)
 
 def seqdb_command():
     from argparse import ArgumentParser

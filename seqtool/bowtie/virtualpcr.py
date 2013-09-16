@@ -151,7 +151,8 @@ def main():
         -k 1000 : maximum number of matches.
         -n 2 : allowed number of mismatches per primer.
         '''
-        bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie -p 2 --best -k 1000 -n 2')
+        bowtie_path = os.path.expanduser('~/work/bowtie-1.0.0/bowtie -p 2 --best -k 1000 -n 3')
+        #bowtie_path = os.path.expanduser('~/work/bowtie-0.12.7/bowtie -p 2 --best -k 1000 -n 2')
 
         result = virtualpcr(template, primers, bowtie_path, length)
         if result:
@@ -165,11 +166,11 @@ def main():
         s(options.template)
     elif options.bisulfite:
         print('METHYL')
-        s('bs_sense_met')
-        s('bs_antisense_met')
+        s('bs_pos_met')
+        s('bs_neg_met')
         print('UNMETHYL')
-        s('bs_sense_unmet')
-        s('bs_antisense_unmet')
+        s('bs_pos_unm')
+        s('bs_neg_unm')
     else:
         parser.error('no template specified.')
 

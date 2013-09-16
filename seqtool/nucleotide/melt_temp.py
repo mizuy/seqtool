@@ -35,11 +35,13 @@ DEFAULT_C_MG = (2+4.5)*10**-3
 DEFAULT_C_PRIMER = 0.5*10**-6
 DEFAULT_C_NTP = DEFAULT_C_PRIMER
 
-DEFAULT_MIX = PCRMixture(DEFAULT_C_NA, DEFAULT_C_K,  DEFAULT_C_MG, DEFAULT_C_PRIMER, DEFAULT_C_NTP)
+#DEFAULT_MIX = PCRMixture(DEFAULT_C_NA, DEFAULT_C_K,  DEFAULT_C_MG, DEFAULT_C_PRIMER, DEFAULT_C_NTP)
+## 50mM Na, 1.5mM Mg, 200nM primers, 500nM dNTP
+# 50mM Na, 1mM Mg, 50nM primers, 200nM dNTP
+STANDARD_MIX = PCRMixture(50*10**-3, 0, 1*10**-3, 200*10**-9, 0)
 
-# 50mM Na, 1.5mM Mg, 200nM primers, 
-STANDARD_MIX = PCRMixture(50*10**-3, 0, 1.5*10**-3, 0.2*10**-6, 0.2*10**-6)
-    
+DEFAULT_MIX = STANDARD_MIX
+
 def melting_temperature_unmethyl(seq, pcr_mix=DEFAULT_MIX, unmethyl=True):
     seq = str(seq).upper()
     if unmethyl:

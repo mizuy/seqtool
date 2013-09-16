@@ -1,12 +1,12 @@
 import os
 from Bio import SeqIO
 
-from ..nucleotide import to_seq, sw
+from ..nucleotide import to_seq
+from ..nucleotide.alignment import make_alignment
 from ..nucleotide.cpg import bisulfite_conversion, c2t_conversion
 from ..nucleotide.primer import Primer
 from ..util import report
 from ..view.baseseq_renderer import BaseseqRenderer
-from .. import format
 from ..format.abi import AbiFormat
 from ..format.render import SvgPeaksAlignment
 
@@ -63,13 +63,13 @@ class TemplateCandidate(object):
                 else:
                     name = name+'(reverse)'
                     st = str(to_seq(template).reverse_complement())
-                al = sw.Alignment(target, st)
+                al = make_alignment(target,st)
                 p,q = al.aseq0.location
-                tempname = '{} {} {}'.format(name, al.aseq1.location, al.score_text())
+                tempname = '{} {}'.format(name, al.aseq1.location)
                 ret.append((al, p, q, tempname))
         return ret
 
-class SeqFile(object):
+class SequencingResult(object):
     def __init__(self, name, filename, template_candidate):
         self.name = name
         self.filename = filename
@@ -77,97 +77,113 @@ class SeqFile(object):
         base,ext = os.path.splitext(self.filename)
         if ext=='.seq':
             self.abi = None
-            self.seq = ''.join(i.strip() for i in open(filename,'rU').readlines())
+            self.seq = to_seq(''.join(i.strip() for i in open(filename,'rU').readlines()))
         elif ext=='.ab1':
             self.abi = AbiFormat(filename)
-            self.seq = self.abi.get_sequence()
-        self._alignment = self.tc.alignments(self.seq)
+            self.seq = to_seq(self.abi.view.get_sequence())
 
-    def svg(self):
-        render = BaseseqRenderer(to_seq(self.seq), False)
-        for primer in self.tc.primers:
-            render.add_primer(primer)
+    def html_content(self, b, toc, subfs):
+        b.h3(self.name)
+        for sense in [True,False]:
+            seq = self.seq if sense else self.seq.reverse_complement()
 
-        for al, p, q, tempname in self._alignment:
-            comp,gap = al.compare_bar(1)
+            name = self.name+('_sense_' if sense else '_antisense_')
+            b.h4('Sense' if sense else 'Reverse Complement')
 
-            if al.score_density() < SCORE_THRESHOLD:
-                continue
-
-            render.add_alignment(tempname, p, q, [comp, gap])
-
-        return render.track(len(self.seq)+10).svg()
-
-    def svg_peak(self):
-        render = SvgPeaksAlignment()
-
-        for al, p, q, tempname in self._alignment:
-            if al.score_density() < SCORE_THRESHOLD:
-                continue
-
-            locs = al.get_mid_loc(self.abi.get_sequence_loc(),0)
-            texts = [tempname, al.aseq1.mid_gap, al.match_bar(), al.aseq0.mid_gap]
-            render.add_texts(texts, locs)
-
-        render.add_peaks(200, self.abi.get_peaks())
-
-        return render.svg()
-
-    def html(self, b):
-        #b.h3(self.name)
-        for al, p, q, tempname in self._alignment:
-            b.h4(tempname)
+            alignments = self.tc.alignments(seq)
             
-            if al.score_density() < SCORE_THRESHOLD:
-                continue
+            def svg_compare():
+                render = BaseseqRenderer(to_seq(seq), False)
+                for primer in self.tc.primers:
+                    render.add_primer(primer)
 
-            with b.div(cls='indent'):
-                m = al.correspondance_map()
-                ms = al.correspondance_str()
+                for al, p, q, tempname in alignments:
+                    if al.score_density() < SCORE_THRESHOLD:
+                        continue
 
-                with b.pre:
-                    for k,v in list(m.items()):
-                        b.text(str(k)+':{'+', '.join('{}:{}'.format(kk,vv) for kk,vv in list(v.items()))+'}')
+                    comp,gap = al.compare_bar()
+                    render.add_alignment(tempname, p, q, [comp, gap])
 
-                for k,v in list(ms.items()):
-                    with b.span:
-                        b.text(str(k)+': '+v)
-                        b.br()
+                return render.track(len(seq)+10).svg()
+                
+            def svg_peak():
+                view = self.abi.get_view(sense)
+                render = SvgPeaksAlignment()
 
-                with b.pre:
-                    b.text(al.text_local())
+                seq_loc = view.get_location()
+
+                for al, p, q, tempname in alignments:
+                    if al.score_density() < SCORE_THRESHOLD:
+                        continue
+
+                    u,d = al.get_common_first_last_length()
+                    tlocs = list(al.get_loc(seq_loc,u,d))
+                    render.add_text(tempname, start=tlocs[0])
+                    render.add_text_loc(al.aseq1.local(u,d), tlocs)
+                    
+                    mlocs = list(al.get_loc(seq_loc,0,0))
+                    render.add_text_loc(al.match_bar(), mlocs)
+                    render.add_text_loc(al.aseq0.mid_gap, mlocs)
+
+                render.add_text_loc(view.get_sequence(), seq_loc)
+                render.add_peaks(200, view.get_peaks(), seq_loc)
+
+                return render.svg()
+                
+
+            fs = [(name+'_compare.svg', svg_compare())]
+            if self.abi:
+                fs.append((name+'_peak.svg', svg_peak()))
+
+            with b.div(klass='products'):
+                with b.ul:
+                    for filename, content in fs:
+                        link = subfs.get_link_path(filename)
+                        subfs.write(filename, content)
+
+                        with b.li:
+                            with b.a(href=link):
+                                b.text(filename)
+
+                for al, p, q, tempname in alignments:
+                    if al.score_density() < SCORE_THRESHOLD:
+                        continue
+
+                    b.h4(tempname)
+                    with b.div(cls='indent'):
+                        cm = al.reversed().correspondance_map()
+
+                        with b.pre:
+                            #b.text(cm.text_map())
+                            b.text(cm.text_str())
+
+                        with b.pre:
+                            b.text(al.text_local())
 
 
 class SequencingAnalysis(object):
     def __init__(self):
         self.tc = TemplateCandidate()
-        self._seqfiles = []
-        self.name = 'Sequencing Analysis Result'
+        self._results = []
+        self.name = 'Sequencing Analysis'
 
     def load_fasta(self, fasta_file):
         self.tc.load_fasta(fasta_file)
 
-    def load_seqfile(self, seqfile):
-        self._seqfiles.append(SeqFile(os.path.basename(seqfile), seqfile, self.tc))
+    def load_sequencingfile(self, seqfile):
+        self._results.append(SequencingResult(os.path.basename(seqfile), seqfile, self.tc))
 
     def write_html(self, outputp):
         report.write_html(outputp, self.name, self.html_content)
 
     def html_content(self, b, toc, subfs):
-        b.h2('Sequencing Analysis:')
-        b.h3('Alignment View')
-        for sf in self._seqfiles:
-            fs = [(sf.name+'.svg', sf.svg())]
-            if sf.abi:
-                fs.append((sf.name+'_peak.svg', sf.svg_peak()))
+        for result in self._results:
+            result.html_content(b, toc, subfs)
 
-            b.h3(sf.name)
-            with b.div(cls='products'):
-                for filename, content in fs:
-                    link = subfs.get_link_path(filename)
-                    subfs.write(filename, content)
-                    
-                    with b.a(href=link):
-                        b.img(src=link, width='1000px')
-                sf.html(b)
-
+def sequencing_alignment(template_file, sequencing_files, outputp):
+    p = SequencingAnalysis()
+    p.load_fasta(template_file)
+    for seqf in sequencing_files:
+        print(' processing:', seqf)
+        p.load_sequencingfile(seqf)
+    p.write_html(outputp)

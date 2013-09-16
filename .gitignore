@@ -63,3 +63,5 @@ temp
 *.pdf
 /desktop
 TAGS
+/bsindex
+*_flymake.py

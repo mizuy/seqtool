@@ -42,7 +42,7 @@ class BaseBlock:
     def svg_transcript(self, t, transcript):
         pass
 
-    def write_html(self, b, subfs):
+    def write_html(self, b, toc, subfs, callback):
         pass
 
 class PcrsBlock(BaseBlock):
@@ -70,7 +70,7 @@ class PcrsBlock(BaseBlock):
             for pcr in self.pcrsholder:
                 print('pcr {}'.format(pcr.name))
                 with report.section(b, toc, "{} ({})".format(pcr.name,self.title), klass='pcr'):
-                    pcr.write_html(w, callback)
+                    pcr.write_html(b, toc, subfs, callback)
 
 class BsPcrsBlock(PcrsBlock):
     """

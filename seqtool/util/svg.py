@@ -644,6 +644,7 @@ class SvgText(SvgBase):
         self.style = {}
         if fontsize != DEFAULT_FONTSIZE:
             self.style['fontsize'] = fontsize
+            self.style['xml:space'] = 'preserve'
 
         self._rect = Rectangle(x, x+self.w, y, y+self.h)
 
