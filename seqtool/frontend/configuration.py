@@ -11,7 +11,7 @@ DEFAULT = """
 class GeneralConfiguration(object):
     def __init__(self):
         version = pkg_resources.require("seqtool")[0].version
-        dirs = AppDirs("seqtool", "mizugy", version)
+        dirs = AppDirs("seqtool", "mizugy")
         self.configfile = os.path.join(dirs.user_data_dir,'config.cfg')
         self.cache_dir = dirs.user_cache_dir
         print('configfile: ',self.configfile)
