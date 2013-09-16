@@ -45,7 +45,6 @@ probe = seqtool.nucleotide.primer:probe
 pdesign = seqtool.script.pdesign:main
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
-align = seqtool.script.align:main
 translate = seqtool.script.translate:main
 server = seqtool.server.server:main
 """

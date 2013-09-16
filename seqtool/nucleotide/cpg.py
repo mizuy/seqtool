@@ -51,7 +51,7 @@ def cpg_sites(seq, range_=(None,None)):
 
     >>> list(cpg_sites('ATGCCGCGATCG'))
     [4, 6, 10]
-    >>> list(cpg_sites('ATGCCGCGATCG',(2,6)))
+    >>> list(cpg_sites('ATGCCGCGATCG',(2,7)))
     [4, 6]
     """
     seqstr = str(seq)
@@ -86,11 +86,11 @@ def is_cpg(seq,i):
 
 def count_cpg(seq, range_=(None,None)):
     """
-    >>> count_cpg('ATGCCGCGATCG')
+    >>> count_cpg('ATGCYGCGATCG')
     3
-    >>> count_cpg('ATGCCGCGATCG'[2:7])
+    >>> count_cpg('ATGCYGCGATCG'[2:7])
     1
-    >>> count_cpg('ATGCCGCGATCG',(2,7))
+    >>> count_cpg('ATGCYGCGATCG',(2,7))
     2
     """
     p,q = _cpg_range(range_, len(seq))

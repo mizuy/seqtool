@@ -26,25 +26,24 @@ class GapSeq:
         """
         >>> g0 = GapSeq("A--TAT-GCC")
         >>> g0.gap_num
-        2
+        3
         >>> len(g0)
         10
-        >>> str(g0)
-        "A--TAT-GCC"
-        >>> g0.seq
-        "ATATGCC"
+        >>> g0.seq_gap
+        'A--TAT-GCC'
+        >>> g0.seq_nongap
+        'ATATGCC'
         >>> [x.index_gap for x in g0._index]
-        [0,1,2,3,4,5,6,7,8]
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         >>> [x.index_nongap for x in g0._index]
-        [0,None,None,2,3,4,None,5,6,7]
+        [0, None, None, 1, 2, 3, None, 4, 5, 6]
         >>> [x.gapindex for x in g0._index]
-        [None,0,1,None,None,None,0,None,None,None]
+        [None, 0, 1, None, None, None, 0, None, None, None]
         >>> [x.gaplen for x in g0._index]
-        [None,2,2,None,None,None,1,None,None,None]
+        [None, 2, 2, None, None, None, 1, None, None, None]
         >>> [x.gapleft for x in g0._index]
-        [None,0,0,None,None,None,3,None,None,None]
+        [None, 0, 0, None, None, None, 3, None, None, None]
         >>> g1 = GapSeq("ATGT-TGG-C")
-        >>> 
         """
         assert(isinstance(seq_gap, str))
 
@@ -116,7 +115,7 @@ class GapSeq:
                     
                 ret[i].gapindex = gapindex_i
                 gapindex_i += 1
-                ret[i].gapleft = index_nongap_i
+                ret[i].gapleft = index_nongap_i - 1
             else:
                 if gap_flag:
                     gap_end(i)
@@ -135,17 +134,25 @@ class AlignedSeq(object):
         """
         ATG--CAT-CATGC
           <------>
-        >>> a = AlignedSeq("ATGCATCATGC",2,6,'G--CAT-C')
-        >>> a.mid
-        "GCATC"
-        >>> str(a.mid_gap)
-        "G--CAT-C"
+        >>> a = AlignedSeq("ATGCATCATGC",2,7,'G--CAT-C')
+        >>> a.first
+        'AT'
+        >>> a.mid_gap.seq_nongap
+        'GCATC'
+        >>> a.mid_gap.seq_gap
+        'G--CAT-C'
+        >>> a.last
+        'ATGC'
         >>> a.location
-        (2,6)
-        >>> a.combined
-        "ATG--CAT-CATGC"
-        >>> a.seq
-        "ATGCATCATGC"
+        (2, 7)
+        >>> a.combined_gap
+        'ATG--CAT-CATGC'
+        >>> a.combined_nongap
+        'ATGCATCATGC'
+        >>> a.local(3,3)
+        ' ATG--CAT-CA..'
+        >>> a.local(10,10)
+        '        ATG--CAT-CATGC      '
         """
         self.seq = seq
         self.location = (first,last)
@@ -165,9 +172,19 @@ class AlignedSeq(object):
 
     def first_adjust(self, length):
         fl = len(self.first)
-        return self.first[fl-length:].rjust(length)
+        if fl <= length:
+            return self.first.rjust(length)
+        else:
+            cc = min(2, length)
+            return '.'*cc + self.first[fl-(length-cc):]
+            
     def last_adjust(self, length):
-        return self.last[:length].ljust(length)
+        ll = len(self.last)
+        if ll <= length:
+            return self.last.ljust(length)
+        else:
+            cc = min(2, length)
+            return self.last[:(length-cc)] + '.'*cc
         
 
 M_MATCH = 0
@@ -205,7 +222,7 @@ def match_bar(s0, s1):
     ATGCATCC
 
     >>> match_bar('ATNCATGC','ATGCATCC')
-    "||:||| |"
+    '||:||| |'
     """
     assert(len(s0)==len(s1))
     return ''.join('| : '[does_match(s0[i],s1[i])] for i in range(len(s0)))
@@ -213,9 +230,9 @@ def match_bar(s0, s1):
 def dividing_point(left, right, ratio):
     """
     >>> dividing_point(1, 11, 0.5)
-    6
+    6.0
     >>> dividing_point(1, 11, 0.2)
-    3
+    3.0
     """
     return left + (right-left)*ratio
 
@@ -259,16 +276,19 @@ class Alignment(object):
         return Alignment(self.aseq1, self.aseq0, self.score)
 
     def text_all(self):
-        p,q = self.aseq0.adjust, self.aseq1.adjust
-        r = max(p,q)
-        return '{}\n{}'.format(' '*(r-p) + self.aseq0.combined,
-                               ' '*(r-q) + self.aseq1.combined )
+        u,d = self.get_longest_first_last_length()
+        return '{}\n{}\n{}'.format(self.aseq1.local(u,d),
+                                   ' '*u + self.match_bar() + ' '*d,
+                                   self.aseq0.local(u,d) )
 
-    def text_local(self, upstream=30, downstream=30):
-        p,q = self.aseq0.adjust, self.aseq1.adjust
-        return '{}\n{}\n{}'.format(self.aseq1.local(upstream,downstream),
-                               ' '*upstream+self.match_bar(),
-                               self.aseq0.local(upstream,downstream) )
+    def text_shrinked(self, upstream=30, downstream=30):
+        u,d = self.get_longest_first_last_length()
+        u = min(upstream, u)
+        d = min(downstream, d)
+        
+        return '{}\n{}\n{}'.format(self.aseq1.local(u,d),
+                                   ' '*u+self.match_bar()+' '*d,
+                                   self.aseq0.local(u,d) )
 
     def match_bar(self):
         return match_bar(self.aseq0.mid_gap.seq_gap, self.aseq1.mid_gap.seq_gap)
@@ -283,6 +303,11 @@ class Alignment(object):
     def get_common_first_last_length(self):
         u = min(len(self.aseq0.first),len(self.aseq1.first))
         d = min(len(self.aseq0.last),len(self.aseq1.last))
+        return u,d
+
+    def get_longest_first_last_length(self):
+        u = max(len(self.aseq0.first),len(self.aseq1.first))
+        d = max(len(self.aseq0.last),len(self.aseq1.last))
         return u,d
         
     def get_loc(self, seq0_location, upstream=0, downstream=0):
