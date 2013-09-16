@@ -6,17 +6,26 @@ Python 3.3
 
 ** Commands
 
+seqview: render overview image of sequence, primers, bisulfite sequence results.
 get_genbank: get GenBank file from ncbi.
 geneview: render overview image of gene sequence, annotation
-seqview: render overview image of sequence, primers, bisulfite sequence results.
-tssview: count the number of tss tags of specific genes, by DBTSS
+seqdb: seqtool database manager. see database/README
+
+sequencing: align ab1 sequencing result file to reference sequence
+
 bisearch: design primer based on primer3 algorithm.
-primers: calculate primer properties
 virtualpcr: PCR primer alignment tool using bowtie
+
+primers: calculate primers properties
+primer: calculate primer properties
+probe: calculate TaqMan probe properties
+bisulfite: show bisulfite converted sequence
+rpm: calculate rpm of centrifuge machine
+abiview: .ab1 viewer
 
 ** configfile
 
-'/Users/_____/Library/Application Support/seqtool/version/config.cfg'
+'/Users/_____/Library/Application Support/seqtool/config.cfg'
 
 ** bootstrap
 
@@ -45,7 +54,6 @@ You must link boost_program_options
     - zoom button in seqv
     - web server implementation
     - misc primer attribute calculations
-    - svg link to pcr entry
     - pcr virtualpcr integration
 
 - new
