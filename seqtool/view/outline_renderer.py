@@ -3,7 +3,8 @@
 from math import ceil
 
 from ..nucleotide import base_color
-from ..nucleotide.cpg import cpg_sites, seq_cpg_analysis
+from ..nucleotide.cpg import cpg_sites
+from ..nucleotide.cpgisland import seq_cpg_analysis
 from ..util import svg
 
 __all__ = ['OutlineRenderer']

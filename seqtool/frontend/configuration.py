@@ -27,7 +27,7 @@ class GeneralConfiguration(object):
             os.makedirs(self.cache_dir)
 
     def get_config(self):
-        config = configparser.RawConfigParser()
+        config = configparser.SafeConfigParser()
         config.read(self.configfile)
         return config
 
@@ -41,7 +41,8 @@ class GeneralConfiguration(object):
         except:
             print("Email address is required to access NCBI Entrez.")
             email = input("Email: ")
-            config.add_section('general')
+            if not config.has_section('general'):
+                config.add_section('general')
             config.set('general','email',email)
             config.write(open(self.configfile,'w'))
             print("Your email is stored at {}".format(self.configfile))

@@ -292,7 +292,7 @@ class Primer:
         primer = seq
         cprimer = seq.reverse_complement()
         if template_ambiguous:
-            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_partial)
+            oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_subset)
         else:
             oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_unambiguous)
             
