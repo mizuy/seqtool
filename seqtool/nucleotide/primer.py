@@ -182,7 +182,7 @@ class PrimerTemplateAnnealing:
             self.display_adapter = str(self.primer_adapter)
         else:
             p = primer.seq.complement()
-            l = min(len(p), len(template)-loc_3p+1)
+            l = min(len(p), len(template)-loc_3p)
             self.match_length = count_while(
                 iupac.base_match(template[i],p[p_coord.get_l(i)]) for i in range(loc_3p,loc_3p+l))
             assert(self.match_length > 0)
