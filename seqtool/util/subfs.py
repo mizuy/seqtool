@@ -47,8 +47,12 @@ class SubFileSystem(object):
             os.makedirs(d)
         for name, content in self.storage:
             fn = os.path.join(self.output_dir, name)
-            with open(fn, 'w') as f:
-                f.write(content)
+            if isinstance(content, bytes):
+                with open(fn, 'wb') as f:
+                    f.write(content)
+            elif isinstance(content, str):
+                with open(fn, 'wb') as f:
+                    f.write(content.encode('utf-8'))
 
     def get_subfs(self, name):
         return SubsubFileSystem(self, name)

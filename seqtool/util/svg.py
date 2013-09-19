@@ -1,4 +1,5 @@
-
+import gzip
+import io
 from . import xmlwriter
 from .rectangle import Rectangle
 
@@ -108,6 +109,9 @@ class SvgBase(object):
 
     def svg(self, width=None, height=None):
         return SVG_HEADER + self.svg_node(width,height)
+
+    def svgz(self, width=None, height=None):
+        return gzip.compress(self.svg(width, height).encode('utf-8'))
 
     def svg_css(self):
         return SVG_CSS
