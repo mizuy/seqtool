@@ -48,12 +48,12 @@ class AnnotationPrimerAnneal(Annotation):
         self.pta = pta
         self.name = pta.primer.name
         
-        self.matched = (pta.display_match, pta.left, pta.right)
+        self.matched = (pta.display_match, pta.match_left, pta.match_right)
         self.left = pta.leftmost
-        self.right = pta.right
+        self.right = pta.match_right
 
         if not pta.full:
-            self.adapter = (pta.display_adapter, pta.a_l, pta.a_r)
+            self.adapter = (pta.display_adapter, pta.adapter_left, pta.adapter_right)
 
 
         super().__init__(pta.primer.name, self.left, self.right)

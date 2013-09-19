@@ -2,10 +2,11 @@
 
 from Bio import Seq
 from collections import defaultdict
-from . import PPrintSequence, no_stop_in_frame
+from . import PPrintSequence, no_stop_in_frame, to_seq
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from .cpg import bisulfite, bisulfite_conversion, cpg_sites, count_cpg, bisulfite_conversion_unambiguous
+
 
 from .primer import PrimerPair, Primer
 
@@ -18,7 +19,6 @@ class PCRProduct:
     
     def __init__(self, i, j):
         """
-
         template:
                      i.left  i.right       j.left j.right   
                          |     |             |    |         
@@ -39,35 +39,36 @@ class PCRProduct:
 
         self.template = i.template
 
-        self.start_0 =  i.left - i.adapter_length
-        self.start = i.left
-        self.start_i = i.right
-        self.end_i = j.left
-        self.end = j.right
-        self.end_0 =  j.right + j.adapter_length
+        self.start_0 =  i.leftmost
+        self.start = i.match_left
+        self.start_i = i.match_right
+        self.end_i = j.match_left
+        self.end = j.match_right
+        self.end_0 =  j.rightmost
 
-        self.head = self.fw.seq[:-self.i.length]
-        self.fw_3 = self.fw.seq[-self.i.length:]
+        self.head = i.primer_adapter_sense
+        self.fw_3 = i.primer_match_sense
         self.middle = self.template[self.start_i:self.end_i]
-        self.rv_3 = self.rv.seq.reverse_complement()[:self.j.length]
-        self.tail = self.rv.seq.reverse_complement()[self.j.length:]
+        self.rv_3 = j.primer_match_sense
+        self.tail = j.primer_adapter_sense
 
-        if self.head:
-            self.fwp = Primer('{}({}-mer)'.format(i.primer.name, len(self.fw_3)),self.fw_3)
+        if len(self.head)>0:
+            p = i.primer_match
+            self.fwp = Primer('{}({}-mer)'.format(i.primer.name, len(p)), p)
         else:
             self.fwp = i.primer
 
-        if self.tail:
-            self.rvp = Primer('{}({}-mer)'.format(j.primer.name, len(self.rv_3)),self.rv_3.reverse_complement())
+        if len(self.tail)>0:
+            p = j.primer_match
+            self.rvp = Primer('{}({}-mer)'.format(j.primer.name, len(p)), p)
         else:
             self.rvp = j.primer
 
-        self.partial_match = not not (self.head or self.tail)
+        self.partial_match = bool(self.head or self.tail)
         self.primerpair = PrimerPair(self.fwp, self.rvp)
 
         self.parts = [self.head, self.fw_3, self.middle, self.rv_3, self.tail]
         self.seq = self.head + self.fw_3 + self.middle + self.rv_3 + self.tail
-        #self.seq = self.head + self.template[self.start:self.end] + self.tail
         v = []
         k = 0
         for part in self.parts:
@@ -132,6 +133,9 @@ class PCRProducts:
     def __init__(self, products):
         self.products = list(products)
 
+    def __repr__(self):
+        return repr(self.products)
+
     def __len__(self):
         return len(self.products)
 
@@ -151,10 +155,34 @@ class PCRProducts:
 class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
         """
-        >>> fw = Primer('Fw','TTTCAGCAAGGACTGGTCTTT')
-        >>> rv = Primer('Rv','CACAACTTTCAGCAGCTTACAAA')
-        >>> t = Seq.Seq('TTTCAGCAAGGACTGGTCTTTCTATCTCTTGTACTACACTGAATTCACCCCCACTGAAAAAGATGAGTATGCCTGCCGTGTGAACCATGTGACTTTGTCACAGCCCAAGATAGTTAAGTGGGGTAAGTCTTACATTCTTTTGTAAGCTGCTGAAAGTTGTG')
+                         11111111112222222222333333333344444444445555555555666666
+               012345678901234567890123456789012345678901234567890123456789012345
+        (fw->) AGAGGATCCTTTCAGCATGGTCTTT
+               AAAAAAAAATTTCAGCATGGTCTTTCTATGTCTTACATTCTTCTTGTAAGAGTTGTGTTTTTTTTT
+                                                     5'-TCTTGTAAGAGTTGTGCTCGAGTCT-3'
+                                                     3'-AGAACATTCTCAACACGAGCTCAGA-5' (<-rv)
+        
+        >>> fw = Primer('Fw-BamHI','AGAGGATCCTTTCAGCATGGTCTTT')
+        >>> rv = Primer('Rv-XhoI','AGACTCGAGCACAACTCTTACAAGA')
+        >>> t = to_seq('AAAAAAAAATTTCAGCATGGTCTTTCTATGTCTTACATTCTTCTTGTAAGAGTTGTGTTTTTTTTT')
         >>> pcr = PCR('B2M', t, fw, rv)
+        >>> len(pcr.products)
+        1
+        >>> p = list(pcr.products)[0]
+        >>> p.i
+        PrimerTemplateAnnealing(True, match(16bp):9 -> 25, adapter(9bp):0 -> 9)
+        >>> p.j
+        PrimerTemplateAnnealing(False, match(16bp):41 -> 57, adapter(9bp):57 -> 66)
+        >>> p.head
+        Seq('AGAGGATCC', IUPACUnambiguousDNA())
+        >>> p.fw_3
+        Seq('TTTCAGCATGGTCTTT', IUPACUnambiguousDNA())
+        >>> p.middle
+        Seq('CTATGTCTTACATTCT', IUPACUnambiguousDNA())
+        >>> p.rv_3
+        Seq('TCTTGTAAGAGTTGTG', IUPACUnambiguousDNA())
+        >>> p.tail
+        Seq('CTCGAGTCT', IUPACUnambiguousDNA())
         """
         assert(isinstance(template, Seq.Seq))
         assert(isinstance(name, str))
@@ -226,12 +254,8 @@ list of tuples
 (full-name, abbr-name, conversion_function)
 """
 bisulfite_conversions = [
-    ("Bisulfite-Treated (+)", "+", lambda x: bisulfite_conversion(x, sense=True)),
-    ("Bisulfite-Treated (-)", "-", lambda x: bisulfite_conversion(x, sense=False)),
-#    ("Bisulfite-Treated Sense Methyl", "M", lambda x: bisulfite(x, methyl=True, sense=True)),
-#    ("Bisulfite-Treated Sense Unmethyl", "U", lambda x: bisulfite(x, methyl=False, sense=True)),
-#    ("Bisulfite-Treated Antisense Methyl", "m", lambda x: bisulfite(x, methyl=True, sense=False)),
-#    ("Bisulfite-Treated Antisense Unmethyl", "u", lambda x: bisulfite(x, methyl=False, sense=False)),
+    ("Bisulfite-Treated Sense", "+", lambda x: bisulfite_conversion(x, sense=True)),
+    ("Bisulfite-Treated Antisense", "-", lambda x: bisulfite_conversion(x, sense=False)),
     ("Genome", "G", lambda x: x),
 ]
 

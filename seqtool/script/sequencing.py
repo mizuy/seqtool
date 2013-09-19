@@ -158,7 +158,7 @@ class SequencingResult(object):
                             b.text(cm.text_str())
 
                         with b.pre:
-                            b.text(al.text_local())
+                            b.text(al.text_shrinked())
 
 
 class SequencingAnalysis(object):

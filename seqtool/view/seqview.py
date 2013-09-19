@@ -258,9 +258,16 @@ class Seqview(object):
             svgs.insert(1, ('transcript.svg', 'Transcript', self.svg_transcript(), True))
 
         def product_callback(product):
-            p = product.start_0 - 20
-            q = product.end_0 + 20
-            s = bsr.track_partial(p, q, width = None).svg()
+            aseq = BaseseqRenderer(product.template, self.show_bisulfite)
+
+            for p in self.primers:
+                aseq.add_primer(p)
+
+            aseq.add_restriction_batch(Restriction.RestrictionBatch(self.restrictions))
+
+            p = max(0, product.start_0 - 20)
+            q = min(product.end_0 + 20, len(product.template))
+            s = aseq.track_partial(p, q, width = None).svg()
 
             filename = 'pcr{}.svg'.format(product_callback.count)
             product_callback.count += 1

@@ -12,7 +12,7 @@ class EntrezEfetchError(Exception):
 class CachedEntrez(object):
     def __init__(self, cache_dir, email):
         self.cache_dir = cache_dir
-        Entrez.email = 'mizugy@gmail.com'
+        Entrez.email = email
 
     def cache_file(self, **args):
         return os.path.join(self.cache_dir,'&'.join(["%s=%s"%(k,v) for k,v in sorted(args.items())])+'.cache')
