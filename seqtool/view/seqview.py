@@ -277,24 +277,21 @@ class Seqview(object):
             b.a('Primer alignment view', href = subfs.get_link_path(filename))
         product_callback.count = 0
     
-        with toc.section(self.name):
-            for filename, name, svg, show in svgs:
-                subfs.write(filename, svg)
-                link = subfs.get_link_path(filename)
+        for filename, name, svg, show in svgs:
+            subfs.write(filename, svg)
+            link = subfs.get_link_path(filename)
 
-                with toc.section(name):
-                    with b.div:
-                        b.h2(name)
-                        with b.a(href=link):
-                            if show:
-                                #b.write_raw(svg.svg_node())
-                                b.img(src=link, width='1000px')
-                            else:
-                                b.a(filename, href=link)
+            with report.section(b, toc, name):
+                with b.a(href=link):
+                    if show:
+                        #b.write_raw(svg.svg_node())
+                        b.img(src=link, width='1000px')
+                    else:
+                        b.a(filename, href=link)
 
-            for block in self.blocks:
-                if 'html_content' in dir(block):
-                    block.html_content(b, toc, subfs, product_callback)
+        for block in self.blocks:
+            if 'html_content' in dir(block):
+                block.html_content(b, toc, subfs, product_callback)
 
     def write_html(self, outputp):
-        report.write_html(outputp, self.name, self.html_content)
+        report.write_html(outputp, 'Seqview: '+self.name, self.html_content)

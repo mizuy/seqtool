@@ -18,11 +18,17 @@ body{font-family: monospace}
 .primerpairtable{ font-family: monospace }
 '''
 
+anchorno = 0
+
 @contextlib.contextmanager
 def section(b, tb, title, klass='section'):
-    anchor = 'TODO'
+    global anchorno
+    anchor = 'anchor-{}'.format(anchorno)
+    anchorno += 1
     with tb.section(title, anchor):
-        b.h3(title, anchor=anchor)
+        with b.h3:
+            b.a('■', name=anchor, href='#table_of_contents')
+            b.text(title)
         with b.div(klass=klass):
             yield
 
@@ -45,8 +51,10 @@ def write_html(outputp, title, html_content):
                 b.text(REPORT_CSS)
             b.title(title)
     with b.body:
+        b.h1(title)
         # table of contents
         b.h2('Table Of Contents')
+        b.a(name='table_of_contents')
         with b.div(klass='toc'):
             with b.ul:
                 out.insert(toc_out)
@@ -60,11 +68,3 @@ def write_html(outputp, title, html_content):
     with open(outputp.path,'w') as output:
         output.write(out.getvalue())
 
-'''
-                count = 0
-                for child in self.html_items():
-                    count += 1
-                    name = child.title or '%s'%count
-                    subsubfs = subfs.get_subfs(name)
-                    child.html_section(b, tb, subsubfs)
-'''
