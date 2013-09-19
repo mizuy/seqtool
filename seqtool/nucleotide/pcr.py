@@ -6,18 +6,21 @@ from . import PPrintSequence, no_stop_in_frame, to_seq
 from ..util.memoize import memoize
 from ..util import xmlwriter
 from .cpg import bisulfite, bisulfite_conversion, cpg_sites, count_cpg, bisulfite_conversion_unambiguous
+from ..view.baseseq_renderer import BaseseqRenderer
 
 
-from .primer import PrimerPair, Primer
+from .primer import PrimerPair, Primer, PrimerPartial
 
 MAX_PRODUCT_SIZE = 1500
+
+product_alignment_view_count = 0
 
 __all__ = ['PCR', 'BisulfitePCR', 'RtPCR']
 
 class PCRProduct:
     fcount = 0
     
-    def __init__(self, i, j):
+    def __init__(self, i, j, pcr):
         """
         template:
                      i.left  i.right       j.left j.right   
@@ -28,6 +31,7 @@ class PCRProduct:
         seq:        0   v[0]  v[1]          v[2] v[3]  v[4]
 
         """
+        self.pcr = pcr
         assert(i.template == j.template)
         assert(i <= j)
 
@@ -54,13 +58,13 @@ class PCRProduct:
 
         if len(self.head)>0:
             p = i.primer_match
-            self.fwp = Primer('{}({}-mer)'.format(i.primer.name, len(p)), p)
+            self.fwp = PrimerPartial(i.primer.name, i.primer.seq, len(p))
         else:
             self.fwp = i.primer
 
         if len(self.tail)>0:
             p = j.primer_match
-            self.rvp = Primer('{}({}-mer)'.format(j.primer.name, len(p)), p)
+            self.rvp = PrimerPartial(j.primer.name, j.primer.seq, len(p))
         else:
             self.rvp = j.primer
 
@@ -94,10 +98,10 @@ class PCRProduct:
 
         with b.div:
             if self.partial_match:
-                self.primerpair.write_html(w, pair_values=False, annealings=False)
+                self.primerpair.write_html(w)
 
             seq = self.seq
-
+                                  
             if len(self) < MAX_PRODUCT_SIZE:
                 cm = PPrintSequence(seq)
 
@@ -117,7 +121,17 @@ class PCRProduct:
                     cm.add_underbar(i+1)
 
                 cm.write_html(w)
-                callback(self)
+
+                aseq = self.pcr.alignview(self.template, callback)
+                s = aseq.track_partial(self.start_0-20, self.end_0+20, width = None).svg()
+
+                global product_alignment_view_count
+                filename = 'pcr{}.svg'.format(product_alignment_view_count)
+                product_alignment_view_count += 1
+
+                subfs.write(filename, s)
+
+                b.a('Primer alignment view', href = subfs.get_link_path(filename))
             else:
                 w.text('sequence ommitted. product length = {}'.format(len(self)))
 
@@ -152,6 +166,15 @@ class PCRProducts:
     def __iter__(self):
         yield from self.products
 
+def alignview(template, fw, rv, bisulfite, seqview):
+    if seqview:
+        aseq = seqview.baseseq_renderer(template, bisulfite)
+    else:
+        aseq = BaseseqRenderer(template, bisulfite)
+        aseq.add_primer(fw)
+        aseq.add_primer(rv)
+    return aseq
+        
 class PCR:
     def __init__(self, name, template, primer_fw, primer_rv):
         """
@@ -211,17 +234,17 @@ class PCR:
         for i in fpp:
             for j in fpc: # fw -> fw
                 if i <= j:
-                    yield PCRProduct(i,j)
+                    yield PCRProduct(i,j,self)
             for j in rpc: # fw -> rv
                 if i <= j:
-                    yield PCRProduct(i,j)
+                    yield PCRProduct(i,j,self)
         for i in rpp:
             for j in fpc: # rv -> fw
                 if i <= j:
-                    yield PCRProduct(i,j)
+                    yield PCRProduct(i,j,self)
             for j in rpc: # rv -> rv
                 if i <= j:
-                    yield PCRProduct(i,j)
+                    yield PCRProduct(i,j,self)
 
     def debugprint(self):
         print('%s: score=%.2f'%(self.name, self.primer_score()))
@@ -234,6 +257,9 @@ class PCR:
         self.primers.write_html(b.get_writer())
         self.products.write_html(b, toc, subfs, callback)
 
+    def alignview(self, template, seqview):
+        return alignview(template, self.fw, self.rv, False, seqview)
+        
 class PCRBand:
     """
     summary of PCR products which has exactly same location and different template.
@@ -289,6 +315,9 @@ class PCRconv(PCR):
 
         return list(ret.values())
 
+    def alignview(self, template, seqview):
+        return alignview(template, self.fw, self.rv, False, seqview)
+        
 class BisulfitePCR(PCRconv):
     def __init__(self, name, genome, primer_fw, primer_rv):
         super().__init__(name, genome, primer_fw, primer_rv, bisulfite_conversions)
@@ -296,6 +325,10 @@ class BisulfitePCR(PCRconv):
     def get_bs_products(self):
         return self.converted_temp[0][3]
 
+    def alignview(self, template, seqview):
+        # discard template, use genomic DNA
+        return alignview(self.template, self.fw, self.rv, True, seqview)
+        
 class PCRmulti(PCR):
     """
     PCR for multiple different templates
@@ -317,7 +350,7 @@ class PCRmulti(PCR):
         for tname, pcr in self.multi_temp:
             b.h5('template = {}'.format(tname))
             pcr.products.write_html(b, toc, subfs, callback)
-
+            
 class RtPCR(PCRmulti):
     def __init__(self, name, genome, transcripts, primer_fw, primer_rv):
         templates = [('genome',genome)] + [(t.name,t.seq) for t in transcripts]
@@ -328,3 +361,4 @@ class RtPCR(PCRmulti):
 
     def transcript_pcr(self, transcript):
         return PCR(self.name, transcript.seq, self.fw, self.rv)
+        

@@ -159,3 +159,14 @@ def complement(seq):
     Seq('TACG', IUPACUnambiguousDNA())
     """
     return seq.complement()
+
+
+def fasta_file(name, seq, width=70):
+    ret = '>{}\n'.format(name)
+
+    for i in range(0, len(seq), width):
+        ret += str(seq[i:i+width])
+        ret += '\n'
+        
+    return ret
+    

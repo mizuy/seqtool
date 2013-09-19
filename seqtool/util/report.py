@@ -15,7 +15,8 @@ body{font-family: monospace}
 .length{margin-left: 5em;}
 .copybox{margin-left:4em;}
 .section{margin: 1em; padding: 1em;}
-.primerpairtable{ font-family: monospace }
+.primerpairtable{ font-family: monospace; table-layout:fixed; }
+.td{white-space: nowrap;}
 '''
 
 anchorno = 0

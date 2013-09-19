@@ -290,7 +290,7 @@ class OutlineRenderer(NamedTracks):
 
         for start,stop in cpg_islands:
             p,q = max(0,start), min(length,stop)
-            t.add(self.gen.hbar(p, q, height/2, 4))
+            t.add(self.gen.hbar(p, q, height/2, 4, color='black'))
             
             if start < 0:
                 t.add(self.gen.hbar(0, (q-p)/20., height/2, 4, color='red'))

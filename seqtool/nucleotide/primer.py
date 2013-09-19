@@ -231,6 +231,14 @@ class Primer:
         self.name = name
         self.seq = to_seq(seq)
 
+    @property
+    def full_seq(self):
+        return self.seq
+
+    @property
+    def formatedseq(self):
+        return "5'-{}-3'".format(self.seq)
+
     def __repr__(self):
         return "Primer(%s: %s)"%(self.name,self.seq)
     def __len__(self):
@@ -242,7 +250,6 @@ class Primer:
         return self.seq[::-1]
 
     @property
-    @memoize
     def gc_ratio(self):
         return gc_ratio(self.seq)
 
@@ -251,7 +258,7 @@ class Primer:
 
     @memoize
     def annealings(self):
-        return OligoAnnealing(self.seq, self.seq)
+        return OligoAnnealing(self.full_seq, self.full_seq)
     @property
     def sa(self):
         return self.annealings().max_annealing
@@ -327,13 +334,12 @@ class Primer:
 
     @classmethod
     def get_table_head(cls):
-        return ['name', 'sequence', 'length[bp]', 'SSDS[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
+        return ['name', 'sequence', 'len[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
 
     def get_table_row(self):
         return [str(v) for v in [self.name,
-                                 "5'-%s-3'"%self.seq,
+                                 self.formatedseq,
                                  len(self),
-                                 self.sdss_length(),
                                  '%.2f'%self.melting_temperature(unmethyl=True),
                                  '%.2f'%self.melting_temperature(unmethyl=False),
                                  tm_gc(self.seq),
@@ -370,6 +376,28 @@ class Primer:
         return i
 
 
+class PrimerPartial(Primer):
+    def __init__(self, name, seq, match_length):
+        seq = to_seq(seq)
+        name = '{}({}-mer)'.format(name, match_length)
+        a = len(seq)-match_length
+        adapter = seq[:a]
+        match = seq[a:]
+
+        super().__init__(name, match)
+
+        self.full = seq
+        self.fs = "5'-({}){}-3'".format(adapter, match)
+
+    @property
+    def full_seq(self):
+        return self.full
+
+    @property
+    def formatedseq(self):
+        return self.fs
+
+        
 class TaqmanProbe(Primer):
     def write_text(self):
         super().write_text()
@@ -387,7 +415,7 @@ class PrimerPair:
 
     @memoize
     def annealings(self):
-        return OligoAnnealing(self.fw.seq, self.rv.seq)
+        return OligoAnnealing(self.fw.full_seq, self.rv.full_seq)
     @property
     def pa(self):
         return self.annealings().max_annealing
@@ -421,14 +449,16 @@ class PrimerPair:
         for r in [self.fw, self.rv]:
             r.write_text()
 
+    @classmethod
+    def get_table_head(cls):
+        return  ['pa.', 'pea.', 'score', 'bs score']
 
-    def write_html(self, w, pair_values=True, annealings=False):
-        head = Primer.get_table_head()
-        if pair_values:
-            head = head + ['pa.', 'pea.', 'score', 'bs score']
-
+    def get_table_row(self):
+        return [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]
+        
+    def write_html(self, w):
+        head = Primer.get_table_head() + self.get_table_head()
         b = xmlwriter.builder(w)
-        # primer table
         with b.div(cls='primerpair'):
             with b.table(cls='primerpairtable', border=1):
                 with b.tr:
@@ -437,18 +467,17 @@ class PrimerPair:
 
                 with b.tr:
                     for v in self.fw.get_table_row():
-                        b.td(str(v))
-                    if pair_values:
-                        for v in [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]:
-                            b.td(str(v),rowspan='2')
+                        b.td(v)
+                    for v in self.get_table_row():
+                        b.td(v,rowspan='2')
                 with b.tr:
                     for v in self.rv.get_table_row():
-                        b.td(str(v))
+                        b.td(v)
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
-            if annealings:
-                self.pa.write_html(w)
-                self.pea.write_html(w)
+            
+            #self.pa.write_html(w)
+            #self.pea.write_html(w)
 
 
 class Primers(NamedList):

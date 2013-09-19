@@ -211,7 +211,7 @@ class BaseseqRenderer:
             for ds in iter_sep(self.doublestrands, lambda:t.add_subline(ww), False):
                 ds.assign_track(t, p, q)
 
-        return svg.SvgPadding(20,20,t)
+        return svg.SvgPadding(20, 20,t)
 
 
     def track(self, width = None):

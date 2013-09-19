@@ -151,6 +151,9 @@ class SvgParentSingle(SvgParent):
     def rect(self):
         return self.child.rect
 
+    def svg_css(self):
+        return self.child.svg_css()
+        
 class SvgTranslate(SvgParentSingle):
     def __init__(self, x, y, child):
         super().__init__(child)

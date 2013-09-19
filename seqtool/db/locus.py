@@ -43,6 +43,7 @@ class StrandPos(object):
 
         return StrandPos(self.sense, lower, higher)
 
+        
     def antisense(self):
         """
         >>> StrandPos(True, 2000, 4000).antisense()
