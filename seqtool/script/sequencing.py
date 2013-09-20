@@ -9,7 +9,7 @@ from ..util import report
 from ..view.baseseq_renderer import BaseseqRenderer
 from ..format.abi import AbiFormat
 from ..format.render import SvgPeaksAlignment
-
+from ..util.debug import report_exceptions
 
 SCORE_THRESHOLD = 1.5
 # TODO: .scf file support (4peaks output)
@@ -185,5 +185,6 @@ def sequencing_alignment(template_file, sequencing_files, outputp):
     p.load_fasta(template_file)
     for seqf in sequencing_files:
         print(' processing:', seqf)
-        p.load_sequencingfile(seqf)
+        with report_exceptions():
+            p.load_sequencingfile(seqf)
     p.write_html(outputp)

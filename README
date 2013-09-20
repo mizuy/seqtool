@@ -3,6 +3,8 @@ miscellaneous tools for molecular biology.
 ** Requirements
 
 Python 3.3
+Cython
+numpy
 
 ** Commands
 
@@ -23,13 +25,26 @@ bisulfite: show bisulfite converted sequence
 rpm: calculate rpm of centrifuge machine
 abiview: .ab1 viewer
 
-** configfile
+** configfile location
 
-'/Users/_____/Library/Application Support/seqtool/config.cfg'
+for Mac OS X
+
+configfile: '/Users/_____/Library/Application Support/seqtool/config.cfg'
+cache dir:  '/Users/_____/Library/Caches/seqtool'
+
+
+
+see appdirs documentation for other platforms.
 
 ** bootstrap
 
-make bootstrap
+% virtualenv --python=python3.3 --system-site-packages env
+% source env/bin/activate
+% pip install numpy
+% pip install Cython
+% python setup.py develop
+
+see Makefile bootstrap
 
 ** databases
 
@@ -53,7 +68,6 @@ You must link boost_program_options
 - seqview
     - zoom button in seqv
     - web server implementation
-    - misc primer attribute calculations
     - pcr virtualpcr integration
 
 - new
@@ -63,4 +77,3 @@ You must link boost_program_options
 - bisearch
     - MSP
     - python interface
-
