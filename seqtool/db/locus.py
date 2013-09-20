@@ -22,7 +22,16 @@ class StrandPos(object):
         self.lower = lower
         self.higher = higher
 
+    def __repr__(self):
+        return 'StrandPos({}, {}, {})'.format(self.sense, self.lower, self.higher)
+
     def expand(self, upstream, downstream):
+        """
+        >>> StrandPos(True, 2000, 4000).expand(100, 200)
+        StrandPos(True, 1900, 4200)
+        >>> StrandPos(False, 2000, 4000).expand(100, 200)
+        StrandPos(False, 1800, 4100)
+        """
         if self.sense:
             # lower - higher
             lower = self.lower - upstream
@@ -34,14 +43,23 @@ class StrandPos(object):
 
         return StrandPos(self.sense, lower, higher)
 
+        
     def antisense(self):
-        print('ANTISENSE ???')
+        """
+        >>> StrandPos(True, 2000, 4000).antisense()
+        StrandPos(False, 2000, 4000)
+        """
         return StrandPos(not self.sense, self.lower, self.higher)
 
     @property
     def start(self):
         """
         return location of 5' end
+
+        >>> StrandPos(True, 2000, 4000).start
+        2000
+        >>> StrandPos(False, 2000, 4000).start
+        4000
         """
         if self.sense:
             return self.lower
@@ -52,6 +70,11 @@ class StrandPos(object):
     def stop(self):
         """
         return location of 3' end
+
+        >>> StrandPos(True, 2000, 4000).stop
+        4000
+        >>> StrandPos(False, 2000, 4000).stop
+        2000
         """
         if self.sense:
             return self.higher
@@ -62,6 +85,11 @@ class StrandPos(object):
     def index_5(self, i):
         """
         return location of 5' end + i
+
+        >>> StrandPos(True, 2000, 4000).index_5(100)
+        2100
+        >>> StrandPos(False, 2000, 4000).index_5(100)
+        3900
         """
         if self.sense:
             return self.lower+i
@@ -71,6 +99,11 @@ class StrandPos(object):
     def index_3(self, i):
         """
         return location of 5' end + i
+
+        >>> StrandPos(True, 2000, 4000).index_3(100)
+        4100
+        >>> StrandPos(False, 2000, 4000).index_3(100)
+        1900
         """
         if self.sense:
             return self.higher+i
@@ -78,20 +111,37 @@ class StrandPos(object):
             return self.lower-i
         
     def rel_5(self, i):
+        """
+        >>> StrandPos(True, 2000, 4000).rel_5(100)
+        -1900
+        >>> StrandPos(False, 2000, 4000).rel_5(100)
+        3900
+        """
         if self.sense:
             return i - self.lower
         else:
             return self.higher - i
 
 class Locus(object):
+    @classmethod
+    def from_strandpos(self, chromosome, strandpos):
+        return Locus(chromosome, strandpos.sense, strandpos.lower, strandpos.higher)
+        
     def __init__(self, chromosome, sense, lower, higher):
         self.chrom = chromosome
         self.pos = StrandPos(sense, lower, higher)
 
+    def __repr__(self):
+        return "Locus('{}', {})".format(self.chrom, self.pos)
+
     def expand(self, upstream, downstream):
-        p = self.pos.expand(upstream, downstream)
-        return Locus(self.chrom, p.sense, p.lower, p.higher)
+        """
+        >>> Locus('chr1', True, 2000, 4000).expand(1000,2000)
+        Locus('chr1', StrandPos(True, 1000, 6000))
+        >>> Locus('chr1', False, 2000, 4000).expand(1000,2000)
+        Locus('chr1', StrandPos(False, 0, 5000))
+        """
+        return Locus.from_strandpos(self.chrom, self.pos.expand(upstream, downstream))
 
     def antisense(self):
-        p = self.pos.antisense()
-        return Locus(self.chrom, p.sense, p.lower, p.higher)
+        return Locus.from_strandpos(self.chrom, self.pos.antisense)

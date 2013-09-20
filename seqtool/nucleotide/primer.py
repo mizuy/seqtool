@@ -8,125 +8,9 @@ from .cpg import gc_ratio
 from ..util.namedlist import NamedList
 from . import iupac
 from . import primer_cond as pcond
+from .annealing import OligoAnnealing
 
 __all__ = ['Primer', 'PrimerPair']
-
-def annealing_score_n(x,y):
-    if (x=='A' and y=='T') or (x=='T' and y=='A'):
-        return 2
-    elif (x=='G' and y=='C') or (x=='C' and y=='G'):
-        return 4
-    else:
-        return 0
-
-def annealing_score(p,q,end_annealing=False,getindex=False):
-    sv = annealing_score_n
-    p = str(p).upper()
-    q = str(q).upper()
-    w = p
-    v = q[::-1]
-    n = len(w)
-    m = len(v)
-
-    def ea(ss):
-        ret = 0
-        for n in ss:
-            if n==0:
-                return ret
-            ret += n
-        return ret
-    def ea_l(ss):
-        return ea(ss)
-    def ea_r(ss):
-        return ea(ss[::-1])
-    def ea_lr(ss):
-        return max(ea_l(ss),ea_r(ss))
-
-    def max_(old, new):
-        old_s,v = old
-        new_s,vv = new
-        if old_s<new_s:
-            return new
-        return old
-
-    eav = (-1, None)
-    av = (-1, None)
-    if n<=m:
-        assert m-n >= 0
-        for k in range(-(n-1),m-1 +1):
-            if k<=0:
-                # 5'- w[0]....w[-k]....w[n-1] -3'
-                #         3'- v[0].....v[n+k-1]....v[m-1] -5'
-                ss = [sv(w[-k+i],v[i]) for i in range(n+k)]
-                av = max_(av, (sum(ss),(k,ss)))
-                eav = max_(eav,(ea_lr(ss),(k,ss)))
-            elif k<=m-n:
-                #         w[0]....w[n-1]
-                # v[0]....v[k]....v[k+n-1].....v[m-1]
-                ss = [sv(w[0+i],v[k+i]) for i in range(n)]
-                av = max_(av, (sum(ss),(k,ss)))
-                eav = max_(eav,(ea_r(ss),(k,ss)))
-            else:
-                #        w[0]...w[m-k-1]....w[n-1]
-                # v[0]...v[k]...v[m-1]
-                ss = [sv(w[i],v[k+i]) for i in range(m-k)]
-                av = max_(av, (sum(ss),(k,ss)))
-    else:
-        assert m-n <= 0
-        for k in range(-(n-1),m-1 +1):
-            if k<=m-n:
-                # w[0]....w[-k]....w[n-1]
-                #         v[0].....v[n+k-1]....v[m-1]
-                ss = [sv(w[-k+i],v[i]) for i in range(n+k)]
-                av = max_(av, (sum(ss),(k,ss)))
-                eav = max_(eav,(ea_lr(ss),(k,ss)))
-            elif k<=0:
-                # w[0]....w[k]....w[m-k-1].....w[n-1]
-                #         v[0]....v[m-1]
-                ss = [sv(w[k+i],v[0+i]) for i in range(m)]
-                av = max_(av, (sum(ss),(k,ss)))
-                eav = max_(eav,(ea_l(ss),(k,ss)))
-            else:
-                #        w[0]...w[m-k-1]....w[n-1]
-                # v[0]...v[k]...v[m-1]
-                ss = [sv(w[i],v[k+i]) for i in range(m-k)]
-                av = max_(av, (sum(ss),(k,ss)))
-
-    if not end_annealing:
-        return av[0], av[1]
-    else:
-        return eav[0], eav[1]
-
-
-class PrimerAnnealing:
-    def __init__(self, p, q, end_annealing=False):
-        s, (i, ss) = annealing_score(p,q,end_annealing)
-        self.p = p
-        self.q = q
-        self.score = s
-        self.scores = ss
-        self.index = i
-
-    def get_bar(self):
-        i = self.index
-        p = self.p
-        q = self.q
-        spc = ' '*abs(i)
-        ss = self.scores
-        bar = ''.join(['|' if s>0 else ' ' for s in ss])
-
-        if i>0:
-            return [spc+"5'-%s-3'"%p, spc+"  <"+bar+">", "3'-%s-5'"%q[::-1] ]
-        else:
-            return ["5'-%s-3'"%p, spc+"  <"+bar+">", spc+"3'-%s-5'"%q[::-1] ]
-
-    def write_html(self, w):
-        w.push('div',style='annealing')
-        w.insert('p','score=%s, index=%s'%(self.score,self.index))
-        w.push('pre')
-        w.text('\n'.join(self.get_bar()))
-        w.pop()
-        w.pop()
 
 def count_while(iteration):
     '''
@@ -147,98 +31,196 @@ def count_while(iteration):
 
     return count
 
+class CoordinateTransform:
+    @classmethod
+    def create_from_loc3p(cls, length, loc_3p, same_orientation=True):
+        if same_orientation:
+            loc_5p = loc_3p - (length - 1)
+        else:
+            loc_5p = loc_3p + (length - 1)
+        return CoordinateTransform(loc_5p, same_orientation)
+        
+    def __init__(self, loc_5p, same_orientation=True):
+        """
+        ########### same_orientation = True #############
+              012345678901234567         (seq_coordinate)
+           5'-....ATGCCATG......-3'      (seq)
+           0123456789012345678901234     (universal coordinate)
+              |                |
+             loc_5p=3        loc_3p=20
+
+        universal_coordinate = 1 * seq_coordinate + loc_5p
+
+        ########### same_orientation = False #############
+                32109876543210           (seq_coordinate)
+             3'-..ATGCCATG....-5'        (seq)
+           0123456789012345678901234     (universal coordinate)
+                |            |
+            loc_3p=5       loc_5p=18
+
+        universal_coordinate = -1 * seq_coordinate + loc_5p
+
+        >>> c = CoordinateTransform(3, True)
+        >>> c.get_u(0), c.get_u(10)
+        (3, 13)
+        >>> c.get_l(3), c.get_l(13)
+        (0, 10)
+        >>> c = CoordinateTransform(18, False)
+        >>> c.get_u(0), c.get_u(10)
+        (18, 8)
+        >>> c.get_l(18), c.get_l(8)
+        (0, 10)
+
+        >>> c = CoordinateTransform.create_from_loc3p(18, 20, True)
+        >>> c.get_u(0), c.get_u(10)
+        (3, 13)
+        >>> c.get_l(3), c.get_l(13)
+        (0, 10)
+        >>> c = CoordinateTransform.create_from_loc3p(14, 5, False)
+        >>> c.get_u(0), c.get_u(10)
+        (18, 8)
+        >>> c.get_l(18), c.get_l(8)
+        (0, 10)
+        
+        """
+        self.a = 1 if same_orientation else -1
+        self.b = loc_5p
+
+    def get_u(self, local_location):
+        return self.a * local_location + self.b
+    def get_l(self, universal_location):
+        return self.a * (universal_location - self.b)
+        
+    
 class PrimerTemplateAnnealing:
     def __init__(self, primer, template, strand, loc_3p):
         """
-        strand == True
+           5'-ATGCATGCCATG-3'            (fw primer)
+        5'-.......ATGCCATG..........-3'  (template)
+               3'-TACGGTACATGC-5'        (rv primer)
 
-            5      3
-            ------->
-            |       |
-           left    right
+        all location is template geometry
 
-        strand == False
+        ############### if strand = True (fw primer) ###############
 
-            3      5
-            <-------
-            |       |
-           left    right
-
-
-        if strand
-
+           5'-ATGCATGCCATG-3'            (fw primer)
+        5'-.......ATGCCATG..........-3'      (template)
+           0123456789012345678901234
+              |   |       |
+            left middle  right
+                 m_l     m_r
             a_l  a_r
-             |    |
-          5'-ATGCTCCGTATG-3'
-                  CCGTATG
-                  |      |
-                left    right
+                         |
+                      loc_3p
+        
+        ############## if strand = False (rv primer) ###############
 
-        if not strand
-
-                left    right
-                  |       |
-                  ATGCCATG
-                  ATGCCATGAACAT-5'
-                          |   |
+           0123456789012345678901234
+        5'-.......ATGCCATG..........-3'  (template)
+               3'-TACGGTACATGC-5'        (rv primer)
+                  |       |   | 
+                left   middle right
+                m_l      m_r
                          a_l a_r
+                  |
+                loc_3p
 
 
+        >>> fw = Primer('primer', 'ATGCATGCCATG')
+        >>> rv = Primer('primer', 'CGTACATGGCAT')
+        >>> template = to_seq('nnntacgATGCCATGatgcnnnnnn')
+        >>> a = PrimerTemplateAnnealing(fw, template, True, 14)
+        >>> a.match_left, a.match_right
+        (7, 15)
+        >>> a.adapter_left, a.adapter_right
+        (3, 7)
+        >>> a.match_length, a.adapter_length
+        (8, 4)
+        >>> a = PrimerTemplateAnnealing(rv, template, False, 7)
+        >>> a.match_left, a.match_right
+        (7, 15)
+        >>> a.adapter_left, a.adapter_right
+        (15, 19)
+        >>> a.match_length, a.adapter_length
+        (8, 4)
         """
         self.primer = primer
         self.template = template
         self.strand = strand
 
-        self.loc_3p = loc_3p
-
+        #t_coord = CoordinateTransform(0, True)
+        p_coord = CoordinateTransform.create_from_loc3p(len(self.primer), loc_3p, strand)
+        def get(location_t):
+            return (template[location_t], primer.seq[p_coord.get_l(location_t)])
+        
         if self.strand:
             p = primer.seq
-            l = min(len(p), loc_3p)
-            self.length = count_while(iupac.base_match(template[loc_3p-i],p[len(p)-1-i]) for i in range(l))
-            self.loc_5p = self.loc_3p - self.length + 1
-            self.left =  self.loc_5p
-            self.right = self.loc_3p + 1
+            l = min(len(p), loc_3p+1)
 
-            assert(self.length > 0)
-            pp =  str(primer.seq)
-            self.adapter_length = len(p)-self.length
-            self.primer_match =  pp[self.adapter_length:]
-            self.display_match = pp[self.adapter_length:]
-            self.display_adapter = pp[:self.adapter_length]
+            self.match_length = count_while(
+                iupac.base_match(template[i],p[p_coord.get_l(i)]) for i in range(loc_3p, loc_3p-l, -1) )
+            assert(self.match_length > 0)
+            self.adapter_length = len(p) - self.match_length
 
-            self.a_l = self.left -  self.adapter_length
-            self.a_r = self.left
-            self.leftmost =  self.a_l
+            self.leftmost =  loc_3p - len(self.primer) + 1
+            self.middle = loc_3p - self.match_length + 1
+            self.rightmost = loc_3p + 1
+
+            self.adapter_left = self.leftmost
+            self.adapter_right = self.middle
+            self.match_left = self.middle
+            self.match_right = self.rightmost
+            
+            #self.loc_3p = loc_3p
+            #self.loc_5p = self.middle
+
+            self.primer_match =  primer.seq[self.adapter_length:]
+            self.primer_adapter = primer.seq[:self.adapter_length]
+            self.primer_match_sense = self.primer_match
+            self.primer_adapter_sense = self.primer_adapter
+            self.display_match = str(self.primer_match)
+            self.display_adapter = str(self.primer_adapter)
         else:
-            p = primer.seq.reverse_complement()
+            p = primer.seq.complement()
             l = min(len(p), len(template)-loc_3p)
-            self.length = count_while(iupac.base_match(template[loc_3p+i],p[i]) for i in range(l))
-            self.loc_5p = self.loc_3p + self.length - 1
-            self.left =  self.loc_3p
-            self.right = self.loc_5p + 1
+            self.match_length = count_while(
+                iupac.base_match(template[i],p[p_coord.get_l(i)]) for i in range(loc_3p,loc_3p+l))
+            assert(self.match_length > 0)
+            self.adapter_length = len(p) - self.match_length
 
-            assert(self.length > 0)
-            pp =  str(primer.seq)
-            self.adapter_length = len(p)-self.length
-            self.primer_match =  pp[self.adapter_length:]
-            self.display_match = pp[self.adapter_length:][::-1]
-            self.display_adapter = pp[:self.adapter_length][::-1]
+            self.leftmost = loc_3p
+            self.middle = loc_3p + self.match_length
+            self.rightmost = loc_3p + len(self.primer)
 
-            self.a_l = self.right
-            self.a_r = self.right + self.adapter_length
-            self.leftmost =  self.left
+            self.match_left = self.leftmost
+            self.match_right = self.middle
+            self.adapter_left = self.middle
+            self.adapter_right = self.rightmost
 
+            assert(self.adapter_length == self.adapter_right - self.adapter_left)
+            
+            #self.loc_3p = loc_3p
+            #self.loc_5p = self.middle - 1
+            
+            self.primer_match = primer.seq[self.adapter_length:]
+            self.primer_adapter = primer.seq[:self.adapter_length]
+            self.primer_match_sense = self.primer_match.reverse_complement()
+            self.primer_adapter_sense = self.primer_adapter.reverse_complement()
+            self.display_match = str(self.primer_match)[::-1]
+            self.display_adapter = str(self.primer_adapter)[::-1]
 
-        self.full = (self.length == len(self.primer))
-        self.match = self.template[self.left:self.right]
+        self.full = (self.match_length == len(self.primer))
+        self.match = self.template[self.match_left:self.match_right]
 
+    def __repr__(self):
+        return 'PrimerTemplateAnnealing({}, match({}bp):{} -> {}, adapter({}bp):{} -> {})'.format(self.strand, self.match_length, self.match_left, self.match_right, self.adapter_length, self.adapter_left, self.adapter_right)
 
     def __le__(self, rhs):
-        return (self.left <= rhs.left) and (self.right <= rhs.right)
+        return (self.match_left <= rhs.match_left) and (self.match_right <= rhs.match_right)
 
     def n_percent(self):
-        count = self.template[self.left:self.right].count('N')
-        return 1.*count/(self.right-self.left)
+        count = self.template[self.match_left:self.match_right].count('N')
+        return 1.*count/self.match_length
 
     def tm(self, pcr_mix=melt_temp.STANDARD_MIX):
         return melt_temp.melting_temperature_unmethyl(self.primer_match, pcr_mix)
@@ -248,6 +230,14 @@ class Primer:
     def __init__(self, name, seq):
         self.name = name
         self.seq = to_seq(seq)
+
+    @property
+    def full_seq(self):
+        return self.seq
+
+    @property
+    def formatedseq(self):
+        return "5'-{}-3'".format(self.seq)
 
     def __repr__(self):
         return "Primer(%s: %s)"%(self.name,self.seq)
@@ -260,37 +250,36 @@ class Primer:
         return self.seq[::-1]
 
     @property
-    @memoize
     def gc_ratio(self):
         return gc_ratio(self.seq)
 
     def melting_temperature(self, pcr_mix=melt_temp.STANDARD_MIX, unmethyl=True):
         return melt_temp.melting_temperature_unmethyl(self.seq, pcr_mix, unmethyl)
 
-    @property
     @memoize
-    def self_annealing(self):
-        return PrimerAnnealing(self.seq, self.seq)
+    def annealings(self):
+        return OligoAnnealing(self.full_seq, self.full_seq)
     @property
-    @memoize
-    def self_end_annealing(self):
-        return PrimerAnnealing(self.seq, self.seq, True)
-
-    sa = self_annealing
-    sea = self_end_annealing
+    def sa(self):
+        return self.annealings().max_annealing
+    @property
+    def sea(self):
+        return self.annealings().end_annealing
+    self_annealing = sa
+    self_end_annealing = sea
 
     def search(self, template, template_ambiguous=False, min_length=16):
         """
         Return tuple of fowards anneal locations and reverse anneal locations.
         anneal locations are (5'location, 3'location)
         """
-        if min_length and len(self.seq) > min_length > 0:
-            l = len(self.seq) - min_length
-            seq = self.seq[l:]
+        if min_length > 0 and len(self.seq) > min_length:
+            seq = self.seq[-min_length:]
         else:
             seq = self.seq
         primer = seq
         cprimer = seq.reverse_complement()
+
         if template_ambiguous:
             oregex = lambda x: iupac.oligo_regex(x, iupac.basematch_subset)
         else:
@@ -298,12 +287,12 @@ class Primer:
             
         reg = re.compile('(%s)|(%s)'%(oregex(primer),oregex(cprimer)))
 
-        template = str(template).upper()
+        template_str = str(template).upper()
         pp = []
         pc = []
         start = 0
         while True:
-            m = reg.search(template, start)
+            m = reg.search(template_str, start)
             if not m:
                 break
             start = m.start()+1
@@ -345,13 +334,12 @@ class Primer:
 
     @classmethod
     def get_table_head(cls):
-        return ['name', 'sequence', 'length[bp]', 'SSDS[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
+        return ['name', 'sequence', 'len[bp]', 'Tm[C]', 'oTm[C]', 'old Tm[C]','GC[%]', 'sa.', 'sea.']
 
     def get_table_row(self):
         return [str(v) for v in [self.name,
-                                 "5'-%s-3'"%self.seq,
+                                 self.formatedseq,
                                  len(self),
-                                 self.sdss_length(),
                                  '%.2f'%self.melting_temperature(unmethyl=True),
                                  '%.2f'%self.melting_temperature(unmethyl=False),
                                  tm_gc(self.seq),
@@ -388,6 +376,28 @@ class Primer:
         return i
 
 
+class PrimerPartial(Primer):
+    def __init__(self, name, seq, match_length):
+        seq = to_seq(seq)
+        name = '{}({}-mer)'.format(name, match_length)
+        a = len(seq)-match_length
+        adapter = seq[:a]
+        match = seq[a:]
+
+        super().__init__(name, match)
+
+        self.full = seq
+        self.fs = "5'-({}){}-3'".format(adapter, match)
+
+    @property
+    def full_seq(self):
+        return self.full
+
+    @property
+    def formatedseq(self):
+        return self.fs
+
+        
 class TaqmanProbe(Primer):
     def write_text(self):
         super().write_text()
@@ -398,21 +408,23 @@ class TaqmanProbe(Primer):
 
 class PrimerPair:
     def __init__(self, fw, rv):
+        assert(isinstance(fw, Primer))
+        assert(isinstance(rv, Primer))
         self.fw = fw
         self.rv = rv
 
-    @property
     @memoize
-    def pair_annealing(self):
-        return PrimerAnnealing(self.fw.seq, self.rv.seq)
+    def annealings(self):
+        return OligoAnnealing(self.fw.full_seq, self.rv.full_seq)
     @property
-    @memoize
-    def pair_end_annealing(self):
-        return PrimerAnnealing(self.fw.seq, self.rv.seq, True)
-
-    pa = pair_annealing
-    pea = pair_end_annealing
-
+    def pa(self):
+        return self.annealings().max_annealing
+    @property
+    def pea(self):
+        return self.annealings().end_annealing
+    pair_annealing = pa
+    pair_end_annealing = pea
+        
     @property
     @memoize
     def score(self):
@@ -428,23 +440,25 @@ class PrimerPair:
         print('score=', self.score)
         print('bisulfite score=', self.score_bisulfite)
         print('pair-annealing:')
-        pa = self.pair_annealing
+        pa = self.pa
         print('pa=%s, index=%s'%(pa.score,pa.index))
         print('\n'.join(pa.get_bar()))
-        pea = self.pair_end_annealing
+        pea = self.pea
         print('pea=%s, index=%s'%(pea.score,pea.index))
         print('\n'.join(pea.get_bar()))
         for r in [self.fw, self.rv]:
             r.write_text()
 
+    @classmethod
+    def get_table_head(cls):
+        return  ['pa.', 'pea.', 'score', 'bs score']
 
-    def write_html(self, w, pair_values=True, annealings=False):
-        head = Primer.get_table_head()
-        if pair_values:
-            head = head + ['pa.', 'pea.', 'score', 'bs score']
-
+    def get_table_row(self):
+        return [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]
+        
+    def write_html(self, w):
+        head = Primer.get_table_head() + self.get_table_head()
         b = xmlwriter.builder(w)
-        # primer table
         with b.div(cls='primerpair'):
             with b.table(cls='primerpairtable', border=1):
                 with b.tr:
@@ -453,18 +467,17 @@ class PrimerPair:
 
                 with b.tr:
                     for v in self.fw.get_table_row():
-                        b.td(str(v))
-                    if pair_values:
-                        for v in [self.pa.score, self.pea.score, '%.2f'%self.score, '%.2f'%self.score_bisulfite]:
-                            b.td(str(v),rowspan='2')
+                        b.td(v)
+                    for v in self.get_table_row():
+                        b.td(v,rowspan='2')
                 with b.tr:
                     for v in self.rv.get_table_row():
-                        b.td(str(v))
+                        b.td(v)
 
             b.p('Tm melting temperature(SantaLucia), oTm melting temperature for bisulfite methyl-template, sa. self annealing, sea. self end annealing, pa. pair annealing, pea. pair end annealing', style='font-size:x-small')
-            if annealings:
-                self.pair_annealing.write_html(w)
-                self.pair_end_annealing.write_html(w)
+            
+            #self.pa.write_html(w)
+            #self.pea.write_html(w)
 
 
 class Primers(NamedList):

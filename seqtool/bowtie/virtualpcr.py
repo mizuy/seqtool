@@ -126,7 +126,7 @@ def virtualpcr(template, seqstrs, bowtie_path, threshold=None):
     return result
 
 def main():
-    import sys, os
+    import os
     from optparse import OptionParser
 
     parser = OptionParser('usage: %prog [options] primer_sequence ...')
@@ -161,7 +161,6 @@ def main():
         else:
             print('no result')
                           
-    result = None
     if options.template:
         s(options.template)
     elif options.bisulfite:

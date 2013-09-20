@@ -1,6 +1,16 @@
-
+__all__ = ['seq_cpg_analysis']
 
 def drop_small_region(items, length):
+    """
+    >>> drop_small_region([(10,20),(100,300),(1000,2000)], 0)
+    [(10, 20), (100, 300), (1000, 2000)]
+    >>> drop_small_region([(10,20),(100,300),(1000,2000)], 200)
+    [(100, 300), (1000, 2000)]
+    >>> drop_small_region([(10,20),(100,300),(1000,2000)], 201)
+    [(1000, 2000)]
+    >>> drop_small_region([(10,20),(100,300),(1000,2000)], 2000)
+    []
+    """
     ret = []
     for p, q in items:
         if q-p >= length:
@@ -8,13 +18,22 @@ def drop_small_region(items, length):
     return ret
 
 def region_growing(items, gap=0):
+    """
+    >>> region_growing([(10,20),(100,300),(1000,2000)])
+    [(10, 20), (100, 300), (1000, 2000)]
+    >>> region_growing([(10,20),(15,30),(30,50)])
+    [(10, 50)]
+    """
     if len(items) < 2:
         return items
     p, q = items[0]
     rest = items[1:]
     for i in range(len(rest)):
         r, s = rest[i]
-        if r < q + gap:
+        assert(p <= r) # invalid input
+        #         p             q
+        #                r            s
+        if r <= q + gap:
             q = max(q, s)
             continue
         else:
@@ -27,19 +46,20 @@ class cpgisland_searcher(object):
     def __init__(self, length, window):
         self.length = length
         self.window = window
-        self.in_region = False
+        self.met_criteria = False
         self.islands = []
         self.start = 0
 
-    def p(self, i, in_region):
-        if self.in_region and (not in_region):
+    def p(self, i, met_criteria):
+        """point each base"""
+        if self.met_criteria and (not met_criteria):
             """region exit"""
             self.islands.append((self.start, i-1))
-            self.in_region = False
-        elif (not self.in_region) and in_region:
+            self.met_criteria = False
+        elif (not self.met_criteria) and met_criteria:
             """region enter"""
             self.start = i
-            self.in_region = True
+            self.met_criteria = True
 
     def finish(self):
         self.p(self.length, False)
@@ -76,8 +96,8 @@ def seq_cpg_analysis(seq, window):
         gc_per.append(gcp)
         obs.append(oe)
 
-        island = (gcp > 0.55) and (oe > 0.65)
-        sr.p(i, island)
+        island_criteria = (gcp > 0.55) and (oe > 0.65)
+        sr.p(i, island_criteria)
 
     cpg_islands = sr.finish()
 
