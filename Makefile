@@ -33,7 +33,6 @@ build: bisearch
 
 bootstrap:
 	virtualenv --python=python3.3 --system-site-packages env
-	#pip install Cython numpy
 	python setup.py develop
 
 pdf: source.pdf

@@ -250,7 +250,7 @@ class toc_builder(object):
 
     def write(self, w):
         w.push('ul')
-        self.top.html(w)
+        self.top.html(w, top=True)
         w.pop()
 
     def section(self, title, anchor=None):
@@ -280,15 +280,19 @@ class toc_element(object):
     def __exit__(self, type, value, tb):
         self.parent.pop()
 
-    def html(self, w):
-        w.push('li')
-        w.insert('a', self.name, href='#'+self.anchor)
-        w.pop()
-        if self.children:
-            w.push('ul')
+    def html(self, w, top=False):
+        if top:
             for child in self.children:
                 child.html(w)
+        else:            
+            w.push('li')
+            w.insert('a', self.name, href='#'+self.anchor)
             w.pop()
+            if self.children:
+                w.push('ul')
+                for child in self.children:
+                    child.html(w)
+                w.pop()
 
 class switchable_output(object):
     def __init__(self):

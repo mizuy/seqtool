@@ -174,7 +174,7 @@ class AbiFormat:
     def readfp(self, fp):
         header =  fp.read(4)
         if header != b'ABIF':
-            raise InvalidFormat()
+            raise InvalidFormat('This file is not AB1 file. header is: {}'.format(header))
 
         self.version =  struct.unpack('h', fp.read(2))[0]
         

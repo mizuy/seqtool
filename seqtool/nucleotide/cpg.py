@@ -1,11 +1,13 @@
-from . import to_unambiguous_seq
+from . import to_unambiguous_seq, to_ambiguous_seq
 
 '''
 sense
 CG -> YG
+C* -> T*
+
 anti-sense
 CG -> CR
-
+*G -> *A
 
 met-sense
 CG -> CG
@@ -49,9 +51,10 @@ def cpg_sites(seq, range_=(None,None)):
     """
     return all cpg location of seq
 
-    >>> list(cpg_sites('ATGCCGCGATCG'))
+    >>> seq = to_unambiguous_seq('ATGCCGCGATCG')
+    >>> list(cpg_sites(seq))
     [4, 6, 10]
-    >>> list(cpg_sites('ATGCCGCGATCG',(2,7)))
+    >>> list(cpg_sites(seq,(2,7)))
     [4, 6]
     """
     seqstr = str(seq)
@@ -73,35 +76,118 @@ def cpg_sites(seq, range_=(None,None)):
 
 def is_cpg(seq,i):
     """
-    >>> is_cpg('ATGCGC', 3)
+    >>> seq = to_unambiguous_seq('ATGCGC')
+    >>> is_cpg(seq, 3)
     True
-    >>> is_cpg('ATGCGC', 4)
+    >>> is_cpg(seq, 4)
     False
     """
-    if i+1>=len(seq):
-        return False
-    if seq[i:i+2] in ['CG','YG','CR']:
+    if not (i+1<len(seq)):
+        raise IndexError('out of range')
+    if str(seq)[i:i+2] in ['CG','YG','CR']:
         return True
     return False
 
 def count_cpg(seq, range_=(None,None)):
     """
-    >>> count_cpg('ATGCYGCGATCG')
+    >>> seq = to_ambiguous_seq('ATGCYGCGATCG')
+    >>> count_cpg(seq)
     3
-    >>> count_cpg('ATGCYGCGATCG'[2:7])
+    >>> count_cpg(seq[2:7])
     1
-    >>> count_cpg('ATGCYGCGATCG',(2,7))
+    >>> count_cpg(seq,(2,7))
     2
     """
     p,q = _cpg_range(range_, len(seq))
 
     return len(re_CpG.findall(str(seq)[p:q]))
 
-def _bisulfite_conversion(seq):
+def bisulfite_conversion(seq, sense=True):
+    """
+    >>> seq = to_unambiguous_seq('ATGCGC')
+    >>> bisulfite_conversion(seq, sense=True)
+    Seq('ATGYGT', IUPACAmbiguousDNA())
+    >>> bisulfite_conversion(seq, sense=False)
+    Seq('ATACRC', IUPACAmbiguousDNA())
+    """
+    muta = str(seq)
+    if sense:
+        muta = muta.replace('CG','YG').replace('C','T')
+    else:
+        muta = muta.replace('CG','CR').replace('G','A')
+    return to_ambiguous_seq(muta)
+    
+        
+def to_unambiguous(bsseq, methyl=True):
+    """
+    >>> to_unambiguous('ATGTYG', True)
+    Seq('ATGTCG', IUPACUnambiguousDNA())
+    >>> to_unambiguous('ATGTYG', False)
+    Seq('ATGTTG', IUPACUnambiguousDNA())
+    """
+    trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
+    return to_unambiguous_seq(str(bsseq).translate(trans))
+
+def bisulfite_conversion_unambiguous(seq, sense, methyl):
+    return to_unambiguous(bisulfite_conversion(seq, sense=sense), methyl=methyl)
+
+def bisulfite(seq, methyl, sense=True):
     """
     >>> import Bio.Seq as Seq
-    >>> _bisulfite_conversion(Seq.Seq('ATGCCGATGC'))
-    Seq('ATGTYGATGT', Alphabet())
+    >>> bisulfite(Seq.Seq('ATGCGC'), methyl=True)
+    Seq('ATGCGT', IUPACUnambiguousDNA())
+    >>> bisulfite(Seq.Seq('ATGCGC'), methyl=False)
+    Seq('ATGTGT', IUPACUnambiguousDNA())
+    >>> bisulfite(Seq.Seq('ATGCGC'), methyl=True, sense=False)
+    Seq('ATACGC', IUPACUnambiguousDNA())
+    >>> bisulfite(Seq.Seq('ATGCGC'), methyl=False, sense=False)
+    Seq('ATACAC', IUPACUnambiguousDNA())
+    """
+    key = '_b' + ('m' if methyl else 'u') + ('p' if sense else 'n')
+
+    if not hasattr(seq, key):
+        setattr(seq, key, bisulfite_conversion_unambiguous(seq, sense=sense, methyl=methyl))
+    return getattr(seq, key)
+
+def gc_ratio(seq):
+    """
+    >>> gc_ratio('ATGCCGGATT')
+    50.0
+    >>> gc_ratio('ATGYYGGATT')
+    40.0
+    """
+    c = seq.count('C')
+    c += seq.count('G')
+    c += .5 * seq.count('Y')
+    c += .5 * seq.count('R')
+    return 100. * c/len(seq)
+
+class BisulfiteTemplate:
+    def __init__(self, origin_seq):
+        self.origin = origin_seq
+        self.sense = bisulfite_conversion(True)
+        self.asense = bisulfite_conversion(False)
+
+
+# C->T conversion
+
+def _c2t_conversion(seq):
+    muta = seq.tomutable()
+    for i,c in enumerate(muta):
+        if c=='C':
+            muta[i] = 'Y'
+    return muta.toseq()
+
+def c2t_conversion(seq, sense=True):
+    return asymmetric_conversion(seq, lambda x: _c2t_conversion(x), sense)
+    
+# reference
+
+def _bisulfite_conversion(seq):
+    """
+    >>> seq = to_unambiguous_seq('ATGCCGATGC')
+    >>> _bisulfite_conversion(seq)
+    Seq('ATGTYGATGT', IUPACAmbiguousDNA())
     """
     seqstr = str(seq)
     l = len(seqstr)
@@ -120,15 +206,15 @@ def _bisulfite_conversion(seq):
 
         j += 1
 
-    return muta.toseq()
-
-def bisulfite_conversion(seq, sense=True):
+    return to_ambiguous_seq(str(muta))
+    
+def bisulfite_conversion_slow(seq, sense=True):
     """
-    >>> import Bio.Seq as Seq
-    >>> bisulfite_conversion(Seq.Seq('ATGCGC'), sense=True)
-    Seq('ATGYGT', Alphabet())
-    >>> bisulfite_conversion(Seq.Seq('ATGCGC'), sense=False)
-    Seq('ATACRC', Alphabet())
+    >>> seq = to_unambiguous_seq('ATGCGC')
+    >>> bisulfite_conversion_slow(seq, sense=True)
+    Seq('ATGYGT', IUPACAmbiguousDNA())
+    >>> bisulfite_conversion_slow(seq, sense=False)
+    Seq('ATACRC', IUPACAmbiguousDNA())
     """
     return asymmetric_conversion(seq, _bisulfite_conversion, sense=sense)
 
@@ -138,58 +224,4 @@ def asymmetric_conversion(seq, conv, sense):
     else:
         return conv(seq.reverse_complement()).reverse_complement()
 
-def to_unambiguous(bsseq, methyl=True):
-    """
-    >>> str(to_unambiguous('ATGTYG',True))
-    'ATGTCG'
-    >>> str(to_unambiguous('ATGTYG',False))
-    'ATGTTG'
-    """
-    trans = str.maketrans('YR','CG') if methyl else str.maketrans('YR','TA')
-    return to_unambiguous_seq(str(bsseq).translate(trans))
 
-def bisulfite_conversion_unambiguous(seq, sense, methyl):
-    return to_unambiguous(bisulfite_conversion(seq, sense=sense), methyl=methyl)
-
-def bisulfite(seq, methyl, sense=True):
-    """
-    >>> import Bio.Seq as Seq
-    >>> str(bisulfite(Seq.Seq('ATGCGC'), methyl=True))
-    'ATGCGT'
-    >>> str(bisulfite(Seq.Seq('ATGCGC'), methyl=False))
-    'ATGTGT'
-    """
-    key = '_bisulfite_' + ('met' if methyl else 'unmet') + '_' + ('sense' if sense else 'asense')
-
-    if not hasattr(seq, key):
-        ret = bisulfite_conversion_unambiguous(seq, sense=sense, methyl=methyl)
-        setattr(seq, key, ret)
-
-    return getattr(seq, key)
-
-def gc_ratio(seq):
-    """
-    >>> gc_ratio('ATGCCGGATT')
-    50.0
-    """
-    c = seq.count('C')
-    c += seq.count('G')
-    c += seq.count('Y')
-    c += seq.count('R')
-    return 100. * c/len(seq)
-
-def _c2t_conversion(seq):
-    muta = seq.tomutable()
-    for i,c in enumerate(muta):
-        if c=='C':
-            muta[i] = 'Y'
-    return muta.toseq()
-
-def c2t_conversion(seq, sense=True):
-    return asymmetric_conversion(seq, lambda x: _c2t_conversion(x), sense)
-
-class BisulfiteTemplate:
-    def __init__(self, origin_seq):
-        self.origin = origin_seq
-        self.sense = bisulfite_conversion(True)
-        self.asense = bisulfite_conversion(False)

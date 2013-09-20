@@ -10,7 +10,7 @@ from Cython.Build import cythonize
 #from distutils.extension import Extension
 #from Cython.Distutils import build_ext
 
-version = '0.5.0'
+version = '0.6.0'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'

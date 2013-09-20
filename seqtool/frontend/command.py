@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, glob
 from argparse import ArgumentParser
 
 from ..util.dirutils import Filepath
@@ -128,14 +128,20 @@ def geneview():
 
 def sequencing():
     parser = ArgumentParser(prog='sequencing', description='sequencing result aligner')
-    parser.add_argument('inputs', nargs='+', help=".seq files.")
+    parser.add_argument('inputs', nargs='*', help=".seq files.")
     parser.add_argument("-t", "--template", dest="template", help="template fasta file.")
     parser.add_argument("-o", "--output", dest="output", help="output html filename")
     parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
     parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
+    parser.add_argument("-d", "--default", dest="default", help='set default arguments', action='store_true')
 
     args = parser.parse_args()
 
+    if args.default:
+        args.template = 'reference.fasta'
+        args.inputs = glob.glob('*.ab1')
+        args.output = 'aligned.html'
+        
     if not os.path.exists(args.template):
         print('No such file: {}'.format(args.template))
         return
@@ -150,6 +156,7 @@ def sequencing():
             if args.open:
                 mac_open(outputp)
 
+                
 def abiview():
     parser = ArgumentParser(prog='abiview', description='ABI sequencing output viewer')
     parser.add_argument('ab1_filename', help=".ab1 file.")
