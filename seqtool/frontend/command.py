@@ -134,6 +134,7 @@ def sequencing():
     parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
     parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
     parser.add_argument("-d", "--default", dest="default", help='set default arguments', action='store_true')
+    parser.add_argument("-r", "--recursive", dest="recursive", help='set default arguments', action='store_true')
 
     args = parser.parse_args()
 
@@ -155,7 +156,7 @@ def sequencing():
 
             if args.open:
                 mac_open(outputp)
-
+                
                 
 def abiview():
     parser = ArgumentParser(prog='abiview', description='ABI sequencing output viewer')

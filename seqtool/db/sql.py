@@ -228,3 +228,7 @@ class GeneTable(object):
         gene_id, gene_symbol = self.get_gene_from_text(gene_text)
         locus = self.get_gene_locus(gene_id).expand(upstream, downstream)
         return self.get_locus_genbank(locus)
+
+if __name__=='__main__':
+    db = GeneTable('/Users/mizuy/tmp/')
+    print(db.get_genomic_context_genbank('MAL'))
