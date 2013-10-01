@@ -16,7 +16,9 @@ class DefaultSubFileSystem(object):
         pass
 
     def write(self, filename, content_text):
-        self.storage.append((self.get_link_path(filename), content_text))
+        link = self.get_link_path(filename)
+        self.storage.append((link, content_text))
+        return link
 
     def get_link_path(self, filename):
         return filename
@@ -33,7 +35,9 @@ class SubFileSystem(object):
         self.finish()
         
     def write(self, filename, content_text):
-        self.storage.append((self.get_link_path(filename), content_text))
+        link = self.get_link_path(filename)
+        self.storage.append((link, content_text))
+        return link
 
     def get_link_path(self, filename):
         return self._dirname() + filename
@@ -69,7 +73,9 @@ class SubsubFileSystem(object):
         pass
 
     def write(self, filename, content_text):
-        self.storage.append((self.get_link_path(filename), content_text))
+        link = self.get_link_path(filename)
+        self.storage.append((link, content_text))
+        return link
 
     def get_link_path(self, filename):
         return self.parent.get_link_path(self.prefix + '_' + filename)

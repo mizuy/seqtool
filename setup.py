@@ -42,6 +42,7 @@ virtualpcr = seqtool.bowtie.virtualpcr:main
 primer = seqtool.nucleotide.primer:main
 probe = seqtool.nucleotide.primer:probe
 
+bsa_figure = seqtool.script.bsa_figure:main
 pdesign = seqtool.script.pdesign:main
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
