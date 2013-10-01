@@ -80,6 +80,11 @@ class BsaFigure:
         else:
             return result
 
+    def get_summary(self, values):
+        l = [methyl_ratio(self.get_condensed(result)) for name,result in values]
+        n, mean, sd = n_mean_sd(l)
+        return "n={}, mean={:.2f}%, sd={:.2f}%".format(n,mean*100,sd*100)
+
     def svg_bar_circles(self, result, x, fixed):
         dx = CSIZE+PADDING
         if self.template:
@@ -111,6 +116,7 @@ class BsaFigure:
                 continue
                 
             figure.add(svg.SvgText(clone, 0, 0))
+            figure.add(svg.SvgText(self.get_summary(values), 0, 0))
             figure.add(svg.SvgItemsFixedHeight(HEIGHT/2.))
 
             ff = svg.SvgItemsVStack()

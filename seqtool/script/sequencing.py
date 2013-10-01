@@ -122,6 +122,7 @@ class Matrix:
         for keyname, views in self.each_target().items():
             with report.section(b, toc, keyname):
                 for view in views:
+                    print('rendering: {}'.format(view))
                     view.html_content(b, toc, subfs)
 
 
@@ -139,6 +140,7 @@ class Matrix:
             content = first.bs_result_file()
             bf = BsaFigure()
             bf.readfp(io.StringIO(content), 'bs_result.txt')
+            bf.sort()
             with b.a(href=subfs.write('bs_result.txt', content)):
                 b.text("bisulfite sequencing analysis result text")
             with b.a(href=subfs.write('bs_result.svg', bf.svg(False))):
