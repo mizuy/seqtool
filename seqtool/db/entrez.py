@@ -11,6 +11,7 @@ class EntrezEfetchError(Exception):
 
 class CachedEntrez(object):
     def __init__(self, cache_dir, email):
+        print("Using email {} for entrez".format(email))
         self.cache_dir = cache_dir
         Entrez.email = email
 
@@ -23,6 +24,7 @@ class CachedEntrez(object):
             with open(fname,'r') as f:
                 return f.read()
         try:
+            args = {str(k): str(v) for k,v in args.items()}
             print("Entrez.efetch..: %s"%(args))
             handle = Entrez.efetch(**args)
             ret = handle.read()
