@@ -174,7 +174,7 @@ class TreekvParser(object):
                 self.logger.write(li.error_msg('Ignoring the line due to unkown tab stop {}. tab stops must be {}*n'.format(tab, self.tab_size)) )
                 continue
 
-            l = line.strip()
+            l = line.lstrip()
 
             if not l or l.startswith('#') or l.startswith('//') or l.startswith(';'):
                 continue

@@ -1,8 +1,9 @@
 import sys, os, glob
 from argparse import ArgumentParser
-
+from collections import defaultdict
 from ..util.dirutils import Filepath
 from ..util.debug import report_exceptions
+from ..util import DefaultOrderedDict
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -134,24 +135,54 @@ def sequencing():
     parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
     parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
     parser.add_argument("-d", "--default", dest="default", help='set default arguments', action='store_true')
-
+    
     args = parser.parse_args()
 
     if args.default:
         args.template = 'reference.fasta'
-        args.inputs = glob.glob('*.ab1')
+        args.inputs = '.'
+
+    if not args.template:
+        log('No template file.')
+        return
+
+    if not args.output:
         args.output = 'aligned.html'
-        
+
     if not os.path.exists(args.template):
         print('No such file: {}'.format(args.template))
         return
 
-    inputps = [Filepath(i).path for i in args.inputs]
     outputp = Filepath(args.output)
+        
+    srcs = DefaultOrderedDict(list)
+    inputs = []
+
+    def sf(f):
+        n,ext = os.path.splitext(f)
+        return ext in ['.ab1']
+        #return ext in ['.seq','.ab1']
+        
+    for input in args.inputs:
+        if os.path.isdir(input):
+            for dpath, dnames, fnames in os.walk(input):
+                dnames.sort()
+                fnames.sort()
+                #if os.path.basename(dpath) == 'trash':
+                #    continue
+                for f in fnames:
+                    if sf(f):
+                        srcs[dpath].append(Filepath(os.path.join(dpath,f)).path)
+        else:
+            if sf(input):
+                srcs['top'].append(Filepath(input).path)
+
+    inputps = [Filepath(i).path for i in sum(srcs.values(), [])]
+            
     if check_update(outputp.path, inputps, args.force):
         with report_exceptions():
-            from ..script.sequencing import sequencing_alignment
-            sequencing_alignment(args.template, inputps, outputp)
+            from ..script.sequencing import sequencing_alignment_dir
+            sequencing_alignment_dir(args.template, srcs, outputp)
 
             if args.open:
                 mac_open(outputp)
