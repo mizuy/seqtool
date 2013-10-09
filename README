@@ -38,13 +38,16 @@ see appdirs documentation for other platforms.
 
 ** bootstrap
 
-% virtualenv --python=python3.3 --system-site-packages env
+% virtualenv --version
+1.10.1
+% python3.3 --version
+Python 3.3.2
+
+% virtualenv --python=python3.3 --no-site-packages env
 % source env/bin/activate
 % pip install numpy
 % pip install Cython
 % python setup.py develop
-
-see Makefile bootstrap
 
 ** databases
 

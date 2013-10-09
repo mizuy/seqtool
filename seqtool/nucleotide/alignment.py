@@ -1,7 +1,18 @@
 from .sw_c import smith_waterman
 from collections import defaultdict
 
+#from enum import Enum
+
 __all__ = ['make_alignment']
+
+
+from Bio.Seq import Seq
+from Bio.Alphabet import generic_dna
+
+def reverse_complement(seq_gap):
+    return str(Seq(seq_gap, generic_dna).reverse_complement())
+
+SCORE_THRESHOLD = 1.5
 
 class GapBase:
     def __init__(self, index_gap, index_nongap=None, gapindex=None, gaplen=None, gapleft=None):
@@ -61,6 +72,9 @@ class GapSeq:
 
     def __str__(self):
         return self.seq_gap
+
+    def __repr__(self):
+        return 'GapSeq("{}")'.format(self.seq_gap)
 
     def __len__(self):
         return len(self.seq_gap)
@@ -167,6 +181,17 @@ class AlignedSeq(object):
 
         self.adjust = len(self.first)
 
+    def __repr__(self):
+        return 'AlignedSeq("{}")'.format(self.combined_gap)
+
+    def reverse_complement(self):
+        seq = reverse_complement(self.seq)
+        mid_gap = reverse_complement(self.mid_gap.seq_gap)
+        l = len(self.seq)
+        p,q = self.location
+        
+        return AlignedSeq(seq, l-q, l-p, mid_gap)
+
     def local(self, upstream, downstream):
         return self.first_adjust(upstream) + self.mid_gap.seq_gap + self.last_adjust(downstream)
 
@@ -185,47 +210,49 @@ class AlignedSeq(object):
         else:
             cc = min(2, length)
             return self.last[:(length-cc)] + '.'*cc
-        
 
-M_MATCH = 0
-M_MISMATCH = 1
-M_NOTBAD = 2
-M_GAP = 3
+class BaseMatch:
+    MATCH = 0
+    MISMATCH = 1
+    NOTBAD = 2
+    GAP = 3
 
-def does_match(i,j):
-    if i == j:
-        return M_MATCH
-    elif i=='-' or j=='-':
-        return M_GAP
-    elif i=='N' or j=='N':
-        return M_NOTBAD
+    @classmethod
+    def does_match(cls, i,j):
+        if i == j:
+            return cls.MATCH
+        elif i=='-' or j=='-':
+            return cls.GAP
+        elif i=='N' or j=='N':
+            return cls.NOTBAD
 
-    elif i == 'Y':
-        if j=='C' or j=='T':
-            return M_MATCH
-    elif i == 'R':
-        if j=='G' or j=='A':
-            return M_MATCH
+        elif i == 'Y':
+            if j=='C' or j=='T':
+                return cls.MATCH
+        elif i == 'R':
+            if j=='G' or j=='A':
+                return cls.MATCH
 
-    elif j == 'Y':
-        if i=='C' or i=='T':
-            return M_MATCH
-    elif j == 'R':
-        if i=='G' or i=='A':
-            return M_MATCH
-    return M_MISMATCH
+        elif j == 'Y':
+            if i=='C' or i=='T':
+                return cls.MATCH
+        elif j == 'R':
+            if i=='G' or i=='A':
+                return cls.MATCH
+        return cls.MISMATCH
 
-def match_bar(s0, s1):
-    """
-    ATNCATGC
-    ||:||| |
-    ATGCATCC
+    @classmethod
+    def match_bar(cls, s0, s1):
+        """
+        ATNCATGC
+        ||:||| |
+        ATGCATCC
 
-    >>> match_bar('ATNCATGC','ATGCATCC')
-    '||:||| |'
-    """
-    assert(len(s0)==len(s1))
-    return ''.join('| : '[does_match(s0[i],s1[i])] for i in range(len(s0)))
+        >>> match_bar('ATNCATGC','ATGCATCC')
+        '||:||| |'
+        """
+        assert(len(s0)==len(s1))
+        return ''.join('| : '[cls.does_match(s0[i],s1[i])] for i in range(len(s0)))
 
 def dividing_point(left, right, ratio):
     """
@@ -244,6 +271,8 @@ def make_alignment(seq_s0,seq_s1):
 
 class CorrespondanceMap:
     def __init__(self, s0, s1):
+        self.s0 = s0
+        self.s1 = s1
         assert(len(s0)==len(s1))
         self.m_map = defaultdict(lambda: defaultdict(int))
         self.m_str = defaultdict(str)
@@ -252,6 +281,11 @@ class CorrespondanceMap:
             self.m_map[p][q] += 1
             self.m_str[p] += q
 
+    def get_bsa_result(self):
+        y = self.m_str['Y']
+        g = self.m_str['R']
+        return y or g
+            
     def text_map(self):
         ret = ''
         for k,v in self.m_map.items():
@@ -271,9 +305,15 @@ class Alignment(object):
         self.aseq0 = aseq0
         self.aseq1 = aseq1
         self.score = mv
+
+    def __repr__(self):
+        return 'Alignment(score={}, seq0={}, seq1={})'.format(self.score, self.aseq0, self.aseq1)
         
     def reversed(self):
         return Alignment(self.aseq1, self.aseq0, self.score)
+
+    def reverse_complement(self):
+        return Alignment(self.aseq0.reverse_complement(), self.aseq1.reverse_complement(), self.score)
 
     def text_all(self):
         u,d = self.get_longest_first_last_length()
@@ -291,7 +331,7 @@ class Alignment(object):
                                    self.aseq0.local(u,d) )
 
     def match_bar(self):
-        return match_bar(self.aseq0.mid_gap.seq_gap, self.aseq1.mid_gap.seq_gap)
+        return BaseMatch.match_bar(self.aseq0.mid_gap.seq_gap, self.aseq1.mid_gap.seq_gap)
 
     def correspondance_map(self):
         u,d = len(self.aseq0.first),len(self.aseq0.last)
@@ -328,16 +368,21 @@ class Alignment(object):
                 yield loc[gapbase.index_nongap]
 
         yield from seq0_location[q:q+d]
-                
+
+    def get_match_result(self):
+        u,d = len(self.aseq0.first),len(self.aseq0.last)
+        compare,gap = self.compare_bar()
+        return '-'*u + compare + '-'*d
+        
     def compare_bar(self):
         """
-        view   : ATTTG-CA
+        seq1   : ATTTG-CA
         match  : |   |  :
-        base   : A---AACN
+        seq0   : A---AACN
 
-        compare: Ag-CA
-        gap    :  <
-        based  : AAACN
+        seq1_compare: Ag-CA
+        gap         :  <
+        seq0        : AAACN
         """
 
         base = self.aseq0.mid_gap.seq_gap
@@ -353,16 +398,16 @@ class Alignment(object):
             next_gap = False
 
         for bi,vi in zip(base,view):
-            m = does_match(bi,vi)
-            if m==M_MATCH or m==M_NOTBAD:
+            m = BaseMatch.does_match(bi,vi)
+            if m==BaseMatch.MATCH or m==BaseMatch.NOTBAD:
                 compare.append(vi)
                 append_gap()
-            elif m==M_GAP and bi=='-':
+            elif m==BaseMatch.GAP and bi=='-':
                 next_gap = True
-            elif m==M_GAP and vi=='-':
+            elif m==BaseMatch.GAP and vi=='-':
                 compare.append('-')
                 append_gap()
-            elif m==M_MISMATCH:
+            elif m==BaseMatch.MISMATCH:
                 compare.append(vi.lower())
                 append_gap()
             else:
@@ -377,6 +422,9 @@ class Alignment(object):
 
     def score_density(self):
         return 1. * self.score / self.length()
+
+    def criteria(self):
+        return self.score_density() > SCORE_THRESHOLD
 
     def score_text(self):
         return '{} = {:.2f} * {}'.format(self.score, self.score_density(), self.length())

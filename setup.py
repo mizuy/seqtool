@@ -10,7 +10,7 @@ from Cython.Build import cythonize
 #from distutils.extension import Extension
 #from Cython.Distutils import build_ext
 
-version = '0.6.0'
+version = '0.7.0'
 
 README = os.path.join(os.path.dirname(__file__), 'README')
 long_description = open(README).read() + '\n\n'
@@ -33,7 +33,7 @@ geneview = seqtool.frontend.command:geneview
 tssview = seqtool.frontend.command:tssview
 primers = seqtool.frontend.command:primers
 sequencing = seqtool.frontend.command:sequencing
-seqdb = seqtool.frontend.command:seqdb_command
+seqtooldb = seqtool.db:seqdb_command
 abiview = seqtool.frontend.command:abiview
 
 convert_bs = seqtool.bowtie.convert_bs:main
@@ -42,6 +42,7 @@ virtualpcr = seqtool.bowtie.virtualpcr:main
 primer = seqtool.nucleotide.primer:main
 probe = seqtool.nucleotide.primer:probe
 
+bsa_figure = seqtool.script.bsa_figure:main
 pdesign = seqtool.script.pdesign:main
 bisulfite = seqtool.script.bisulfite:main
 rpm = seqtool.script.cf:main
@@ -59,7 +60,7 @@ setup(
     url='http://github.com/mizuy/seqtool',
     license='MIT',
     packages=find_packages(),
-    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs'],
+    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs', 'mysql-connector-python'],
     test_suite='nose.collector',
     ext_modules = cythonize('seqtool/seqtool/nucleotide/sw_c.pyx'),
     include_dirs = [numpy.get_include()],

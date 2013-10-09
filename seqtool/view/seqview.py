@@ -89,8 +89,7 @@ class Seqview(object):
                     kv = tree.get_one('general/gene')
                     if kv:
                         try:
-                            gene_id, gene_symbol = db.genetable.get_gene_from_text(kv.value)
-                            e = cls.create_gene(gene_symbol, gene_id)
+                            e = cls.create_gene(kv.value.strip())
                         except db.NoSuchGene as e:
                             print('gene entry: No such Gene %s'%kv.value)
             if not e:
@@ -194,12 +193,13 @@ class Seqview(object):
         return cls(name, template)
 
     @classmethod
-    def create_gene(cls, name, gene_id):
-        gl = db.genetable.get_gene_locus(gene_id)
-        locus = gl.expand(1000,1000)
-        genbank = db.genetable.get_locus_genbank(locus)
+    def create_gene(cls, gene_symbol):
+        locus = db.instance.genomedb.get_gene_locus(gene_symbol)
+        print(gene_symbol,locus)
+        locus = locus.expand(1000,1000)
+        genbank = db.instance.centrez.get_genbank(locus)
         template = temp.GenbankTemplate(genbank, locus)
-        return cls(name, template)
+        return cls(gene_symbol, template)
 
     def svg_genome(self):
         # todo change track_genome to svg_genome(self, t)

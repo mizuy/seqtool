@@ -1,8 +1,9 @@
 import sys, os, glob
 from argparse import ArgumentParser
-
+from collections import defaultdict
 from ..util.dirutils import Filepath
 from ..util.debug import report_exceptions
+from ..util import DefaultOrderedDict
 
 def log(message):
     sys.stderr.write('{0}\n'.format(message))
@@ -113,14 +114,14 @@ def geneview():
     init_db()
     try:
         from .. import db
-        gene_id, gene_symbol = db.genetable.get_gene_from_text(gene_symbol)
+        genbank = db.instance.get_genbank(gene_symbol)
     except db.NoSuchGene:
         log('gene entry: No such Gene %s'%gene_symbol)
         return
 
     from ..view import seqview as seqv
-    sv = seqv.Seqview.create_gene(gene_symbol, gene_id)
-    sv.add_dbtss(db.dbtss.get_dbtss_tissues())
+    sv = seqv.Seqview.create_gene(gene_symbol)
+    sv.add_dbtss(db.instance.beddb.get_dbtss_tissues())
     sv.write_html(outputp)
 
     if args.open:
@@ -134,28 +135,57 @@ def sequencing():
     parser.add_argument("--open", dest="open", help="open output file using Mac command 'open'", action='store_true')
     parser.add_argument("-f", "--force", dest="force", help="force update", action='store_true')
     parser.add_argument("-d", "--default", dest="default", help='set default arguments', action='store_true')
-
     args = parser.parse_args()
 
     if args.default:
         args.template = 'reference.fasta'
-        args.inputs = glob.glob('*.ab1')
+        args.inputs = '.'
+
+    if not args.template:
+        log('No template file.')
+        return
+
+    if not args.output:
         args.output = 'aligned.html'
-        
+
     if not os.path.exists(args.template):
         print('No such file: {}'.format(args.template))
         return
 
-    inputps = [Filepath(i).path for i in args.inputs]
     outputp = Filepath(args.output)
+        
+    srcs = DefaultOrderedDict(list)
+    inputs = []
+
+    def sf(f):
+        n,ext = os.path.splitext(f)
+        return ext in ['.ab1']
+        #return ext in ['.seq','.ab1']
+        
+    for input in args.inputs:
+        if os.path.isdir(input):
+            for dpath, dnames, fnames in os.walk(input):
+                dnames.sort()
+                fnames.sort()
+                #if os.path.basename(dpath) == 'trash':
+                #    continue
+                for f in fnames:
+                    if sf(f):
+                        srcs[dpath].append(Filepath(os.path.join(dpath,f)).path)
+        else:
+            if sf(input):
+                srcs['top'].append(Filepath(input).path)
+
+    inputps = [Filepath(i).path for i in sum(srcs.values(), [])]
+            
     if check_update(outputp.path, inputps, args.force):
         with report_exceptions():
-            from ..script.sequencing import sequencing_alignment
-            sequencing_alignment(args.template, inputps, outputp)
+            from ..script.sequencing import sequencing_alignment_dir
+            sequencing_alignment_dir(args.template, srcs, outputp)
 
             if args.open:
                 mac_open(outputp)
-
+                
                 
 def abiview():
     parser = ArgumentParser(prog='abiview', description='ABI sequencing output viewer')
@@ -179,16 +209,16 @@ def abiview():
                 
 def get_genbank():
     parser = ArgumentParser(prog='get_genbank', description='Retrieve Genbank from Gene ID or Gene Symbol')
-    parser.add_argument("gene", help="Gene ID or Gene Symbol")
+    parser.add_argument("gene_symbol", help="Gene Symbol")
 
     args = parser.parse_args()
 
     init_db()
     from .. import db
-    genbank = db.genetable.get_genomic_context_genbank(args.gene)
+    genbank = db.instance.get_genbank(args.gene_symbol)
 
     if not genbank:
-        print("Failed to retrieve GenBank: ", args.gene)
+        print("Failed to retrieve GenBank: ", args.gene_symbol)
         return
     sys.stdout.write(genbank)
 
@@ -220,51 +250,4 @@ def primers():
             with b.body(style='font-family:monospace;font-size:small'):
                 b.h1('Primers')
                 ps.write_html(html)
-
-def seqdb_command():
-    from argparse import ArgumentParser
-    from .configuration import GeneralConfiguration
-    parser = ArgumentParser(prog='seqdb', description='seqtool database administration.')
-    parser.add_argument("--cache_dir", help='database directory')
-
-    subparsers = parser.add_subparsers(help='sub-command help')
-    parser_load = subparsers.add_parser('load', help='load database')
-    parser_load.add_argument("--ucsc_tab_file", default='ucsc.tab', help='see Makefile')
-    parser_load.add_argument("--hgnc_tab_file", default='hgnc.tab', help='see Makefile')
-    parser_load.add_argument("--chrom_tab_file", default='chrom.tab', help='see Makefile')
-    parser_load.set_defaults(func=seqdb_load)
-
-    parser_dbtss = subparsers.add_parser('dbtss', help='dbtss database')
-    parser_dbtss.add_argument("--bed_dir", help='bed directory')
-    parser_dbtss.set_defaults(func=seqdb_dbtss)
-
-    parser_clear = subparsers.add_parser('clear', help='clear database')
-    parser_clear.set_defaults(func=seqdb_clear)
-
-    if (len(sys.argv) < 2):
-        args = parser.parse_args(['-h'])
-    else:
-        args = parser.parse_args(sys.argv[1:])
-
-    if not args.cache_dir:
-        gc = GeneralConfiguration()
-        args.cache_dir = gc.get_cache_dir()
-
-    args.func(args)
-
-
-def seqdb_clear(args):
-    from .. import db
-    db.clear(args.cache_dir)
-    print("genetable cleared.")
-
-def seqdb_dbtss(args):
-    from .. import db
-    print("loading dbtss...")
-    db.load_dbtss(bed_dir=args.bed_dir, cache_dir=args.cache_dir)
-
-def seqdb_load(args):
-    from .. import db
-    print("loading gene tables...")
-    db.load_table(args.cache_dir, args.chrom_tab_file, args.hgnc_tab_file, args.ucsc_tab_file)
 

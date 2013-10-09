@@ -1,6 +1,2 @@
-*.tab
-*.bed
-*.gz
+mysql_password
 /dbtss
-table
-
