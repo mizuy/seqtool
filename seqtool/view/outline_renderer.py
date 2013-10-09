@@ -164,9 +164,7 @@ class OutlineRenderer(NamedTracks):
 
         et = svg.SvgItemsFixedHeight(10)
 
-        def loc_len(loc):
-            return loc.nofuzzy_end - loc.nofuzzy_start
-        exons = [loc_len(sf.location) for sf in feature.sub_features]
+        exons = [len(part) for part in feature.location.parts]
 
         count = 0
         for e in exons:
@@ -184,10 +182,10 @@ class OutlineRenderer(NamedTracks):
         t = svg.SvgItemsFixedHeight(height)
         loc = feature.location
 
-        if feature.sub_features:
+        if len(loc.parts) > 1:
             t.add(self.gen.hline( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2))
-            for sf in feature.sub_features:
-                t.add(self.gen.hbar( sf.location.nofuzzy_start, sf.location.nofuzzy_end, t.height/2, 3., klass='subfeature'))
+            for part in loc.parts:
+                t.add(self.gen.hbar( part.nofuzzy_start, part.nofuzzy_end, t.height/2, 3., klass='subfeature'))
         else:
             t.add(self.gen.hbar( loc.nofuzzy_start, loc.nofuzzy_end, t.height/2, 3., klass='feature'))
 
