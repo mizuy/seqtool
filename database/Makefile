@@ -1,22 +1,22 @@
 BIN = ../env/bin
 
+PASSWORD = `cat mysql_password`
+
 all: table dbtss
 
-table: ucsc.tab hgnc.tab chrom.tab
-	$(BIN)/seqdb load --chrom_tab_file=chrom.tab --ucsc_tab_file=ucsc.tab --hgnc_tab_file=hgnc.tab
+table:
+	$(BIN)/seqtooldb load --host=localhost --password=$(PASSWORD)
+	touch table
+
+table-ucsc:
+	$(BIN)/seqtooldb load --host=genome-mysql.cse.ucsc.edu
 	touch table
 
 dbtss:
-	$(BIN)/seqdb dbtss --bed_dir=./dbtss/adult-tissue/
+	$(BIN)/seqtooldb bed --bed_dir=./dbtss/adult-tissue/
 	touch dbtss
 
 clear:
-	$(BIN)/seqdb clear
+	$(BIN)/seqtooldb clear
 
-ucsc.tab:
-	curl --output ucsc.tab "http://genome.ucsc.edu/cgi-bin/hgTables?hgsid=310886027&clade=mammal&org=Human&db=hg19&hgta_group=genes&hgta_track=refGene&hgta_table=refGene&hgta_regionType=genome&position=chr21%3A33031597-33041570&hgta_outputType=primaryTable&hgta_outFileName=&submit=submit&hgta_doTopSubmit=1"
-
-hgnc.tab:
-	curl --output hgnc.tab "http://www.genenames.org/cgi-bin/hgnc_downloads?col=gd_app_sym&col=md_eg_id&status=Approved&status=Entry%20Withdrawn&status_opt=2&where=&order_by=gd_app_sym_sort&format=text&limit=&hgnc_dbtag=on&submit=submit"
-
-.PHONY:	table dbtss
+.PHONY:	table dbtss clear table-ucsc

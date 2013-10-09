@@ -33,7 +33,7 @@ geneview = seqtool.frontend.command:geneview
 tssview = seqtool.frontend.command:tssview
 primers = seqtool.frontend.command:primers
 sequencing = seqtool.frontend.command:sequencing
-seqdb = seqtool.frontend.command:seqdb_command
+seqtooldb = seqtool.db:seqdb_command
 abiview = seqtool.frontend.command:abiview
 
 convert_bs = seqtool.bowtie.convert_bs:main
@@ -59,7 +59,7 @@ setup(
     url='http://github.com/mizuy/seqtool',
     license='MIT',
     packages=find_packages(),
-    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs'],
+    install_requires=['biopython','numpy', 'sqlalchemy', 'cython', 'appdirs', 'mysql-connector-python'],
     test_suite='nose.collector',
     ext_modules = cythonize('seqtool/seqtool/nucleotide/sw_c.pyx'),
     include_dirs = [numpy.get_include()],

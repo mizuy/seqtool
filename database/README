@@ -1,20 +1,69 @@
+# How to setup database
 
-** how to setup db
+## gene tables
 
-** gene tables
+first, setup your own UCSC mysql server
 
-make table
+% make table
 
 see Makefile
 
-** dbtss
+or you can use ucsc mysql server directly
+
+http://genome.ucsc.edu/goldenPath/help/mysql.html
+
+% make table-ucsc
+
+## dbtss BED
 
 DBTSS: http://dbtss.hgc.jp/
-
 
 download bed files of 'liftover' folders.
 ftp://ftp.hgc.jp/pub/hgc/db/dbtss/dbtss_ver8/hg19_liftover/TSSseq/bed/adult-tissue/
 
-see Makefile to load bed files.
+DBTSS bed files are not compatible with http://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
+% see Makefile to load bed files.
+
+TODO: standard BED file importing.
+
+## How to create your own ucsc mysql server
+
+http://nsaunders.wordpress.com/2011/05/18/how-to-create-a-partial-ucsc-genome-mysql-database/
+http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/
+
+### install and user creation
+% brew install mariadb
+% mysql.server start
+% mysql -uroot
+# set root password....
+% mysql -uroot -p...
+> GRANT ALL PRIVILEGES ON *.* TO genome@localhost WITH GRANT OPTION;
+> set password for genome@localhost=PASSWORD('...');
+> select user,host from mysql.user;
++--------+-----------+
+| user   | host      |
++--------+-----------+
+| genome | localhost |
+| root   | localhost |
++--------+-----------+
+
+% mysql -ugenome -p...
+> create database hg19;
+> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| hg19               |
+| mysql              |
+| performance_schema |
+| test               |
++--------------------+
+
+% wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/knownGene.sql
+% wget http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/knownGene.txt.gz
+% gunzip knownGene.txt.gz
+% mysql -ugenome -p... hg19 < knownGene.sql
+% mysqlimport -u genome -p... --local hg19 < knownGene.txt
 

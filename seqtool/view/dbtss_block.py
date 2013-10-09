@@ -4,7 +4,7 @@ from .. import db
 class DbtssBlock(block.BaseBlock):
     def __init__(self, template, tissues):
         self.template = template
-        self.gsl = db.dbtss.get_genomeset_locus(tissues, self.template.locus)
+        self.gsl = db.instance.beddb.get_genomeset_locus(tissues, self.template.locus)
     
     def svg_genome(self, t):
         assert(self.template)
