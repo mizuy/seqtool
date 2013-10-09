@@ -5,10 +5,10 @@ from ..util.namedlist import NamedList
 import numpy
 import os, glob
 
-__all__ = ['Dbtss']
+__all__ = ['BedDB']
 
 """
-db = Dbtss()
+db = BedDB()
 db.load()
 for tissue in db.get_tissues():
     for loc, value in tissue.search('chrX', '+', 3045, 3145):
@@ -159,12 +159,12 @@ class GenomeSetLocus(object):
     def count_tags(self, start, stop):
         return [str(r.count_range(start, stop)) for r in self.gl]
 
-class Dbtss(object):
+class BedDB(object):
     def __init__(self):
         self.genomeset = None
 
     def cache_file(self, cache_dir):
-        return os.path.join(cache_dir, 'dbtss.cache')
+        return os.path.join(cache_dir, 'beddb.pickle.cache')
 
     def load_cache(self, cache_dir):
         cache_file = self.cache_file(cache_dir)
